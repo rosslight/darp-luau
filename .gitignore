@@ -1,0 +1,13 @@
+# IDE
+.idea/
+
+# Build artifacts
+build/
+cmake-build-debug/
+cmake-build-release/
+
+bin/
+obj/
+
+src/Darp.Lua.Net/Generated
+src/Darp.Lua.Net/lib

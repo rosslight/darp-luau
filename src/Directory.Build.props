@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <!-- Framework -->
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <WarningsAsErrors>true</WarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- Nuget Package -->
+    <Authors>rosslight GmbH</Authors>
+    <PackageProjectUrl>https://github.com/rosslight/darp-lua-net</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+</Project>
