@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Darp.Luau.Generator/Darp.Luau.Generator.csproj" />
     <Project Path="src/Darp.Luau/Darp.Luau.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Darp.Luau.Generator.Tests/Darp.Luau.Generator.Tests.csproj" />
     <Project Path="tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj" />
   </Folder>
 </Solution>

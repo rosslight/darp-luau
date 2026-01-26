@@ -84,8 +84,8 @@ public sealed unsafe class LuauState : IDisposable
         }
     }
 
-    public LuauFunction CreateFunction<T>(T value)
-        where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");
+    public LuauFunction CreateFunction(Delegate value) =>
+        throw new InvalidOperationException("This method should be intercepted!");
 
     /// <summary> Creates a new luau string </summary>
     /// <param name="value"> The string </param>
@@ -94,16 +94,13 @@ public sealed unsafe class LuauState : IDisposable
     {
         Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(value)];
         int numberOfBytes = Encoding.UTF8.GetBytes(value, buffer);
-#pragma warning disable CS9080
-        // The buffer does not escape since we do not store it in the returned LuauString but copy it to lua
         return CreateString(buffer[..numberOfBytes]);
-#pragma warning restore CS9080 // Use of variable in this context may expose referenced variables outside of their declaration scope
     }
 
     /// <summary> Creates a new luau string </summary>
     /// <param name="utf8Value"> The utf8 string </param>
     /// <returns> The reference to the LuauString </returns>
-    public LuauString CreateString(ReadOnlySpan<byte> utf8Value)
+    public LuauString CreateString(scoped ReadOnlySpan<byte> utf8Value)
     {
         this.ThrowIfDisposed();
         ObjectDisposedException.ThrowIf(_disposing > 0, this);

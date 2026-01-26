@@ -12,3 +12,7 @@ obj/
 
 src/Darp.Lua.Net/Generated
 src/Darp.Lua.Net/lib
+
+# Verify
+*.received.*
+*.received/
