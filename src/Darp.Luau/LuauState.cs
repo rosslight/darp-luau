@@ -84,8 +84,8 @@ public sealed unsafe class LuauState : IDisposable
         }
     }
 
-    public LuauFunction CreateFunction(Delegate value) =>
-        throw new InvalidOperationException("This method should be intercepted!");
+    public LuauFunction CreateFunction<T>(T value)
+        where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");
 
     /// <summary> Creates a new luau string </summary>
     /// <param name="value"> The string </param>

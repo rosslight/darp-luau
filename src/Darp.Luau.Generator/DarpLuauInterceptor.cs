@@ -25,8 +25,8 @@ public sealed class DarpLuauInterceptor : IIncrementalGenerator
                     .GetMembers("CreateFunction")
                     .OfType<IMethodSymbol>()
                     .FirstOrDefault(m =>
-                        m.Parameters.Length == 1
-                        && SymbolEqualityComparer.Default.Equals(m.Parameters[0].Type, delegateType)
+                        m.Parameters is [{ Type: ITypeParameterSymbol { ConstraintTypes.Length: 1 } typeSymbol }]
+                        && SymbolEqualityComparer.Default.Equals(typeSymbol.ConstraintTypes[0], delegateType)
                     );
             }
         );

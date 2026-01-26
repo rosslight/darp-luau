@@ -1,6 +1,6 @@
 using System.CodeDom.Compiler;
 
-namespace Darp.Luau.Generator;
+namespace Darp.Luau.Generator.Helpers;
 
 internal static class RoslynHelper
 {

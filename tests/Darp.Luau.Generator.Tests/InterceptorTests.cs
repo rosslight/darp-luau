@@ -48,7 +48,11 @@ public class InterceptorTests
                 public static void DoSomething(LuauState state)
                 {
                     state.CreateFunction((string p1) => {});
+                    state.CreateFunction((string p1, string p2) => {});
+                    state.CreateFunction(OnCall);
                 }
+
+                private static void OnCall(string p1, string p2) { }
             }
             """;
         await VerifyHelper.VerifyGenerator(code);
