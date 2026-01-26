@@ -1,7 +1,6 @@
-using Darp.Luau;
 using Shouldly;
 
-namespace Darp.Lua.Net.Tests;
+namespace Darp.Luau.Tests;
 
 public sealed class FunctionTests
 {

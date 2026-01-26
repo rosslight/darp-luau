@@ -10,6 +10,9 @@ Luau bindings and a higher level wrapper
 - Clean, safe and performant API with ref structs for Lifetime management of references
 - Managed and typed function callbacks by using interceptors (TODO)
 - Confidence through high unit test coverage (TODO)
+- Proper error management (TODO)
+- Module support (TODO)
+- Async (Thread and Coroutines) support (MAYBE)
 
 ## Usage
 

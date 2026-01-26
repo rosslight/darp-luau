@@ -56,10 +56,12 @@ public sealed unsafe class LuauState : IDisposable
     public LuauFunction CreateFunction(LuauFunctionBuilder onCalled)
     {
         this.ThrowIfDisposed();
+
         lua_CFunction f = F;
 #pragma warning disable CS0618 // This is the only place we want to save the delegates
         _delegateSave.Add(f);
 #pragma warning restore CS0618 // Type or member is obsolete
+
         lua_pushcfunction(L, f, null);
         int refs = lua_ref(L, -1);
         return new LuauFunction(this, refs);

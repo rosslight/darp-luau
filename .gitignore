@@ -1,5 +1,6 @@
 # IDE
 .idea/
+*.DotSettings.user
 
 # Build artifacts
 build/

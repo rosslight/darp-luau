@@ -1,9 +1,8 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Darp.Lua.Net/Darp.Lua.Net.csproj" />
     <Project Path="src/Darp.Luau/Darp.Luau.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Darp.Lua.Net.Tests/Darp.Lua.Net.Tests.csproj" />
+    <Project Path="tests/Darp.Luau.Tests/Darp.Luau.Tests.csproj" />
   </Folder>
 </Solution>
