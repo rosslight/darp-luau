@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -70,59 +71,69 @@ public readonly ref struct LuauValue
     public static implicit operator LuauValue(LuauFunction value) =>
         new(value.State, LuauValueType.Function, new LuauValueUnion(value.Reference));
 
-    public bool TryGet(out bool value)
+    public bool TryGet<T>([NotNullWhen(true)] out T? value)
+        where T : allows ref struct
     {
-        if (Type is not LuauValueType.Boolean)
+        value = default;
+        switch (Type)
         {
-            value = false;
-            return false;
+            case LuauValueType.Nil:
+                if (typeof(T) == typeof(LuauNil))
+                {
+                    var temp = default(LuauNil);
+                    value = Unsafe.As<LuauNil, T>(ref temp)!;
+                    return true;
+                }
+                return false;
+            case LuauValueType.String:
+                if (typeof(T) == typeof(string))
+                {
+                    string temp = new LuauString(_state, _union.ValueReference).ToString();
+                    value = Unsafe.As<string, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(LuauString))
+                {
+                    var temp = new LuauString(_state, _union.ValueReference);
+                    value = Unsafe.As<LuauString, T>(ref temp)!;
+                    return true;
+                }
+                return false;
+            case LuauValueType.Number:
+                if (typeof(T) == typeof(double))
+                {
+                    double temp = _union.ValueDouble;
+                    value = Unsafe.As<double, T>(ref temp)!;
+                    return true;
+                }
+                return false;
+            case LuauValueType.Boolean:
+                if (typeof(T) == typeof(bool))
+                {
+                    bool temp = _union.ValueBool;
+                    value = Unsafe.As<bool, T>(ref temp)!;
+                    return true;
+                }
+                return false;
+            case LuauValueType.Table:
+                if (typeof(T) == typeof(LuauTable))
+                {
+                    var temp = new LuauTable(_state, _union.ValueReference);
+                    value = Unsafe.As<LuauTable, T>(ref temp)!;
+                    return true;
+                }
+                return false;
+            case LuauValueType.Function:
+                if (typeof(T) == typeof(LuauFunction))
+                {
+                    var temp = new LuauFunction(_state, _union.ValueReference);
+                    value = Unsafe.As<LuauFunction, T>(ref temp)!;
+                    return true;
+                }
+                return false;
+            default:
+                return false;
         }
-        value = _union.ValueBool;
-        return true;
-    }
-
-    public bool TryGet(out double value)
-    {
-        if (Type is not LuauValueType.Number)
-        {
-            value = 0;
-            return false;
-        }
-        value = _union.ValueDouble;
-        return true;
-    }
-
-    public bool TryGet(out LuauString value)
-    {
-        if (Type is not LuauValueType.String || _state is null)
-        {
-            value = default;
-            return false;
-        }
-        value = new LuauString(_state, _union.ValueReference);
-        return true;
-    }
-
-    public bool TryGet(out LuauTable value)
-    {
-        if (Type is not LuauValueType.Table || _state is null)
-        {
-            value = default;
-            return false;
-        }
-        value = new LuauTable(_state, _union.ValueReference);
-        return true;
-    }
-
-    public bool TryGet(out LuauFunction value)
-    {
-        if (Type is not LuauValueType.Function || _state is null)
-        {
-            value = default;
-            return false;
-        }
-        value = new LuauFunction(_state, _union.ValueReference);
-        return true;
     }
 
     /// <summary> Push a single value on the stack </summary>
@@ -179,7 +190,7 @@ public readonly ref struct LuauValue
                 return new LuauValue(state, LuauValueType.Table, new LuauValueUnion(referenceTable));
             case lua_Type.LUA_TFUNCTION:
                 int referenceFunction = lua_ref(L, index);
-                return new LuauValue(state, LuauValueType.Table, new LuauValueUnion(referenceFunction));
+                return new LuauValue(state, LuauValueType.Function, new LuauValueUnion(referenceFunction));
             default:
                 throw new ArgumentOutOfRangeException();
         }
@@ -224,10 +235,11 @@ public readonly ref struct LuauValue
         return Type switch
         {
             LuauValueType.Nil => "nil",
-            LuauValueType.String when _state is null => "string",
             LuauValueType.String => new LuauString(_state, _union.ValueReference).ToString(),
             LuauValueType.Number => _union.ValueDouble.ToString(CultureInfo.InvariantCulture),
             LuauValueType.Boolean => _union.ValueBool ? "true" : "false",
+            LuauValueType.Table => new LuauTable(_state, _union.ValueReference).ToString(),
+            LuauValueType.Function => new LuauFunction(_state, _union.ValueReference).ToString(),
             _ => "n/a",
         };
     }

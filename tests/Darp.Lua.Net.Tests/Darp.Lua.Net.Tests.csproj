@@ -4,7 +4,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <InterceptorsNamespaces>$(InterceptorsNamespaces);Darp.Lua.Net.Tests</InterceptorsNamespaces>
   </PropertyGroup>
 

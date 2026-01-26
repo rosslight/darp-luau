@@ -3,34 +3,28 @@ using static Luau.Native.NativeMethods;
 
 namespace Darp.Luau;
 
-public readonly ref struct LuauTable
+/// <summary> A reference to a luau table </summary>
+/// <remarks> A view of the table  </remarks>
+public readonly ref struct LuauTable : ILuauReference
 {
-    private readonly LuauState? _state;
+    /// <inheritdoc />
+    public LuauState? State { get; }
 
-    internal LuauState State
-    {
-        get
-        {
-            if (_state is null)
-                throw new InvalidOperationException("LuauState is not initialized.");
-            ObjectDisposedException.ThrowIf(_state.IsDisposed, _state);
-            return _state;
-        }
-    }
-
-    internal int Reference { get; }
+    /// <inheritdoc />
+    public int Reference { get; }
 
     [Obsolete("Do not initialize the LuauTable. Create using the LuauState instead", true)]
     public LuauTable() { }
 
-    internal LuauTable(LuauState state, int pointer)
-    {
-        _state = state;
-        Reference = pointer;
-    }
+    internal LuauTable(LuauState? state, int reference) => (State, Reference) = (state, reference);
 
+    /// <summary> Set a value </summary>
+    /// <param name="key"> The key of the value to set </param>
+    /// <param name="value"> The value to set </param>
+    /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
     public unsafe void Set(LuauValue key, LuauValue value)
     {
+        State.ThrowIfDisposed();
         lua_State* L = State.L;
         lua_getref(L, Reference);
         key.Push(L);
@@ -39,8 +33,14 @@ public readonly ref struct LuauTable
         lua_pop(L, 1);
     }
 
+    /// <summary> Try to get the value for a given key </summary>
+    /// <param name="key"> The key to get from the table </param>
+    /// <param name="value"> The value if present </param>
+    /// <returns> True, if the value could be retrieved. False, otherwise </returns>
+    /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
     public unsafe bool TryGet(LuauValue key, out LuauValue value)
     {
+        State.ThrowIfDisposed();
         LuauState state = State;
         lua_State* L = state.L;
         lua_getref(L, Reference);
@@ -50,5 +50,5 @@ public readonly ref struct LuauTable
     }
 
     /// <inheritdoc />
-    public override string ToString() => "TODO";
+    public override string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);
 }

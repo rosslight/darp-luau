@@ -1,57 +1,79 @@
+using Luau.Native;
+using static Luau.Native.NativeMethods;
+
 namespace Darp.Luau;
 
-public readonly ref struct LuauFunction
+public readonly ref struct LuauFunction : ILuauReference
 {
+    /// <inheritdoc />
     public LuauState? State { get; }
-    internal int Reference { get; }
 
-    [Obsolete("Do not initialize the LuauFunction. Create using the LuauState instead", true)]
+    /// <inheritdoc />
+    public int Reference { get; }
+
+    /// <summary> Do (not) initialize a new LuauFunction </summary>
+    [Obsolete("Do not initialize the LuauFunction. Create using the LuauState instead", false)]
     public LuauFunction() => State = null;
 
     internal LuauFunction(LuauState? state, int reference) => (State, Reference) = (state, reference);
 
-    public bool TryAs<T1, T2, TR>(out LuauFunction<T1, T2, TR> value)
+    public unsafe TR Call<TR>()
+        where TR : allows ref struct
+    {
+        State.ThrowIfDisposed();
+        lua_State* L = State.L;
+        lua_getref(L, Reference);
+
+        int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
+        int status = lua_pcall(L, nargs: 0, nresults, 0);
+        LuaException.ThrowIfNotOk(L, status);
+
+        _ = LuauValue.TryPop(State, out LuauValue lPR);
+        return lPR.TryGet(out TR? result) ? result : throw new Exception();
+    }
+
+    public unsafe TR Call<T1, TR>(T1 p1)
+        where T1 : allows ref struct
+        where TR : allows ref struct
+    {
+        State.ThrowIfDisposed();
+        lua_State* L = State.L;
+        lua_getref(L, Reference);
+
+        _ = LuauValue.TryCreate(p1, State, out LuauValue lP1);
+        lP1.Push(L);
+
+        int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
+        int status = lua_pcall(L, nargs: 1, nresults, 0);
+        LuaException.ThrowIfNotOk(L, status);
+
+        _ = LuauValue.TryPop(State, out LuauValue lPR);
+        return lPR.TryGet(out TR? result) ? result : throw new Exception();
+    }
+
+    public unsafe TR Call<T1, T2, TR>(T1 p1, T2 p2)
         where T1 : allows ref struct
         where T2 : allows ref struct
         where TR : allows ref struct
     {
-        value = new LuauFunction<T1, T2, TR>();
-        return true;
+        State.ThrowIfDisposed();
+        lua_State* L = State.L;
+        lua_getref(L, Reference);
+
+        _ = LuauValue.TryCreate(p1, State, out LuauValue lP1);
+        lP1.Push(L);
+
+        _ = LuauValue.TryCreate(p2, State, out LuauValue lP2);
+        lP2.Push(L);
+
+        int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
+        int status = lua_pcall(L, nargs: 2, nresults, 0);
+        LuaException.ThrowIfNotOk(L, status);
+
+        _ = LuauValue.TryPop(State, out LuauValue lPR);
+        return lPR.TryGet(out TR? result) ? result : throw new Exception();
     }
-}
 
-public readonly ref struct LuauFunction<TR>
-    where TR : allows ref struct
-{
-    public LuauState? State { get; }
-    internal int Reference { get; }
-
-    public TR Call() => throw new NotImplementedException();
-
-    public static implicit operator LuauFunction(LuauFunction<TR> f) => new(f.State, f.Reference);
-}
-
-public readonly ref struct LuauFunction<T1, TR>
-    where T1 : allows ref struct
-    where TR : allows ref struct
-{
-    public LuauState? State { get; }
-    internal int Reference { get; }
-
-    public TR Call(T1 p1) => throw new NotImplementedException();
-
-    public static implicit operator LuauFunction(LuauFunction<T1, TR> f) => new(f.State, f.Reference);
-}
-
-public readonly ref struct LuauFunction<T1, T2, TR>
-    where T1 : allows ref struct
-    where T2 : allows ref struct
-    where TR : allows ref struct
-{
-    public LuauState? State { get; }
-    internal int Reference { get; }
-
-    public TR Call(T1 p1, T2 p2) => throw new NotImplementedException();
-
-    public static implicit operator LuauFunction(LuauFunction<T1, T2, TR> f) => new(f.State, f.Reference);
+    /// <inheritdoc />
+    public override string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);
 }

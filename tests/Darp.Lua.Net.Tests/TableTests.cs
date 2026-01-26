@@ -461,4 +461,14 @@ public sealed class TableTests
         v4.TryGet("nested", out double v5).ShouldBeTrue();
         v5.ShouldBe(123);
     }
+
+    [Fact]
+    public void Table_DefaultShouldBeNil()
+    {
+        LuauTable myTable = default;
+
+        string str = myTable.ToString();
+
+        str.ShouldBe("<nil>");
+    }
 }

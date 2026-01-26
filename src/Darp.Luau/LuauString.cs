@@ -12,11 +12,7 @@ public readonly ref struct LuauString
     [Obsolete("Do not initialize the LuauString. Create using the LuauState instead", true)]
     public LuauString() => State = null;
 
-    internal LuauString(LuauState state, int pointer)
-    {
-        State = state;
-        Reference = pointer;
-    }
+    internal LuauString(LuauState? state, int reference) => (State, Reference) = (state, reference);
 
     /// <inheritdoc />
     public override unsafe string ToString()
