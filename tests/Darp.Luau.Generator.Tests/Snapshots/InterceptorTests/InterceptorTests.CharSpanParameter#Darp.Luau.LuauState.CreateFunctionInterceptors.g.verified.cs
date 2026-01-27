@@ -6,8 +6,8 @@ namespace Darp.Luau.Generator
 {
 file static class CreateFunctionInterceptors
 {
-    [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "9U1ANHik1XmhkZqt47eOwXMAAAA=")]
-    public static global::Darp.Luau.LuauFunction CreateMethod(this global::Darp.Luau.LuauState state, global::System.Action onLuaCall)
+    [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "Ckj5a/vRICRFR2tWAFwiwoEAAAA=")]
+    public static global::Darp.Luau.LuauFunction CreateMethod(this global::Darp.Luau.LuauState state, global::System.Action<global::System.ReadOnlySpan<char>> onLuaCall)
     {
         global::System.ArgumentNullException.ThrowIfNull(state);
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
@@ -15,9 +15,11 @@ file static class CreateFunctionInterceptors
 
         void F(LuauFunctions x)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 0);
-
-            onLuaCall();
+            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 1);
+            global::System.ReadOnlySpan<byte> v1Lua = x.CheckString(parameterIndex: 1);
+            global::System.Span<char> v1 = stackalloc char[global::System.Text.Encoding.UTF8.GetCharCount(v1Lua)];
+            _ = global::System.Text.Encoding.UTF8.TryGetChars(v1Lua, v1, out _);
+            onLuaCall(v1);
         }
     }
 }

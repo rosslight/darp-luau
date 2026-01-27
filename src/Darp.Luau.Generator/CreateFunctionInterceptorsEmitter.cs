@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
+using static Darp.Luau.Generator.Helpers.EmitterHelper;
 
 namespace Darp.Luau.Generator;
 
@@ -20,64 +21,131 @@ internal static class CreateFunctionInterceptorsEmitter
         return argument.Value.Type;
     }
 
-    private static InvocationMethodSignature ExtractSignature(
+    private static bool TryExtractSignature(
         ITypeSymbol? delegateType,
         SemanticModel semanticModel,
+        out InvocationMethodSignature signature,
         List<Diagnostic> diagnostics
     )
     {
         if (delegateType is not INamedTypeSymbol namedType)
         {
-            return new InvocationMethodSignature(
-                ImmutableArray<LuauValueType>.Empty,
-                ImmutableArray<LuauValueType>.Empty
-            );
+            // TODO: Diagnostic error about invalid delegate type
+            return false;
         }
 
-        var parameters = new List<LuauValueType>();
-        var returnTypes = new List<LuauValueType>();
+        var parameters = ImmutableArray.CreateBuilder<(LuauValueType Type, bool IsNullable)>();
+        var returnTypes = ImmutableArray.CreateBuilder<(LuauValueType Type, bool IsNullable)>();
 
         // Handle Action<T1, T2, ...>
         if (namedType.Name == "Action")
         {
-            foreach (var typeArg in namedType.TypeArguments)
+            foreach (ITypeSymbol typeArg in namedType.TypeArguments)
             {
-                var luauType = MapTypeToLuauValueType(typeArg, semanticModel, diagnostics);
-                parameters.Add(luauType);
+                if (!TryMapTypeToLuauValueType(typeArg, out LuauValueType luauType, out bool isNullable, diagnostics))
+                    return false;
+                parameters.Add((luauType, isNullable));
             }
         }
         // Handle Func<T1, T2, ..., TResult>
         else if (namedType.Name == "Func")
         {
-            var typeArgs = namedType.TypeArguments;
-            if (typeArgs.Length > 0)
+            ImmutableArray<ITypeSymbol> typeArgs = namedType.TypeArguments;
+            // All but the last are parameters
+            for (int i = 0; i < typeArgs.Length - 1; i++)
             {
-                // All but the last are parameters
-                for (int i = 0; i < typeArgs.Length - 1; i++)
-                {
-                    var luauType = MapTypeToLuauValueType(typeArgs[i], semanticModel, diagnostics);
-                    parameters.Add(luauType);
-                }
-                // Last is return type
-                var returnType = MapTypeToLuauValueType(typeArgs[^1], semanticModel, diagnostics);
-                returnTypes.Add(returnType);
+                if (!TryMapTypeToLuauValueType(typeArgs[i], out var luauType, out bool isNullable, diagnostics))
+                    return false;
+                parameters.Add((luauType, isNullable));
             }
+            // Last is return type
+            if (!TryMapTypeToLuauValueType(typeArgs[^1], out var returnType, out bool isReturnNullable, diagnostics))
+                return false;
+            returnTypes.Add((returnType, isReturnNullable));
         }
 
-        return new InvocationMethodSignature(parameters.ToImmutableArray(), returnTypes.ToImmutableArray());
+        signature = new InvocationMethodSignature(parameters.ToImmutableArray(), returnTypes.ToImmutableArray());
+        return true;
     }
 
-    private static LuauValueType MapTypeToLuauValueType(
+    private static bool TryMapTypeToLuauValueType(
         ITypeSymbol type,
-        SemanticModel semanticModel,
+        out LuauValueType luauType,
+        out bool isNullable,
         List<Diagnostic> diagnostics
     )
     {
-        if (type.SpecialType == SpecialType.System_String)
-            return LuauValueType.String;
-
-        if (type.SpecialType == SpecialType.System_Int32)
-            return LuauValueType.Int32;
+        isNullable = type.NullableAnnotation is NullableAnnotation.Annotated;
+        switch (type.SpecialType)
+        {
+            case SpecialType.System_String:
+                luauType = LuauValueType.StringString;
+                return true;
+            case SpecialType.System_Byte:
+                luauType = LuauValueType.NumberByte;
+                return true;
+            case SpecialType.System_UInt16:
+                luauType = LuauValueType.NumberUShort;
+                return true;
+            case SpecialType.System_UInt32:
+                luauType = LuauValueType.NumberUInt;
+                return true;
+            case SpecialType.System_UInt64:
+                luauType = LuauValueType.NumberULong;
+                return true;
+            case SpecialType.System_SByte:
+                luauType = LuauValueType.NumberSByte;
+                return true;
+            case SpecialType.System_Int16:
+                luauType = LuauValueType.NumberShort;
+                return true;
+            case SpecialType.System_Int32:
+                luauType = LuauValueType.NumberInt;
+                return true;
+            case SpecialType.System_Int64:
+                luauType = LuauValueType.NumberLong;
+                return true;
+            case SpecialType.System_Double:
+                luauType = LuauValueType.Number;
+                return true;
+            case SpecialType.System_Single:
+                luauType = LuauValueType.NumberFloat;
+                return true;
+            case SpecialType.System_Decimal:
+                luauType = LuauValueType.NumberDecimal;
+                return true;
+        }
+        string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        switch (name)
+        {
+            case "global::System.ReadOnlySpan<byte>":
+                luauType = LuauValueType.String;
+                return true;
+            case "global::System.ReadOnlySpan<char>":
+                luauType = LuauValueType.StringCharSpan;
+                return true;
+            case "global::System.Half":
+                luauType = LuauValueType.NumberHalf;
+                return true;
+            case "global::System.UInt128":
+                luauType = LuauValueType.NumberUInt128;
+                return true;
+            case "global::System.Int128":
+                luauType = LuauValueType.NumberInt128;
+                return true;
+            case "global::Darp.Luau.LuauValue":
+                luauType = LuauValueType.LuauValue;
+                return true;
+            case "global::Darp.Luau.LuauTable":
+                luauType = LuauValueType.LuauTable;
+                return true;
+            case "global::Darp.Luau.LuauFunction":
+                luauType = LuauValueType.LuauFunction;
+                return true;
+            case "global::Darp.Luau.LuauString":
+                luauType = LuauValueType.LuauString;
+                return true;
+        }
 
         // Report unsupported type diagnostic
         var location = type.Locations.IsEmpty ? Location.None : type.Locations[0];
@@ -87,53 +155,102 @@ internal static class CreateFunctionInterceptorsEmitter
             type.ToDisplayString()
         );
         diagnostics.Add(diagnostic);
-
-        // Fallback to String for unsupported types
-        return LuauValueType.String;
+        luauType = default;
+        return false;
     }
 
-    private static string GenerateFunctionBody(InvocationMethodSignature signature)
+    private static string GetCheckFunction(LuauValueType type)
     {
-        var paramExtractions = new List<string>();
-        var callParameters = new List<string>();
-
-        // Generate parameter extraction for each parameter
-        for (int i = 0; i < signature.Parameters.Length; i++)
+        return type switch
         {
-            LuauValueType paramType = signature.Parameters[i];
-            int paramIndex = i + 1;
-            string varName = $"v{paramIndex}";
+            LuauValueType.Boolean => "CheckBoolean",
+            LuauValueType.String or LuauValueType.StringCharSpan or LuauValueType.StringString => "CheckString",
+            LuauValueType.Number
+            or LuauValueType.NumberByte
+            or LuauValueType.NumberUShort
+            or LuauValueType.NumberUInt
+            or LuauValueType.NumberULong
+            or LuauValueType.NumberUInt128
+            or LuauValueType.NumberSByte
+            or LuauValueType.NumberShort
+            or LuauValueType.NumberInt
+            or LuauValueType.NumberLong
+            or LuauValueType.NumberInt128
+            or LuauValueType.NumberHalf
+            or LuauValueType.NumberFloat
+            or LuauValueType.NumberDecimal => "CheckNumber",
+            LuauValueType.LuauValue => "CheckLuauValue",
+            LuauValueType.LuauString => "CheckLuauString",
+            LuauValueType.LuauTable => "CheckLuauTable",
+            LuauValueType.LuauFunction => "CheckLuauFunction",
+            LuauValueType.LuauBuffer => "CheckLuauBuffer",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not get the Check function"),
+        };
+    }
 
-            if (paramType == LuauValueType.String)
-            {
-                paramExtractions.Add(
-                    $"string {varName} = global::System.Text.Encoding.UTF8.GetString(x.CheckString(parameterIndex: {paramIndex}));"
-                );
-            }
-            else if (paramType == LuauValueType.Int32)
-            {
-                // TODO: CheckInt32 method needs to be implemented in LuauFunctions
-                paramExtractions.Add(
-                    $"int {varName} = throw new global::System.NotImplementedException(\"Int32 parameter extraction not yet implemented\");"
-                );
-            }
+    private static string GenerateCheckParameter(int parameterIndex, LuauValueType type, bool isNullable)
+    {
+        string dotnetType = GetDotnetType(type, isNullable);
+        string dotnetCheckFunction = isNullable ? $"{GetCheckFunction(type)}OrNil" : GetCheckFunction(type);
 
-            callParameters.Add(varName);
-        }
+        return type switch
+        {
+            LuauValueType.Boolean
+            or LuauValueType.String
+            or LuauValueType.Number
+            or LuauValueType.LuauValue
+            or LuauValueType.LuauTable
+            or LuauValueType.LuauString
+            or LuauValueType.LuauFunction =>
+                $"{dotnetType} v{parameterIndex} = x.{dotnetCheckFunction}(parameterIndex: {parameterIndex});",
+            LuauValueType.StringCharSpan => $"""
+                global::System.ReadOnlySpan<byte> v{parameterIndex}Lua = x.{dotnetCheckFunction}(parameterIndex: {parameterIndex});
+                global::System.Span<char> v{parameterIndex} = stackalloc char[global::System.Text.Encoding.UTF8.GetCharCount(v{parameterIndex}Lua)];
+                _ = global::System.Text.Encoding.UTF8.TryGetChars(v{parameterIndex}Lua, v{parameterIndex}, out _);
+                """,
+            LuauValueType.StringString => $"""
+                global::System.ReadOnlySpan<byte> v{parameterIndex}Lua = x.CheckString(parameterIndex: {parameterIndex});
+                string v{parameterIndex} = global::System.Text.Encoding.UTF8.GetString(v{parameterIndex}Lua);
+                """,
+            LuauValueType.NumberByte
+            or LuauValueType.NumberUShort
+            or LuauValueType.NumberUInt
+            or LuauValueType.NumberULong
+            or LuauValueType.NumberUInt128
+            or LuauValueType.NumberSByte
+            or LuauValueType.NumberShort
+            or LuauValueType.NumberInt
+            or LuauValueType.NumberLong
+            or LuauValueType.NumberInt128
+            or LuauValueType.NumberHalf
+            or LuauValueType.NumberFloat
+            or LuauValueType.NumberDecimal => $"""
+                double v{parameterIndex}Lua = x.CheckNumber(parameterIndex: {parameterIndex});
+                {dotnetType} v{parameterIndex} = ({dotnetType})v{parameterIndex}Lua;
+                """,
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not generate the Check parameter"),
+        };
+    }
+
+    private static void EmitFunctionBody(IndentedTextWriter writer, InvocationMethodSignature signature)
+    {
+        string[] paramExtractions = signature
+            .Parameters.Select((paramType, i) => GenerateCheckParameter(i + 1, paramType.Type, paramType.IsNullable))
+            .ToArray();
 
         string callExpression =
-            callParameters.Count == 0 ? "onLuaCall();" : $"onLuaCall({string.Join(", ", callParameters)});";
+            $"onLuaCall({string.Join(", ", Enumerable.Range(1, paramExtractions.Length).Select(x => $"v{x}"))});";
 
-        string body = $$"""
-            void F(LuauFunctions x)
-            {
-                global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, {{signature.Parameters.Length}});
-                {{string.Join("\n    ", paramExtractions)}}
-                {{callExpression}}
-            }
-            """;
-
-        return body;
+        writer.WriteLine("void F(LuauFunctions x)");
+        writer.WriteLine("{");
+        writer.Indent++;
+        writer.WriteLine(
+            $"global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, {signature.Parameters.Length});"
+        );
+        writer.WriteMultiLine(string.Join("\n", paramExtractions));
+        writer.WriteLine(callExpression);
+        writer.Indent--;
+        writer.WriteLine("}");
     }
 
     public static bool TryEmit(
@@ -157,7 +274,8 @@ internal static class CreateFunctionInterceptorsEmitter
                 continue;
 
             ITypeSymbol? delegateType = ExtractDelegateType(calledMethod, calledMethod.SemanticModel);
-            InvocationMethodSignature key = ExtractSignature(delegateType, calledMethod.SemanticModel, diagnostics);
+            if (!TryExtractSignature(delegateType, calledMethod.SemanticModel, out var key, diagnostics))
+                continue;
 
             if (!groups.TryGetValue(key, out HashSet<InterceptorLocationData> locations))
                 groups.Add(key, locations = []);
@@ -189,8 +307,7 @@ internal static class CreateFunctionInterceptorsEmitter
             );
 
             InvocationMethodSignature signature = group.Key;
-            string callFunction = EmitterHelper.GetFunctionRepresentation(signature);
-            string functionBody = GenerateFunctionBody(signature);
+            string callFunction = GetFunctionRepresentation(signature);
 
             writer.WriteMultiLine(
                 $$"""
@@ -201,14 +318,15 @@ internal static class CreateFunctionInterceptorsEmitter
             );
             writer.Indent++;
             writer.WriteMultiLine(
-                $"""
+                """
                 global::System.ArgumentNullException.ThrowIfNull(state);
                 global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
-                return state.CreateFunction(F);
+                return state.CreateFunctionBuilder(F);
 
-                {functionBody}
                 """
             );
+            EmitFunctionBody(writer, signature);
+
             writer.Indent--;
             writer.WriteLine("}");
         }
@@ -242,8 +360,8 @@ internal static class CreateFunctionInterceptorsEmitter
 internal readonly record struct InterceptorLocationData(int Version, string Data);
 
 internal readonly record struct InvocationMethodSignature(
-    ImmutableArray<LuauValueType> Parameters,
-    ImmutableArray<LuauValueType> ReturnParameters
+    ImmutableArray<(LuauValueType Type, bool IsNullable)> Parameters,
+    ImmutableArray<(LuauValueType Type, bool IsNullable)> ReturnParameters
 );
 
 internal sealed class InvocationSignatureComparer : IEqualityComparer<InvocationMethodSignature>
@@ -262,7 +380,10 @@ internal sealed class InvocationSignatureComparer : IEqualityComparer<Invocation
             // Parameters
             hash = (hash * 31) + obj.Parameters.Length;
             for (int i = 0; i < obj.Parameters.Length; i++)
-                hash = (hash * 31) + (int)obj.Parameters[i];
+            {
+                hash = (hash * 31) + (int)obj.Parameters[i].Type;
+                hash = (hash * 31) + (obj.Parameters[i].IsNullable ? 1 : 0);
+            }
 
             // Separator to reduce accidental collisions between params/returns
             hash = (int)(hash * 31 + 0x9E3779B9);
@@ -270,13 +391,19 @@ internal sealed class InvocationSignatureComparer : IEqualityComparer<Invocation
             // ReturnParameters
             hash = (hash * 31) + obj.ReturnParameters.Length;
             for (int i = 0; i < obj.ReturnParameters.Length; i++)
-                hash = (hash * 31) + (int)obj.ReturnParameters[i];
+            {
+                hash = (hash * 31) + (int)obj.ReturnParameters[i].Type;
+                hash = (hash * 31) + (obj.ReturnParameters[i].IsNullable ? 1 : 0);
+            }
 
             return hash;
         }
     }
 
-    private static bool SequenceEqual(ImmutableArray<LuauValueType> a, ImmutableArray<LuauValueType> b)
+    private static bool SequenceEqual(
+        ImmutableArray<(LuauValueType Type, bool IsNullable)> a,
+        ImmutableArray<(LuauValueType Type, bool IsNullable)> b
+    )
     {
         if (a.Length != b.Length)
             return false;

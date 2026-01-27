@@ -45,4 +45,20 @@ public unsafe ref struct LuauFunctions
             throw new ArgumentOutOfRangeException($"{parameterIndex}", "Parameter returned null string");
         return new ReadOnlySpan<byte>(pStr, (int)len);
     }
+
+    public ReadOnlySpan<byte> CheckStringOrNil(int parameterIndex) => throw new NotImplementedException();
+
+    public double CheckNumber(int parameterIndex) => throw new NotImplementedException();
+
+    public double? CheckNumberOrNil(int parameterIndex) => throw new NotImplementedException();
+
+    public LuauValue CheckLuauValue(int parameterIndex) => throw new NotImplementedException();
+
+    public LuauTable CheckLuauTable(int parameterIndex) => throw new NotImplementedException();
+
+    public LuauFunction CheckLuauFunction(int parameterIndex) => throw new NotImplementedException();
+
+    public LuauString CheckLuauString(int parameterIndex) => throw new NotImplementedException();
+
+    public void ReturnParameter(IntoLuau returnParameter) => throw new NotImplementedException();
 }

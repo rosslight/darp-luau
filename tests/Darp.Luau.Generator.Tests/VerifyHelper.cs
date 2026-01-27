@@ -26,7 +26,7 @@ public static class VerifyHelper
             task => task.ScrubGeneratedCodeAttribute(),
             new Dictionary<string, string>(),
             new Dictionary<string, string> { { "InterceptorsNamespaces", "Darp.Luau.Generator" } },
-            LanguageVersion.CSharp12
+            LanguageVersion.CSharp13
         );
     }
 

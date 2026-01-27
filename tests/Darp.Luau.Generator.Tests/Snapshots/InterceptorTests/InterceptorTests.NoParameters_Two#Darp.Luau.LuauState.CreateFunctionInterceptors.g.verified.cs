@@ -12,7 +12,7 @@ file static class CreateFunctionInterceptors
     {
         global::System.ArgumentNullException.ThrowIfNull(state);
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
-        return state.CreateFunction(F);
+        return state.CreateFunctionBuilder(F);
 
         void F(LuauFunctions x)
         {

@@ -11,12 +11,13 @@ file static class CreateFunctionInterceptors
     {
         global::System.ArgumentNullException.ThrowIfNull(state);
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
-        return state.CreateFunction(F);
+        return state.CreateFunctionBuilder(F);
 
         void F(LuauFunctions x)
         {
             global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 1);
-            string v1 = global::System.Text.Encoding.UTF8.GetString(x.CheckString(parameterIndex: 1));
+            global::System.ReadOnlySpan<byte> v1Lua = x.CheckString(parameterIndex: 1);
+            string v1 = global::System.Text.Encoding.UTF8.GetString(v1Lua);
             onLuaCall(v1);
         }
     }
@@ -26,13 +27,15 @@ file static class CreateFunctionInterceptors
     {
         global::System.ArgumentNullException.ThrowIfNull(state);
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
-        return state.CreateFunction(F);
+        return state.CreateFunctionBuilder(F);
 
         void F(LuauFunctions x)
         {
             global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 2);
-            string v1 = global::System.Text.Encoding.UTF8.GetString(x.CheckString(parameterIndex: 1));
-            string v2 = global::System.Text.Encoding.UTF8.GetString(x.CheckString(parameterIndex: 2));
+            global::System.ReadOnlySpan<byte> v1Lua = x.CheckString(parameterIndex: 1);
+            string v1 = global::System.Text.Encoding.UTF8.GetString(v1Lua);
+            global::System.ReadOnlySpan<byte> v2Lua = x.CheckString(parameterIndex: 2);
+            string v2 = global::System.Text.Encoding.UTF8.GetString(v2Lua);
             onLuaCall(v1, v2);
         }
     }

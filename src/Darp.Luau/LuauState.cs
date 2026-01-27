@@ -54,7 +54,7 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary> Create a new LuaFunction and get the reference to it </summary>
     /// <param name="onCalled">The callback providing a </param>
     /// <returns> The LuaFunction with the reference to the lua memory </returns>
-    public LuauFunction CreateFunction(LuauFunctionBuilder onCalled)
+    public LuauFunction CreateFunctionBuilder(LuauFunctionBuilder onCalled)
     {
         this.ThrowIfDisposed();
 
