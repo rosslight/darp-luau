@@ -196,39 +196,6 @@ public readonly ref struct LuauValue
         }
     }
 
-    public static bool TryCreate<T>(T value, LuauState state, out LuauValue luauValue)
-        where T : allows ref struct
-    {
-        ArgumentNullException.ThrowIfNull(state);
-        if (value is null)
-        {
-            luauValue = default;
-            return true;
-        }
-        if (typeof(T) == typeof(ReadOnlySpan<byte>))
-        {
-            luauValue = state.CreateString(Unsafe.As<T, ReadOnlySpan<byte>>(ref value));
-            return true;
-        }
-        if (typeof(T) == typeof(ReadOnlySpan<char>))
-        {
-            luauValue = state.CreateString(Unsafe.As<T, ReadOnlySpan<char>>(ref value));
-            return true;
-        }
-        if (typeof(T) == typeof(string))
-        {
-            luauValue = state.CreateString(Unsafe.As<T, string>(ref value));
-            return true;
-        }
-        if (typeof(T) == typeof(double))
-        {
-            luauValue = new LuauValue(state, LuauValueType.Number, new LuauValueUnion(Unsafe.As<T, double>(ref value)));
-            return true;
-        }
-        luauValue = default;
-        return false;
-    }
-
     /// <inheritdoc />
     public override string ToString()
     {

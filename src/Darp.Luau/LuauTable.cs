@@ -22,13 +22,15 @@ public readonly ref struct LuauTable : ILuauReference
     /// <param name="key"> The key of the value to set </param>
     /// <param name="value"> The value to set </param>
     /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
-    public unsafe void Set(LuauValue key, LuauValue value)
+    public unsafe void Set(IntoLuau key, IntoLuau value)
     {
         State.ThrowIfDisposed();
         lua_State* L = State.L;
+        LuauValue luauKey = key.Into(State);
+        LuauValue luauValue = value.Into(State);
         lua_getref(L, Reference);
-        key.Push(L);
-        value.Push(L);
+        luauKey.Push(L);
+        luauValue.Push(L);
         lua_settable(L, -3);
         lua_pop(L, 1);
     }
@@ -38,16 +40,19 @@ public readonly ref struct LuauTable : ILuauReference
     /// <param name="value"> The value if present </param>
     /// <returns> True, if the value could be retrieved. False, otherwise </returns>
     /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
-    public unsafe bool TryGet(LuauValue key, out LuauValue value)
+    public unsafe bool TryGet(IntoLuau key, out LuauValue value)
     {
         State.ThrowIfDisposed();
         LuauState state = State;
         lua_State* L = state.L;
+        LuauValue luauKey = key.Into(State);
         lua_getref(L, Reference);
-        key.Push(L);
+        luauKey.Push(L);
         _ = lua_gettable(L, -2);
         return LuauValue.TryPop(state, out value);
     }
+
+    public static implicit operator IntoLuau(LuauTable value) => (LuauValue)value;
 
     /// <inheritdoc />
     public override string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Luau.Native;
 using static Luau.Native.NativeMethods;
@@ -90,7 +91,7 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary> Creates a new luau string </summary>
     /// <param name="value"> The string </param>
     /// <returns> The reference to the LuauString </returns>
-    public LuauString CreateString(ReadOnlySpan<char> value)
+    public LuauString CreateString(scoped ReadOnlySpan<char> value)
     {
         Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(value)];
         int numberOfBytes = Encoding.UTF8.GetBytes(value, buffer);
@@ -104,6 +105,8 @@ public sealed unsafe class LuauState : IDisposable
     {
         this.ThrowIfDisposed();
         ObjectDisposedException.ThrowIf(_disposing > 0, this);
+        if (utf8Value.IsEmpty)
+            throw new ArgumentNullException(nameof(utf8Value));
         fixed (byte* pValue = utf8Value)
         {
             lua_pushlstring(L, pValue, (nuint)utf8Value.Length);

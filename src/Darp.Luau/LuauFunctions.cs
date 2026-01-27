@@ -42,7 +42,7 @@ public unsafe ref struct LuauFunctions
         nuint len;
         byte* pStr = lua_tolstring(L, 1, &len);
         if (pStr is null)
-            throw new ArgumentOutOfRangeException($"{parameterIndex}", $"Parameter returned null string");
+            throw new ArgumentOutOfRangeException($"{parameterIndex}", "Parameter returned null string");
         return new ReadOnlySpan<byte>(pStr, (int)len);
     }
 }

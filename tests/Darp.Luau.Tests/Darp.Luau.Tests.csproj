@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsAotCompatible>true</IsAotCompatible>
-    <InterceptorsNamespaces>$(InterceptorsNamespaces);Darp.Lua.Net.Tests</InterceptorsNamespaces>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Darp.Luau.Generator</InterceptorsNamespaces>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,5 +22,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Darp.Luau\Darp.Luau.csproj" />
+    <ProjectReference
+      Include="..\..\src\Darp.Luau.Generator\Darp.Luau.Generator.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
   </ItemGroup>
 </Project>

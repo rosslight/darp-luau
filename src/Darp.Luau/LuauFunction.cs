@@ -32,16 +32,15 @@ public readonly ref struct LuauFunction : ILuauReference
         return lPR.TryGet(out TR? result) ? result : throw new Exception();
     }
 
-    public unsafe TR Call<T1, TR>(T1 p1)
-        where T1 : allows ref struct
+    public unsafe TR Call<TR>(IntoLuau p1)
         where TR : allows ref struct
     {
         State.ThrowIfDisposed();
         lua_State* L = State.L;
+        LuauValue luauP1 = p1.Into(State);
         lua_getref(L, Reference);
 
-        _ = LuauValue.TryCreate(p1, State, out LuauValue lP1);
-        lP1.Push(L);
+        luauP1.Push(L);
 
         int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
         int status = lua_pcall(L, nargs: 1, nresults, 0);
@@ -51,20 +50,17 @@ public readonly ref struct LuauFunction : ILuauReference
         return lPR.TryGet(out TR? result) ? result : throw new Exception();
     }
 
-    public unsafe TR Call<T1, T2, TR>(T1 p1, T2 p2)
-        where T1 : allows ref struct
-        where T2 : allows ref struct
+    public unsafe TR Call<TR>(IntoLuau p1, IntoLuau p2)
         where TR : allows ref struct
     {
         State.ThrowIfDisposed();
         lua_State* L = State.L;
+        LuauValue luauP1 = p1.Into(State);
+        LuauValue luauP2 = p2.Into(State);
+
         lua_getref(L, Reference);
-
-        _ = LuauValue.TryCreate(p1, State, out LuauValue lP1);
-        lP1.Push(L);
-
-        _ = LuauValue.TryCreate(p2, State, out LuauValue lP2);
-        lP2.Push(L);
+        luauP1.Push(L);
+        luauP2.Push(L);
 
         int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
         int status = lua_pcall(L, nargs: 2, nresults, 0);
@@ -73,6 +69,8 @@ public readonly ref struct LuauFunction : ILuauReference
         _ = LuauValue.TryPop(State, out LuauValue lPR);
         return lPR.TryGet(out TR? result) ? result : throw new Exception();
     }
+
+    public static implicit operator IntoLuau(LuauFunction value) => (LuauValue)value;
 
     /// <inheritdoc />
     public override string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);

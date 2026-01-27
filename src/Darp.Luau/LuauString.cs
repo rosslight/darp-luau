@@ -14,6 +14,8 @@ public readonly ref struct LuauString
 
     internal LuauString(LuauState? state, int reference) => (State, Reference) = (state, reference);
 
+    public static implicit operator IntoLuau(LuauString value) => (LuauValue)value;
+
     /// <inheritdoc />
     public override unsafe string ToString()
     {
