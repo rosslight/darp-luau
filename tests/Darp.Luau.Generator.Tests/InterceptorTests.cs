@@ -123,7 +123,8 @@ public class InterceptorTests
                 public static void DoSomething(LuauState state)
                 {
                     state.CreateFunction(() => 1);
-                    state.CreateFunction(() => (1, 2));
+                    state.CreateFunction(() => "myString");
+                    state.CreateFunction((string x) => x);
                 }
             }
             """;

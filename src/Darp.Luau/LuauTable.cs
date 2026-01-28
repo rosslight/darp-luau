@@ -26,11 +26,9 @@ public readonly ref struct LuauTable : ILuauReference
     {
         State.ThrowIfDisposed();
         lua_State* L = State.L;
-        LuauValue luauKey = key.Into(State);
-        LuauValue luauValue = value.Into(State);
         lua_getref(L, Reference);
-        luauKey.Push(L);
-        luauValue.Push(L);
+        key.Push(L);
+        value.Push(L);
         lua_settable(L, -3);
         lua_pop(L, 1);
     }
@@ -45,9 +43,8 @@ public readonly ref struct LuauTable : ILuauReference
         State.ThrowIfDisposed();
         LuauState state = State;
         lua_State* L = state.L;
-        LuauValue luauKey = key.Into(State);
         lua_getref(L, Reference);
-        luauKey.Push(L);
+        key.Push(L);
         _ = lua_gettable(L, -2);
         return LuauValue.TryPop(state, out value);
     }

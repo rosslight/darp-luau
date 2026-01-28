@@ -106,6 +106,90 @@ public readonly ref struct LuauValue
                     value = Unsafe.As<double, T>(ref temp)!;
                     return true;
                 }
+                if (typeof(T) == typeof(Half))
+                {
+                    var temp = (Half)_union.ValueDouble;
+                    value = Unsafe.As<Half, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(float))
+                {
+                    float temp = (float)_union.ValueDouble;
+                    value = Unsafe.As<float, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(decimal))
+                {
+                    decimal temp = (decimal)_union.ValueDouble;
+                    value = Unsafe.As<decimal, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(double))
+                {
+                    double temp = _union.ValueDouble;
+                    value = Unsafe.As<double, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(sbyte))
+                {
+                    sbyte temp = (sbyte)_union.ValueDouble;
+                    value = Unsafe.As<sbyte, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(byte))
+                {
+                    byte temp = (byte)_union.ValueDouble;
+                    value = Unsafe.As<byte, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(short))
+                {
+                    short temp = (short)_union.ValueDouble;
+                    value = Unsafe.As<short, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(ushort))
+                {
+                    ushort temp = (ushort)_union.ValueDouble;
+                    value = Unsafe.As<ushort, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(int))
+                {
+                    int temp = (int)_union.ValueDouble;
+                    value = Unsafe.As<int, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(uint))
+                {
+                    uint temp = (uint)_union.ValueDouble;
+                    value = Unsafe.As<uint, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(long))
+                {
+                    long temp = (long)_union.ValueDouble;
+                    value = Unsafe.As<long, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(ulong))
+                {
+                    ulong temp = (ulong)_union.ValueDouble;
+                    value = Unsafe.As<ulong, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(Int128))
+                {
+                    var temp = (Int128)_union.ValueDouble;
+                    value = Unsafe.As<Int128, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(UInt128))
+                {
+                    UInt128 temp = (UInt128)_union.ValueDouble;
+                    value = Unsafe.As<UInt128, T>(ref temp)!;
+                    return true;
+                }
                 return false;
             case LuauValueType.Boolean:
                 if (typeof(T) == typeof(bool))

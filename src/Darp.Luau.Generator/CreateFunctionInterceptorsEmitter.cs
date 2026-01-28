@@ -78,6 +78,9 @@ internal static class CreateFunctionInterceptorsEmitter
         isNullable = type.NullableAnnotation is NullableAnnotation.Annotated;
         switch (type.SpecialType)
         {
+            case SpecialType.System_Boolean:
+                luauType = LuauValueType.Boolean;
+                return true;
             case SpecialType.System_String:
                 luauType = LuauValueType.StringString;
                 return true;
@@ -241,14 +244,35 @@ internal static class CreateFunctionInterceptorsEmitter
         string callExpression =
             $"onLuaCall({string.Join(", ", Enumerable.Range(1, paramExtractions.Length).Select(x => $"v{x}"))});";
 
-        writer.WriteLine("void F(LuauFunctions x)");
+        writer.WriteLine("void F(ref LuauFunctions x)");
         writer.WriteLine("{");
         writer.Indent++;
         writer.WriteLine(
             $"global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, {signature.Parameters.Length});"
         );
         writer.WriteMultiLine(string.Join("\n", paramExtractions));
-        writer.WriteLine(callExpression);
+        if (!signature.ReturnParameters.IsEmpty)
+        {
+            writer.WriteLine($"var returns = {callExpression}");
+            if (
+                signature.ReturnParameters[0].Type
+                is LuauValueType.NumberDecimal
+                    or LuauValueType.NumberUInt128
+                    or LuauValueType.NumberInt128
+            )
+            {
+                string type = signature.ReturnParameters[0].IsNullable ? "double?" : "double";
+                writer.WriteLine($"x.ReturnParameter(({type})returns);");
+            }
+            else
+            {
+                writer.WriteLine("x.ReturnParameter(returns);");
+            }
+        }
+        else
+        {
+            writer.WriteLine(callExpression);
+        }
         writer.Indent--;
         writer.WriteLine("}");
     }

@@ -1,3 +1,7 @@
+using System.Text;
+using Luau.Native;
+using static Luau.Native.NativeMethods;
+
 namespace Darp.Luau;
 
 /// <summary> A helper struct to convert any value into a lua value </summary>
@@ -10,6 +14,8 @@ public readonly ref struct IntoLuau
         Nil = 0,
         Bool,
         Number,
+        Integer,
+        Unsigned,
         Chars,
         Value,
     }
@@ -18,17 +24,22 @@ public readonly ref struct IntoLuau
     internal Kind Type { get; }
     private readonly bool _bool;
     private readonly double _number;
+    private readonly int _integer;
     private readonly ReadOnlySpan<char> _readOnlySpanChar;
     private readonly LuauValue _luauValue;
 
-    private IntoLuau(bool value) => (Type, _bool) = (Kind.Bool, value);
+    private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
-    private IntoLuau(double value) => (Type, _number) = (Kind.Number, value);
+    private IntoLuau(double valueNumber) => (Type, _number) = (Kind.Number, valueNumber);
 
-    private IntoLuau(ReadOnlySpan<char> value)
+    private IntoLuau(int valueInteger) => (Type, _integer) = (Kind.Integer, valueInteger);
+
+    private IntoLuau(uint valueUnsigned) => (Type, _integer) = (Kind.Unsigned, (int)valueUnsigned);
+
+    private IntoLuau(ReadOnlySpan<char> valueChars)
     {
         Type = Kind.Chars;
-        _readOnlySpanChar = value;
+        _readOnlySpanChar = valueChars;
     }
 
     private IntoLuau(LuauValue value)
@@ -37,28 +48,143 @@ public readonly ref struct IntoLuau
         _luauValue = value;
     }
 
-    /// <summary> Converts the underlying dotnet value to a luau value </summary>
-    /// <param name="lua"> The luau state to create the value for </param>
-    /// <returns> The luau value </returns>
-    /// <remarks> This method might change the lua stack! Use with care </remarks>
-    internal LuauValue Into(LuauState lua) =>
-        Type switch
+    internal unsafe void Push(lua_State* L)
+    {
+        switch (Type)
         {
-            // TODO: Find out how to cleanup the
-            Kind.Chars => lua.CreateString(_readOnlySpanChar),
-            Kind.Bool => _bool,
-            Kind.Number => _number,
-            Kind.Value => _luauValue,
-            _ => default,
-        };
+            case Kind.Chars:
+                if (_readOnlySpanChar.Length > 256)
+                {
+                    Span<byte> buffer = new byte[Encoding.UTF8.GetByteCount(_readOnlySpanChar)];
+                    int numberOfBytes = Encoding.UTF8.GetBytes(_readOnlySpanChar, buffer);
+                    fixed (byte* pStr = buffer[..numberOfBytes])
+                    {
+                        lua_pushlstring(L, pStr, (nuint)numberOfBytes);
+                    }
+                }
+                else
+                {
+                    Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(_readOnlySpanChar)];
+                    int numberOfBytes = Encoding.UTF8.GetBytes(_readOnlySpanChar, buffer);
+                    fixed (byte* pStr = buffer[..numberOfBytes])
+                    {
+                        lua_pushlstring(L, pStr, (nuint)numberOfBytes);
+                    }
+                }
+                break;
+            case Kind.Bool:
+                lua_pushboolean(L, _bool ? 1 : 0);
+                break;
+            case Kind.Number:
+                lua_pushnumber(L, _number);
+                break;
+            case Kind.Integer:
+                lua_pushinteger(L, _integer);
+                break;
+            case Kind.Unsigned:
+                lua_pushunsigned(L, (uint)_integer);
+                break;
+            case Kind.Value:
+                _luauValue.Push(L);
+                break;
+            case Kind.Nil:
+            default:
+                lua_pushnil(L);
+                break;
+        }
+    }
 
-    public static implicit operator IntoLuau(string? value) => value is null ? default : new IntoLuau(value);
+    /// <summary> Converts to a string or nil </summary>
+    /// <param name="value"> The string value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(string? value) =>
+        value is null ? default : new IntoLuau(valueChars: value);
 
-    public static implicit operator IntoLuau(ReadOnlySpan<char> value) => value.IsEmpty ? default : new IntoLuau(value);
+    /// <summary> Converts to a string or nil </summary>
+    /// <param name="value"> The string value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(ReadOnlySpan<char> value) =>
+        value.IsEmpty ? default : new IntoLuau(valueChars: value);
 
-    public static implicit operator IntoLuau(bool? value) => value is null ? default : new IntoLuau(value.Value);
+    /// <summary> Converts to a boolean </summary>
+    /// <param name="value"> The boolean value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(bool value) => new(valueBool: value);
 
-    public static implicit operator IntoLuau(double? value) => value is null ? default : new IntoLuau(value.Value);
+    /// <summary> Converts to a boolean or nil </summary>
+    /// <param name="value"> The boolean value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(bool? value) =>
+        value is null ? default : new IntoLuau(valueBool: value.Value);
 
+    /// <summary> Converts to a number </summary>
+    /// <param name="value"> The number value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(Half value) => new(valueNumber: (double)value);
+
+    /// <summary> Converts to a number </summary>
+    /// <param name="value"> The number value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(Half? value) =>
+        value is null ? default : new IntoLuau(valueNumber: (double)value.Value);
+
+    /// <summary> Converts to a number </summary>
+    /// <param name="value"> The number value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(double value) => new(valueNumber: value);
+
+    /// <summary> Converts to an unsigned integer </summary>
+    /// <param name="value"> The unsigned integer value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(byte value) => new(valueUnsigned: value);
+
+    /// <summary> Converts to an unsigned integer </summary>
+    /// <param name="value"> The unsigned integer value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(ushort value) => new(valueUnsigned: value);
+
+    /// <summary> Converts to an unsigned integer </summary>
+    /// <param name="value"> The unsigned integer value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(uint value) => new(valueUnsigned: value);
+
+    /// <summary> Converts to an integer </summary>
+    /// <param name="value"> The integer value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(int value) => new(valueInteger: value);
+
+    /// <summary> Converts to a number or nil </summary>
+    /// <param name="value"> The number value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(double? value) =>
+        value is null ? default : new IntoLuau(valueNumber: value.Value);
+
+    /// <summary> Converts to an unsigned integer </summary>
+    /// <param name="value"> The unsigned integer value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(byte? value) =>
+        value is null ? default : new IntoLuau(valueUnsigned: value.Value);
+
+    /// <summary> Converts to an unsigned integer </summary>
+    /// <param name="value"> The unsigned integer value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(ushort? value) =>
+        value is null ? default : new IntoLuau(valueUnsigned: value.Value);
+
+    /// <summary> Converts to an unsigned integer </summary>
+    /// <param name="value"> The unsigned integer value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(uint? value) =>
+        value is null ? default : new IntoLuau(valueUnsigned: value.Value);
+
+    /// <summary> Converts to an integer </summary>
+    /// <param name="value"> The integer value </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(int? value) =>
+        value is null ? default : new IntoLuau(valueInteger: value.Value);
+
+    /// <summary> Converts to a Luau value </summary>
+    /// <param name="value"> The Luau value </param>
+    /// <returns> A temporary representation of the value </returns>
     public static implicit operator IntoLuau(LuauValue value) => new(value);
 }

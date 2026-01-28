@@ -14,6 +14,63 @@ Luau bindings and a higher level wrapper
 - Module support (TODO)
 - Async (Thread and Coroutines) support (MAYBE)
 
+## Mapping of data types
+
+### `nil`
+
+- `LuauNil`
+- `null` for parameters
+- `void` for return types
+
+### `string`
+
+- `ReadOnlySpan<byte>`
+- `ReadOnlySpan<char>`, `string` using UTF8 Encoding
+
+### `number`
+
+- `double`
+- `byte, sbyte, ushort, short, uint, int, ulong, long, UInt128, Int128` are converted (cut off)
+- `Half`, `float`, `decimal` are converted (loss of precision)
+- Any user defined enum
+
+### `boolean`
+
+- `bool`
+
+### `table`
+
+- `LuauTable`
+
+### `function`
+
+- `LuauFunction`
+- Delegates that with parameters of the primitives listed here
+
+### `thread`
+
+Unsupported for now
+
+### `userdata`
+
+Unsupported for now. Planned:
+
+Any type that implements `ILuauUserData`
+
+### `buffer`
+
+Unsupported for now. Planned:
+
+- `ReadOnlySpan<byte>`
+- `byte[]`
+
+### `vector`
+
+Unsupported for now. Planned:
+
+- `System.Numerics.Vector4`
+- `System.Numerics.Vector3` (loss of fourth dimension)
+
 ## Usage
 
 ```csharp

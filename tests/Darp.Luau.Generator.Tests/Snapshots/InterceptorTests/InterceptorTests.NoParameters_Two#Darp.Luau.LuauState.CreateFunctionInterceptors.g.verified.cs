@@ -14,7 +14,7 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(LuauFunctions x)
+        void F(ref LuauFunctions x)
         {
             global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 0);
 

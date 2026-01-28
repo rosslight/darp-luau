@@ -49,7 +49,7 @@ public sealed unsafe class LuauState : IDisposable
     }
 
     /// <summary> The delegate type that provides a save view to work with a function </summary>
-    public delegate void LuauFunctionBuilder(LuauFunctions builder);
+    public delegate void LuauFunctionBuilder(ref LuauFunctions builder);
 
     /// <summary> Create a new LuaFunction and get the reference to it </summary>
     /// <param name="onCalled">The callback providing a </param>
@@ -69,11 +69,12 @@ public sealed unsafe class LuauState : IDisposable
 
         int F(lua_State* luaState)
         {
+            ArgumentOutOfRangeException.ThrowIfNotEqual((nint)luaState, (nint)L);
             int numberOfParameters = lua_gettop(luaState);
-            var builder = new LuauFunctions(luaState, numberOfParameters);
+            var builder = new LuauFunctions(this, numberOfParameters);
             try
             {
-                onCalled(builder);
+                onCalled(ref builder);
                 return builder.NumberOfOutputParameters;
             }
             catch (Exception e)
@@ -85,6 +86,11 @@ public sealed unsafe class LuauState : IDisposable
         }
     }
 
+    /// <summary> Creates a new luau function and returns the reference to it </summary>
+    /// <param name="value"> The delegate to register </param>
+    /// <typeparam name="T"> The type of the delegate. This will be used by the interceptor to retrieve the parameters </typeparam>
+    /// <returns> The <see cref="LuauFunction"/> with the reference </returns>
+    /// <remarks> THIS METHOD IS SUPPOSED TO BE INTERCEPTED AND WILL NOT WORK OTHERWISE </remarks>
     public LuauFunction CreateFunction<T>(T value)
         where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");
 

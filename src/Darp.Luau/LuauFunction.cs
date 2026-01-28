@@ -37,10 +37,9 @@ public readonly ref struct LuauFunction : ILuauReference
     {
         State.ThrowIfDisposed();
         lua_State* L = State.L;
-        LuauValue luauP1 = p1.Into(State);
         lua_getref(L, Reference);
 
-        luauP1.Push(L);
+        p1.Push(L);
 
         int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
         int status = lua_pcall(L, nargs: 1, nresults, 0);
@@ -55,12 +54,10 @@ public readonly ref struct LuauFunction : ILuauReference
     {
         State.ThrowIfDisposed();
         lua_State* L = State.L;
-        LuauValue luauP1 = p1.Into(State);
-        LuauValue luauP2 = p2.Into(State);
 
         lua_getref(L, Reference);
-        luauP1.Push(L);
-        luauP2.Push(L);
+        p1.Push(L);
+        p2.Push(L);
 
         int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
         int status = lua_pcall(L, nargs: 2, nresults, 0);

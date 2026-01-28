@@ -13,7 +13,7 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(LuauFunctions x)
+        void F(ref LuauFunctions x)
         {
             global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 1);
             global::System.ReadOnlySpan<byte> v1Lua = x.CheckString(parameterIndex: 1);
@@ -29,7 +29,7 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(LuauFunctions x)
+        void F(ref LuauFunctions x)
         {
             global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 2);
             global::System.ReadOnlySpan<byte> v1Lua = x.CheckString(parameterIndex: 1);
