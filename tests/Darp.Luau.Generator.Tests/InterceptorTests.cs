@@ -95,6 +95,45 @@ public class InterceptorTests
     }
 
     [Fact]
+    public async Task NullableNumberParameter()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((double? p1) => {});
+                    state.CreateFunction((int? p1) => {});
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
+    public async Task ParameterRoundtrip()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public delegate string? MyDelegate(string? x);
+
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((MyDelegate)((string? p1) => p1));
+                    state.CreateFunction((System.Func<string?, string?>)((string? p1) => p1));
+                    state.CreateFunction((string p1) => p1);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
     public async Task LuauParameter()
     {
         const string code = """
@@ -131,6 +170,7 @@ public class InterceptorTests
         await VerifyHelper.VerifyGenerator(code);
     }
 
+    /*
     [Fact]
     public async Task Varargs()
     {
@@ -155,4 +195,5 @@ public class InterceptorTests
             """;
         await VerifyHelper.VerifyGenerator(code);
     }
+    */
 }

@@ -33,7 +33,7 @@ public readonly ref struct LuauFunction : ILuauReference
 
         var luaReturn = LuauValue.ToValue(State);
         lua_pop(L, 1);
-        return luaReturn.TryGet(out TR? result) ? result : throw new Exception();
+        return luaReturn.TryGet(out TR? result, acceptNil: true) ? result : throw new Exception();
     }
 
     public unsafe TR Call<TR>(IntoLuau p1)
@@ -54,7 +54,7 @@ public readonly ref struct LuauFunction : ILuauReference
 
         var luaReturn = LuauValue.ToValue(State);
         lua_pop(L, 1);
-        return luaReturn.TryGet(out TR? result) ? result : throw new Exception();
+        return luaReturn.TryGet(out TR? result, acceptNil: true) ? result : throw new Exception();
     }
 
     public unsafe TR Call<TR>(IntoLuau p1, IntoLuau p2)
@@ -76,7 +76,7 @@ public readonly ref struct LuauFunction : ILuauReference
 
         var luaReturn = LuauValue.ToValue(State);
         lua_pop(L, 1);
-        return luaReturn.TryGet(out TR? result) ? result : throw new Exception();
+        return luaReturn.TryGet(out TR? result, acceptNil: true) ? result : throw new Exception();
     }
 
     public static implicit operator IntoLuau(LuauFunction value) => (LuauValue)value;

@@ -10,14 +10,14 @@ public sealed class FunctionTests
         using var state = new LuauState();
         state.DoString(
             """
-            function get_value()
-              return "Hello";
+            function get_value(message: string)
+              return message;
             end
             """
         );
         _ = state.Globals.TryGet("get_value", out LuauFunction func);
-        string r = func.Call<string>();
-        r.ShouldBe("Hello");
+        string r = func.Call<string>("Message");
+        r.ShouldBe("Message");
     }
 
     [Fact]
@@ -45,74 +45,119 @@ public sealed class FunctionTests
     {
         using var lua = new LuauState();
 
-        lua.Globals.Set("f1", lua.CreateFunction(() => true));
-        lua.Globals.Set("f2", lua.CreateFunction(() => (sbyte)1));
-        lua.Globals.Set("f3", lua.CreateFunction(() => (byte)1));
-        lua.Globals.Set("f4", lua.CreateFunction(() => (short)1));
-        lua.Globals.Set("f5", lua.CreateFunction(() => (ushort)1));
-        lua.Globals.Set("f6", lua.CreateFunction(() => (int)1));
-        lua.Globals.Set("f7", lua.CreateFunction(() => (uint)1));
-        lua.Globals.Set("f8", lua.CreateFunction(() => (long)1));
-        lua.Globals.Set("f9", lua.CreateFunction(() => (ulong)1));
-        lua.Globals.Set("f10", lua.CreateFunction(() => (Int128)1));
-        lua.Globals.Set("f11", lua.CreateFunction(() => (UInt128)1));
-        lua.Globals.Set("f12", lua.CreateFunction(() => "1"));
-        lua.Globals.Set("f13", lua.CreateFunction(() => (Half)1));
-        lua.Globals.Set("f14", lua.CreateFunction(() => (float)1));
-        lua.Globals.Set("f15", lua.CreateFunction(() => (double)1));
-        lua.Globals.Set("f16", lua.CreateFunction(() => (decimal)1));
-        lua.DoString(
-            """
-            r1 = f1()
-            r2 = f2()
-            r3 = f3()
-            r4 = f4()
-            r5 = f5()
-            r6 = f6()
-            r7 = f7()
-            r8 = f8()
-            r9 = f9()
-            r10 = f10()
-            r11 = f11()
-            r12 = f12()
-            r13 = f13()
-            r14 = f14()
-            r15 = f15()
-            r16 = f16()
-            """
-        );
-        lua.Globals.TryGet("r1", out bool r1).ShouldBeTrue();
-        lua.Globals.TryGet("r2", out sbyte r2).ShouldBeTrue();
-        lua.Globals.TryGet("r3", out byte r3).ShouldBeTrue();
-        lua.Globals.TryGet("r4", out short r4).ShouldBeTrue();
-        lua.Globals.TryGet("r5", out ushort r5).ShouldBeTrue();
-        lua.Globals.TryGet("r6", out int r6).ShouldBeTrue();
-        lua.Globals.TryGet("r7", out uint r7).ShouldBeTrue();
-        lua.Globals.TryGet("r8", out long r8).ShouldBeTrue();
-        lua.Globals.TryGet("r9", out ulong r9).ShouldBeTrue();
-        lua.Globals.TryGet("r10", out Int128 r10).ShouldBeTrue();
-        lua.Globals.TryGet("r11", out UInt128 r11).ShouldBeTrue();
-        lua.Globals.TryGet("r12", out string? r12).ShouldBeTrue();
-        lua.Globals.TryGet("r13", out Half r13).ShouldBeTrue();
-        lua.Globals.TryGet("r14", out float r14).ShouldBeTrue();
-        lua.Globals.TryGet("r15", out double r15).ShouldBeTrue();
-        lua.Globals.TryGet("r16", out decimal r16).ShouldBeTrue();
-        r1.ShouldBe(true);
-        r2.ShouldBe((sbyte)1);
-        r3.ShouldBe((byte)1);
-        r4.ShouldBe((short)1);
-        r5.ShouldBe((ushort)1);
-        r6.ShouldBe((int)1);
-        r7.ShouldBe((uint)1);
-        r8.ShouldBe((long)1);
-        r9.ShouldBe((ulong)1);
-        r10.ShouldBe((Int128)1);
-        r11.ShouldBe((UInt128)1);
-        r12.ShouldBe("1");
-        r13.ShouldBe((Half)1);
-        r14.ShouldBe((float)1);
-        r15.ShouldBe((double)1);
-        r16.ShouldBe((decimal)1);
+        LuauFunction f1 = lua.CreateFunction(() => true);
+        LuauFunction f2 = lua.CreateFunction(() => (sbyte)1);
+        LuauFunction f3 = lua.CreateFunction(() => (byte)1);
+        LuauFunction f4 = lua.CreateFunction(() => (short)1);
+        LuauFunction f5 = lua.CreateFunction(() => (ushort)1);
+        LuauFunction f6 = lua.CreateFunction(() => 1);
+        LuauFunction f7 = lua.CreateFunction(() => (uint)1);
+        LuauFunction f8 = lua.CreateFunction(() => (long)1);
+        LuauFunction f9 = lua.CreateFunction(() => (ulong)1);
+        LuauFunction f10 = lua.CreateFunction(() => (Int128)1);
+        LuauFunction f11 = lua.CreateFunction(() => (UInt128)1);
+        LuauFunction f12 = lua.CreateFunction(() => "1");
+        LuauFunction f13 = lua.CreateFunction(() => (Half)1);
+        LuauFunction f14 = lua.CreateFunction(() => (float)1);
+        LuauFunction f15 = lua.CreateFunction(() => (double)1);
+        LuauFunction f16 = lua.CreateFunction(() => (decimal)1);
+
+        f1.Call<bool>().ShouldBe(true);
+        f2.Call<sbyte>().ShouldBe((sbyte)1);
+        f3.Call<byte>().ShouldBe((byte)1);
+        f4.Call<short>().ShouldBe((short)1);
+        f5.Call<ushort>().ShouldBe((ushort)1);
+        f6.Call<int>().ShouldBe(1);
+        f7.Call<uint>().ShouldBe((uint)1);
+        f8.Call<long>().ShouldBe(1);
+        f9.Call<ulong>().ShouldBe((ulong)1);
+        f10.Call<Int128>().ShouldBe(1);
+        f11.Call<UInt128>().ShouldBe((UInt128)1);
+        f12.Call<string>().ShouldBe("1");
+        f13.Call<Half>().ShouldBe((Half)1);
+        f14.Call<float>().ShouldBe(1);
+        f15.Call<double>().ShouldBe(1);
+        f16.Call<decimal>().ShouldBe(1);
+    }
+
+    [Fact]
+    public void Func_OneArg_Returns()
+    {
+        using var lua = new LuauState();
+
+        LuauFunction f1 = lua.CreateFunction((bool x) => x);
+        LuauFunction f2 = lua.CreateFunction((sbyte x) => x);
+        LuauFunction f3 = lua.CreateFunction((byte x) => x);
+        LuauFunction f4 = lua.CreateFunction((short x) => x);
+        LuauFunction f5 = lua.CreateFunction((ushort x) => x);
+        LuauFunction f6 = lua.CreateFunction((int x) => x);
+        LuauFunction f7 = lua.CreateFunction((uint x) => x);
+        LuauFunction f8 = lua.CreateFunction((long x) => x);
+        LuauFunction f9 = lua.CreateFunction((ulong x) => x);
+        LuauFunction f10 = lua.CreateFunction((Int128 x) => x);
+        LuauFunction f11 = lua.CreateFunction((UInt128 x) => x);
+        LuauFunction f12 = lua.CreateFunction((string x) => x);
+        LuauFunction f13 = lua.CreateFunction((Half x) => x);
+        LuauFunction f14 = lua.CreateFunction((float x) => x);
+        LuauFunction f15 = lua.CreateFunction((double x) => x);
+        LuauFunction f16 = lua.CreateFunction((decimal x) => x);
+
+        f1.Call<bool>(true).ShouldBe(true);
+        f2.Call<sbyte>(1).ShouldBe((sbyte)1);
+        f3.Call<byte>(1).ShouldBe((byte)1);
+        f4.Call<short>(1).ShouldBe((short)1);
+        f5.Call<ushort>(1).ShouldBe((ushort)1);
+        f6.Call<int>(1).ShouldBe(1);
+        f7.Call<uint>(1).ShouldBe((uint)1);
+        f8.Call<long>(1).ShouldBe(1);
+        f9.Call<ulong>(1).ShouldBe((ulong)1);
+        f10.Call<Int128>(1).ShouldBe(1);
+        f11.Call<UInt128>(1).ShouldBe((UInt128)1);
+        f12.Call<string>("1").ShouldBe("1");
+        f13.Call<Half>(1).ShouldBe((Half)1);
+        f14.Call<float>(1).ShouldBe(1);
+        f15.Call<double>(1).ShouldBe(1);
+        f16.Call<decimal>(1).ShouldBe(1);
+    }
+
+    [Fact]
+    public void Func_OneArgNullable_Returns()
+    {
+        using var lua = new LuauState();
+
+        LuauFunction f1 = lua.CreateFunction((bool? x) => x);
+        LuauFunction f2 = lua.CreateFunction((sbyte? x) => x);
+        LuauFunction f3 = lua.CreateFunction((byte? x) => x);
+        LuauFunction f4 = lua.CreateFunction((short? x) => x);
+        LuauFunction f5 = lua.CreateFunction((ushort? x) => x);
+        LuauFunction f6 = lua.CreateFunction((int? x) => x);
+        LuauFunction f7 = lua.CreateFunction((uint? x) => x);
+        LuauFunction f8 = lua.CreateFunction((long? x) => x);
+        LuauFunction f9 = lua.CreateFunction((ulong? x) => x);
+        LuauFunction f10 = lua.CreateFunction((Int128? x) => x);
+        LuauFunction f11 = lua.CreateFunction((UInt128? x) => x);
+        LuauFunction f12 = lua.CreateFunction((string? x) => x);
+        LuauFunction f13 = lua.CreateFunction((Half? x) => x);
+        LuauFunction f14 = lua.CreateFunction((float? x) => x);
+        LuauFunction f15 = lua.CreateFunction((double? x) => x);
+        LuauFunction f16 = lua.CreateFunction((decimal? x) => x);
+
+        f1.Call<bool?>((bool?)null).ShouldBe(null);
+        f2.Call<sbyte?>((sbyte?)null).ShouldBe(null);
+        f3.Call<byte?>((byte?)null).ShouldBe(null);
+        f4.Call<short?>((short?)null).ShouldBe(null);
+        f5.Call<ushort?>((ushort?)null).ShouldBe(null);
+        f6.Call<int?>((int?)null).ShouldBe(null);
+        f7.Call<uint?>((uint?)null).ShouldBe(null);
+        f8.Call<long?>((long?)null).ShouldBe(null);
+        f9.Call<ulong?>((ulong?)null).ShouldBe(null);
+        f10.Call<Int128?>((long?)null).ShouldBe(null);
+        f11.Call<UInt128?>((ulong?)null).ShouldBe(null);
+        f12.Call<string?>((string?)null).ShouldBe(null);
+        f13.Call<Half?>((Half?)null).ShouldBe(null);
+        f14.Call<float?>((float?)null).ShouldBe(null);
+        f15.Call<double?>((double?)null).ShouldBe(null);
+        f16.Call<decimal?>((double?)null).ShouldBe(null);
     }
 
     [Fact]
@@ -129,7 +174,6 @@ public sealed class FunctionTests
         result.ShouldBe(expectedValue);
     }
 
-    /*
     [Fact]
     public void Func_NoArgs_Returns_Nil_Bool()
     {
@@ -139,11 +183,11 @@ public sealed class FunctionTests
         LuauFunction func = lua.CreateFunction(() => expectedValue);
         lua.Globals.Set("f", func);
         lua.DoString("result = f()");
-        lua.Globals.TryGet("result", out bool? result).ShouldBeTrue();
+        lua.Globals.TryGet("result", out bool? result).ShouldBeFalse();
 
         result.ShouldBe(expectedValue);
     }
-*/
+
     [Fact]
     public void Func_NoArgs_Returns_Int()
     {

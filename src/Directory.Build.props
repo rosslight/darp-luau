@@ -6,7 +6,6 @@
     <AnalysisLevel>latest-all</AnalysisLevel>
     <WarningsAsErrors>Nullable</WarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <IsAotCompatible>true</IsAotCompatible>
     <!-- Nuget Package -->
     <Authors>rosslight GmbH</Authors>
     <PackageProjectUrl>https://github.com/rosslight/darp-lua-net</PackageProjectUrl>

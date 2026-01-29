@@ -71,7 +71,7 @@ public readonly ref struct LuauValue
     public static implicit operator LuauValue(LuauFunction value) =>
         new(value.State, LuauValueType.Function, new LuauValueUnion(value.Reference));
 
-    public bool TryGet<T>([NotNullWhen(true)] out T? value)
+    public bool TryGet<T>([NotNullWhen(true)] out T? value, bool acceptNil = false)
         where T : allows ref struct
     {
         value = default;
@@ -82,6 +82,112 @@ public readonly ref struct LuauValue
                 {
                     var temp = default(LuauNil);
                     value = Unsafe.As<LuauNil, T>(ref temp)!;
+                    return true;
+                }
+                if (!acceptNil)
+                {
+                    return false;
+                }
+                if (typeof(T) == typeof(double?))
+                {
+                    double? temp = null;
+                    value = Unsafe.As<double?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(Half?))
+                {
+                    Half? temp = null;
+                    value = Unsafe.As<Half?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(float?))
+                {
+                    float? temp = null;
+                    value = Unsafe.As<float?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(decimal?))
+                {
+                    decimal? temp = null;
+                    value = Unsafe.As<decimal?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(double?))
+                {
+                    double? temp = null;
+                    value = Unsafe.As<double?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(sbyte?))
+                {
+                    sbyte? temp = null;
+                    value = Unsafe.As<sbyte?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(byte?))
+                {
+                    byte? temp = null;
+                    value = Unsafe.As<byte?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(short?))
+                {
+                    short? temp = null;
+                    value = Unsafe.As<short?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(ushort?))
+                {
+                    ushort? temp = null;
+                    value = Unsafe.As<ushort?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(int?))
+                {
+                    int? temp = null;
+                    value = Unsafe.As<int?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(uint?))
+                {
+                    uint? temp = null;
+                    value = Unsafe.As<uint?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(long?))
+                {
+                    long? temp = null;
+                    value = Unsafe.As<long?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(ulong?))
+                {
+                    ulong? temp = null;
+                    value = Unsafe.As<ulong?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(Int128?))
+                {
+                    Int128? temp = null;
+                    value = Unsafe.As<Int128?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(UInt128?))
+                {
+                    UInt128? temp = null;
+                    value = Unsafe.As<UInt128?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(bool?))
+                {
+                    bool? temp = null;
+                    value = Unsafe.As<bool?, T>(ref temp)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(string))
+                {
+                    string? temp = null;
+                    value = Unsafe.As<string?, T>(ref temp)!;
                     return true;
                 }
                 return false;

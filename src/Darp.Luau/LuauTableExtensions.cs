@@ -9,6 +9,6 @@ public static class LuauTableExtensions
     {
         value = default;
         table.State.ThrowIfDisposed();
-        return table.TryGet(key, out LuauValue luauValue) && luauValue.TryGet(out value);
+        return table.TryGet(key, out LuauValue luauValue) && luauValue.TryGet(out value, acceptNil: false);
     }
 }

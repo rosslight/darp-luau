@@ -22,6 +22,9 @@ public readonly ref struct LuauString
         if (State is null)
             return "<nil>";
         lua_State* L = State.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         _ = lua_getref(L, Reference);
         nuint length = 0;
         byte* pStr = lua_tolstring(L, -1, &length);
