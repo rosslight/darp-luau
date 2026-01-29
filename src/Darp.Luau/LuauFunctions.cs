@@ -1,4 +1,3 @@
-using System.Text;
 using Luau.Native;
 using static Luau.Native.NativeMethods;
 
@@ -34,6 +33,9 @@ public unsafe ref struct LuauFunctions
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(parameterIndex, 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(parameterIndex, NumberOfParameters);
         lua_State* L = _state.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         var parameterType = (lua_Type)lua_type(L, parameterIndex);
         if (parameterType is not lua_Type.LUA_TSTRING)
         {
@@ -56,6 +58,9 @@ public unsafe ref struct LuauFunctions
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(parameterIndex, 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(parameterIndex, NumberOfParameters);
         lua_State* L = _state.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         var parameterType = (lua_Type)lua_type(L, parameterIndex);
         if (parameterType is not lua_Type.LUA_TNUMBER)
         {
@@ -79,7 +84,11 @@ public unsafe ref struct LuauFunctions
     public void ReturnParameter(IntoLuau value)
     {
         _state.ThrowIfDisposed();
-        value.Push(_state.L);
+        lua_State* L = _state.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 1);
+#endif
+        value.Push(L);
         NumberOfOutputParameters++;
     }
 }

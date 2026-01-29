@@ -25,7 +25,12 @@ public readonly ref struct LuauTable : ILuauReference
     public unsafe void Set(IntoLuau key, IntoLuau value)
     {
         State.ThrowIfDisposed();
+        if (key.Type is IntoLuau.Kind.Nil)
+            throw new ArgumentNullException(nameof(key), "Cannot set a table value with nil key");
         lua_State* L = State.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         lua_getref(L, Reference);
         key.Push(L);
         value.Push(L);
@@ -41,12 +46,16 @@ public readonly ref struct LuauTable : ILuauReference
     public unsafe bool TryGet(IntoLuau key, out LuauValue value)
     {
         State.ThrowIfDisposed();
-        LuauState state = State;
-        lua_State* L = state.L;
+        lua_State* L = State.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         lua_getref(L, Reference);
         key.Push(L);
         _ = lua_gettable(L, -2);
-        return LuauValue.TryPop(state, out value);
+        value = LuauValue.ToValue(State);
+        lua_pop(L, 2);
+        return true;
     }
 
     public static implicit operator IntoLuau(LuauTable value) => (LuauValue)value;

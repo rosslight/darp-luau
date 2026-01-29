@@ -245,35 +245,28 @@ public readonly ref struct LuauValue
         }
     }
 
-    internal static unsafe bool TryPop(LuauState state, out LuauValue value)
-    {
-        value = ToValue(state, -1);
-        lua_pop(state.L, 1);
-        return true;
-    }
-
-    private static unsafe LuauValue ToValue(LuauState state, int index)
+    internal static unsafe LuauValue ToValue(LuauState state)
     {
         lua_State* L = state.L;
-        var type = (lua_Type)lua_type(L, index);
+        var type = (lua_Type)lua_type(L, -1);
         switch (type)
         {
             case lua_Type.LUA_TNIL:
                 return default;
             case lua_Type.LUA_TBOOLEAN:
-                bool valueBool = lua_toboolean(L, index) == 1;
+                bool valueBool = lua_toboolean(L, -1) == 1;
                 return new LuauValue(state, LuauValueType.Boolean, new LuauValueUnion(valueBool));
             case lua_Type.LUA_TNUMBER:
-                double valueNumber = lua_tonumber(L, index);
+                double valueNumber = lua_tonumber(L, -1);
                 return new LuauValue(state, LuauValueType.Number, new LuauValueUnion(valueNumber));
             case lua_Type.LUA_TSTRING:
-                int referenceString = lua_ref(L, index);
+                int referenceString = lua_ref(L, -1);
                 return new LuauValue(state, LuauValueType.String, new LuauValueUnion(referenceString));
             case lua_Type.LUA_TTABLE:
-                int referenceTable = lua_ref(L, index);
+                int referenceTable = lua_ref(L, -1);
                 return new LuauValue(state, LuauValueType.Table, new LuauValueUnion(referenceTable));
             case lua_Type.LUA_TFUNCTION:
-                int referenceFunction = lua_ref(L, index);
+                int referenceFunction = lua_ref(L, -1);
                 return new LuauValue(state, LuauValueType.Function, new LuauValueUnion(referenceFunction));
             default:
                 throw new ArgumentOutOfRangeException();

@@ -1,10 +1,100 @@
 using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Luau.Native;
+using static Darp.Luau.LuauHelpers;
 using static Luau.Native.NativeMethods;
 
 namespace Darp.Luau;
+
+#if DEBUG
+internal unsafe ref struct StackGuard(lua_State* l, int expectedDelta = 0, [CallerMemberName] string? callerName = null)
+    : IDisposable
+{
+    private static Exception? s_exceptionInFlight;
+
+    private readonly lua_State* _L = l;
+    private readonly int _startTop = lua_gettop(l);
+    private int _expectedDelta = expectedDelta;
+    private readonly string? _callerName = callerName;
+
+    public void OverwriteExpectedDelta(int newExpectedDelta) => _expectedDelta = newExpectedDelta;
+
+    public void Dispose()
+    {
+        int now = lua_gettop(_L);
+        int expected = _startTop + _expectedDelta;
+
+        if (now == expected)
+            return;
+
+        string direction = now > _startTop ? "grown" : "decreased";
+        s_exceptionInFlight = _expectedDelta switch
+        {
+            0 => new InvalidOperationException(
+                $"Lua stack mismatch at {_callerName}: Stack has {direction} from {_startTop} to {now} but should be the same\n{StackDump()}",
+                s_exceptionInFlight
+            ),
+            _ => new InvalidOperationException(
+                $"Lua stack mismatch at {_callerName}: Stack has {direction} by {now - _startTop} from {_startTop} to {now} but should have by {_expectedDelta} to {_startTop + _expectedDelta}\n{StackDump()}",
+                s_exceptionInFlight
+            ),
+        };
+        throw s_exceptionInFlight;
+    }
+
+    private string StackDump()
+    {
+        using var writer = new StringWriter();
+        writer.WriteLine("Lua stack:");
+        int top = lua_gettop(_L);
+        for (int i = 1; i <= top; i++)
+        {
+            var t = (lua_Type)lua_type(_L, i);
+            switch (t)
+            {
+                case lua_Type.LUA_TBOOLEAN:
+                    writer.WriteLine($"  [{i}]: {lua_toboolean(_L, i)}");
+                    break;
+                case lua_Type.LUA_TSTRING:
+                    nuint lenStr = 0;
+                    byte* pStr = lua_tolstring(_L, i, &lenStr);
+                    writer.WriteLine($"  [{i}]: {Encoding.UTF8.GetString(pStr, (int)lenStr)}");
+                    break;
+                case lua_Type.LUA_TNUMBER:
+                    writer.WriteLine($"  [{i}]: {lua_tonumber(_L, i)}");
+                    break;
+                default:
+                    byte* pType = lua_typename(_L, (int)t);
+                    int lenType = 0;
+                    for (; ; )
+                    {
+                        if (pType is null || pType[lenType] == 0)
+                            break;
+                        lenType++;
+                    }
+                    writer.WriteLine($"  [{i}]: {Encoding.UTF8.GetString(pType, lenType)}");
+                    break;
+            }
+        }
+        return writer.ToString();
+    }
+}
+#endif
+
+internal static class LuauHelpers
+{
+    public static unsafe int luaL_ref(lua_State* L, int t)
+    {
+        // Luau lua_ref behaves differently from normal lua!
+        // See https://github.com/luau-lang/luau/issues/247#issuecomment-983043114
+        Debug.Assert(t == LUA_REGISTRYINDEX);
+        int r = lua_ref(L, -1);
+        lua_pop(L, 1);
+        return r;
+    }
+}
 
 /// <summary> The LuauState </summary>
 /// <remarks> Not threadsafe </remarks>
@@ -35,7 +125,7 @@ public sealed unsafe class LuauState : IDisposable
         luaL_openlibs(L);
         // Get the reference to the globals table
         lua_pushvalue(L, LUA_GLOBALSINDEX);
-        _globalsReference = lua_ref(L, -1);
+        _globalsReference = luaL_ref(L, LUA_REGISTRYINDEX);
     }
 
     /// <summary> Create a new table </summary>
@@ -43,8 +133,11 @@ public sealed unsafe class LuauState : IDisposable
     public LuauTable CreateTable()
     {
         this.ThrowIfDisposed();
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         lua_newtable(L);
-        int refPtr = lua_ref(L, -1);
+        int refPtr = luaL_ref(L, LUA_REGISTRYINDEX);
         return new LuauTable(this, refPtr);
     }
 
@@ -57,24 +150,32 @@ public sealed unsafe class LuauState : IDisposable
     public LuauFunction CreateFunctionBuilder(LuauFunctionBuilder onCalled)
     {
         this.ThrowIfDisposed();
-
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         lua_CFunction f = F;
 #pragma warning disable CS0618 // This is the only place we want to save the delegates
         _delegateSave.Add(f);
 #pragma warning restore CS0618 // Type or member is obsolete
 
         lua_pushcfunction(L, f, null);
-        int refs = lua_ref(L, -1);
+        int refs = luaL_ref(L, LUA_REGISTRYINDEX);
         return new LuauFunction(this, refs);
 
         int F(lua_State* luaState)
         {
             ArgumentOutOfRangeException.ThrowIfNotEqual((nint)luaState, (nint)L);
             int numberOfParameters = lua_gettop(luaState);
+#if DEBUG
+            using var guard = new StackGuard(L, expectedDelta: -numberOfParameters);
+#endif
             var builder = new LuauFunctions(this, numberOfParameters);
             try
             {
                 onCalled(ref builder);
+#if DEBUG
+                guard.OverwriteExpectedDelta(builder.NumberOfOutputParameters);
+#endif
                 return builder.NumberOfOutputParameters;
             }
             catch (Exception e)
@@ -113,11 +214,15 @@ public sealed unsafe class LuauState : IDisposable
         ObjectDisposedException.ThrowIf(_disposing > 0, this);
         if (utf8Value.IsEmpty)
             throw new ArgumentNullException(nameof(utf8Value));
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         fixed (byte* pValue = utf8Value)
         {
             lua_pushlstring(L, pValue, (nuint)utf8Value.Length);
         }
-        int reference = lua_ref(L, -1);
+
+        int reference = luaL_ref(L, LUA_REGISTRYINDEX);
         return new LuauString(this, reference);
     }
 
@@ -157,6 +262,9 @@ public sealed unsafe class LuauState : IDisposable
     public void DoString(ReadOnlySpan<byte> source, ReadOnlySpan<byte> chunkName = default)
     {
         this.ThrowIfDisposed();
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         if (chunkName.IsEmpty)
             chunkName = "main"u8;
         fixed (byte* pSource = source)
@@ -166,7 +274,7 @@ public sealed unsafe class LuauState : IDisposable
             byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &resultSize);
             int loadStatus = luau_load(L, pChunkName, pByteCode, resultSize, 0);
             LuaException.ThrowIfNotOk(L, loadStatus);
-            int callStatus = lua_pcall(L, 0, LUA_MULTRET, 0);
+            int callStatus = lua_pcall(L, 0, 0, 0);
             LuaException.ThrowIfNotOk(L, callStatus);
         }
     }
