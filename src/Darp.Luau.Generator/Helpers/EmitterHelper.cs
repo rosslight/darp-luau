@@ -4,10 +4,17 @@ namespace Darp.Luau.Generator.Helpers;
 
 internal static class EmitterHelper
 {
+    internal static string GetDotnetType(ParameterTypeInfo param)
+    {
+        if (param is { Type: LuauValueType.Enum, OriginalTypeName: { } name })
+            return param.IsNullable ? $"{name}?" : name;
+        return GetDotnetType(param.Type, param.IsNullable);
+    }
+
     internal static string GetDotnetType((LuauValueType Type, bool IsNullable) tuple) =>
         GetDotnetType(tuple.Type, tuple.IsNullable);
 
-    internal static string GetDotnetType(LuauValueType type, bool isNullable)
+    private static string GetDotnetType(LuauValueType type, bool isNullable)
     {
         string dotnetType = type switch
         {
@@ -34,6 +41,11 @@ internal static class EmitterHelper
             LuauValueType.LuauFunction => "global::Darp.Luau.LuauFunction",
             LuauValueType.LuauString => "global::Darp.Luau.LuauString",
             LuauValueType.LuauBuffer => "global::System.ReadOnlySpan<byte>",
+            LuauValueType.Enum => throw new ArgumentOutOfRangeException(
+                nameof(type),
+                type,
+                "Use GetDotnetType(ParameterTypeInfo) for enum types"
+            ),
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not get the dotnet type"),
         };
         return isNullable ? $"{dotnetType}?" : dotnetType;
@@ -41,8 +53,8 @@ internal static class EmitterHelper
 
     public static string GetFunctionRepresentation(InvocationMethodSignature signature)
     {
-        ImmutableArray<(LuauValueType Type, bool IsNullable)> parameters = signature.Parameters;
-        ImmutableArray<(LuauValueType Type, bool IsNullable)> returnParameters = signature.ReturnParameters;
+        ImmutableArray<ParameterTypeInfo> parameters = signature.Parameters;
+        ImmutableArray<ParameterTypeInfo> returnParameters = signature.ReturnParameters;
         return (parameters.Length, returnParameters.Length) switch
         {
             (0, 0) => "global::System.Action",

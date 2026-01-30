@@ -170,6 +170,26 @@ public class InterceptorTests
         await VerifyHelper.VerifyGenerator(code);
     }
 
+    [Fact]
+    public async Task EnumParameter()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public enum MyEnum;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((MyEnum p1) => p1);
+                    state.CreateFunction((MyEnum? p1) => p1);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
     /*
     [Fact]
     public async Task Varargs()

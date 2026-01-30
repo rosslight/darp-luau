@@ -23,6 +23,8 @@ internal enum LuauValueType
     NumberFloat, // -> float
     NumberDecimal, // -> decimal
 
+    Enum, // C# enum -> number in Lua
+
     LuauValue,
     LuauTable,
     LuauFunction,
