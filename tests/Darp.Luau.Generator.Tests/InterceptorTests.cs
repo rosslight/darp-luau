@@ -1,4 +1,4 @@
-﻿namespace Darp.Luau.Generator.Tests;
+namespace Darp.Luau.Generator.Tests;
 
 public class InterceptorTests
 {
@@ -216,4 +216,63 @@ public class InterceptorTests
         await VerifyHelper.VerifyGenerator(code);
     }
     */
+
+    [Fact]
+    public async Task UnsupportedType_Lambda()
+    {
+        const string code = """
+            using Darp.Luau;
+            using System.Collections.Generic;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((object p1) => {});
+                    state.CreateFunction(() => new object());
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
+    public async Task UnsupportedType_MethodDeclaration()
+    {
+        const string code = """
+            using Darp.Luau;
+            using System.Collections.Generic;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(MyCallback);
+                }
+
+                public static object? MyCallback(object? p1) => p1;
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
+    public async Task InvalidDelegateType_DelegateBase()
+    {
+        const string code = """
+            using Darp.Luau;
+            using System;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    Delegate del = null!;
+                    state.CreateFunction(del);
+                    state.CreateFunction<Delegate>(() => {});
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
 }

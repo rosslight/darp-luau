@@ -1,0 +1,42 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+        Delegate del = null!;
+        state.CreateFunction(del);
+                             ^^^
+        state.CreateFunction<Delegate>(() => {});
+*/
+ : (8,29)-(8,32),
+      Message: Type 'global::System.Delegate' cannot be used as a delegate type. Expected a concrete delegate type (e.g., Action, Func<string>, or a custom delegate).,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be used as a delegate type. Expected a concrete delegate type (e.g., Action, Func<string>, or a custom delegate).,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction(del);
+        state.CreateFunction<Delegate>(() => {});
+                             ^^^^^^^^
+    }
+*/
+ : (9,29)-(9,37),
+      Message: Type 'global::System.Delegate' cannot be used as a delegate type. Expected a concrete delegate type (e.g., Action, Func<string>, or a custom delegate).,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0003,
+        Title: Invalid delegate type,
+        MessageFormat: Type '{0}' cannot be used as a delegate type. Expected a concrete delegate type (e.g., Action, Func<string>, or a custom delegate).,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

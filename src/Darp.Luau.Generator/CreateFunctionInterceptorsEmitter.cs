@@ -12,35 +12,64 @@ namespace Darp.Luau.Generator;
 
 internal static class CreateFunctionInterceptorsEmitter
 {
-    private static ITypeSymbol? ExtractDelegateType(IInvocationOperation invocation, SemanticModel semanticModel)
-    {
-        if (invocation.Arguments.IsEmpty)
-            return null;
-
-        var argument = invocation.Arguments[0];
-        return argument.Value.Type;
-    }
-
     private static bool TryExtractSignature(
-        ITypeSymbol? delegateType,
+        IInvocationOperation invocationOperation,
         out InvocationMethodSignature signature,
         List<Diagnostic> diagnostics
     )
     {
+        ITypeSymbol? delegateType = invocationOperation.Arguments.Select(x => x.Value.Type).FirstOrDefault();
+
         if (delegateType is not INamedTypeSymbol { DelegateInvokeMethod: { } invokeMethod })
         {
-            // TODO: Diagnostic error about invalid delegate type
+            var syntax = (InvocationExpressionSyntax)invocationOperation.Syntax;
+            Location diagnosticLocation = syntax.GetLocation();
+
+            GenericNameSyntax? genericName = syntax.Expression switch
+            {
+                GenericNameSyntax directGeneric => directGeneric,
+                MemberAccessExpressionSyntax { Name: GenericNameSyntax memberGeneric } => memberGeneric,
+                _ => null,
+            };
+            if (genericName?.TypeArgumentList.Arguments.Count > 0)
+            {
+                // If the user has specified an explicit type that is invalid, flag this
+                diagnosticLocation = genericName.TypeArgumentList.Arguments[0].GetLocation();
+            }
+            else if (syntax.ArgumentList.Arguments.Count > 0)
+            {
+                // Fallback to argument location when no explicit type arguments
+                ArgumentSyntax argSyntax = syntax.ArgumentList.Arguments[0];
+                diagnosticLocation = argSyntax.Expression.GetLocation();
+            }
+
+            string typeDisplayName = delegateType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "null";
+            var diagnostic = Diagnostic.Create(
+                DiagnosticDescriptors.InvalidDelegateTypeDescriptor,
+                diagnosticLocation,
+                typeDisplayName
+            );
+            diagnostics.Add(diagnostic);
+            signature = default;
             return false;
         }
 
         var parameters = ImmutableArray.CreateBuilder<ParameterTypeInfo>();
         var returnTypes = ImmutableArray.CreateBuilder<ParameterTypeInfo>();
 
-        foreach (var typeArg in invokeMethod.Parameters)
+        for (int i = 0; i < invokeMethod.Parameters.Length; i++)
         {
+            var typeArg = invokeMethod.Parameters[i];
+            Location parameterLocation = GetParameterLocation(invocationOperation, i);
+            string usageDescription = typeArg.Name is { Length: > 0 }
+                ? $"parameter '{typeArg.Name}'"
+                : $"parameter #{i + 1}";
+
             if (
                 !TryMapTypeToLuauValueType(
                     typeArg.Type,
+                    parameterLocation,
+                    usageDescription,
                     out LuauValueType luauType,
                     out bool isNullable,
                     out string? originalTypeName,
@@ -53,9 +82,14 @@ internal static class CreateFunctionInterceptorsEmitter
         // Last is return type
         if (invokeMethod.ReturnType.SpecialType is not SpecialType.System_Void)
         {
+            Location returnLocation = GetReturnLocation(invocationOperation);
+            const string returnUsageDescription = "the return value";
+
             if (
                 !TryMapTypeToLuauValueType(
                     invokeMethod.ReturnType,
+                    returnLocation,
+                    returnUsageDescription,
                     out LuauValueType returnType,
                     out bool isReturnNullable,
                     out string? returnOriginalTypeName,
@@ -74,6 +108,8 @@ internal static class CreateFunctionInterceptorsEmitter
 
     private static bool TryMapTypeToLuauValueType(
         ITypeSymbol type,
+        Location diagnosticLocation,
+        string usageDescription,
         out LuauValueType luauType,
         out bool isNullable,
         out string? originalTypeName,
@@ -94,6 +130,8 @@ internal static class CreateFunctionInterceptorsEmitter
             if (
                 !TryMapTypeToLuauValueType(
                     namedType.TypeArguments[0],
+                    diagnosticLocation,
+                    usageDescription,
                     out luauType,
                     out _,
                     out originalTypeName,
@@ -188,16 +226,80 @@ internal static class CreateFunctionInterceptorsEmitter
                 return true;
         }
 
-        // Report unsupported type diagnostic
-        var location = type.Locations.IsEmpty ? Location.None : type.Locations[0];
+        // Report unsupported type diagnostic at the call site
         var diagnostic = Diagnostic.Create(
             DiagnosticDescriptors.UnsupportedTypeDescriptor,
-            location,
-            type.ToDisplayString()
+            diagnosticLocation,
+            type.ToDisplayString(),
+            usageDescription
         );
         diagnostics.Add(diagnostic);
         luauType = default;
         return false;
+    }
+
+    private static Location GetParameterLocation(IInvocationOperation invocationOperation, int parameterIndex)
+    {
+        var syntax = (InvocationExpressionSyntax)invocationOperation.Syntax;
+
+        if (syntax.ArgumentList.Arguments.Count == 0)
+            return syntax.GetLocation();
+
+        ExpressionSyntax delegateExpression = syntax.ArgumentList.Arguments[0].Expression;
+        switch (delegateExpression)
+        {
+            case ParenthesizedLambdaExpressionSyntax parenthesizedLambda:
+                if (parameterIndex < parenthesizedLambda.ParameterList.Parameters.Count)
+                {
+                    var parameterSyntax = parenthesizedLambda.ParameterList.Parameters[parameterIndex];
+                    return (parameterSyntax.Type ?? (SyntaxNode)parameterSyntax).GetLocation();
+                }
+                break;
+            case SimpleLambdaExpressionSyntax simpleLambda when parameterIndex == 0:
+            {
+                ParameterSyntax parameterSyntax = simpleLambda.Parameter;
+                return (parameterSyntax.Type ?? (SyntaxNode)parameterSyntax).GetLocation();
+            }
+        }
+        return delegateExpression.GetLocation();
+    }
+
+    private static Location GetReturnLocation(IInvocationOperation invocationOperation)
+    {
+        var syntax = (InvocationExpressionSyntax)invocationOperation.Syntax;
+        if (syntax.ArgumentList.Arguments.Count == 0)
+            return syntax.GetLocation();
+
+        ExpressionSyntax delegateExpression = syntax.ArgumentList.Arguments[0].Expression;
+        switch (delegateExpression)
+        {
+            case ParenthesizedLambdaExpressionSyntax parenthesizedLambda:
+                if (parenthesizedLambda.ExpressionBody is { } exprBody)
+                    return exprBody.GetLocation();
+
+                if (parenthesizedLambda.Block is { } block)
+                {
+                    foreach (var statement in block.Statements)
+                    {
+                        if (statement is ReturnStatementSyntax { Expression: { } returnExpr })
+                            return returnExpr.GetLocation();
+                    }
+                }
+                break;
+            case SimpleLambdaExpressionSyntax simpleLambda:
+                if (simpleLambda.ExpressionBody is { } simpleExprBody)
+                    return simpleExprBody.GetLocation();
+                if (simpleLambda.Block is { } simpleBlock)
+                {
+                    foreach (var statement in simpleBlock.Statements)
+                    {
+                        if (statement is ReturnStatementSyntax { Expression: { } returnExpr })
+                            return returnExpr.GetLocation();
+                    }
+                }
+                break;
+        }
+        return delegateExpression.GetLocation();
     }
 
     private static string GetCheckFunction(LuauValueType type)
@@ -366,8 +468,7 @@ internal static class CreateFunctionInterceptorsEmitter
             if (location is null || calledMethod.SemanticModel is null)
                 continue;
 
-            ITypeSymbol? delegateType = ExtractDelegateType(calledMethod, calledMethod.SemanticModel);
-            if (!TryExtractSignature(delegateType, out var key, diagnostics))
+            if (!TryExtractSignature(calledMethod, out var key, diagnostics))
                 continue;
 
             if (!groups.TryGetValue(key, out HashSet<InterceptorLocationData> locations))

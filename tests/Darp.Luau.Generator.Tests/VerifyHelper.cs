@@ -30,6 +30,25 @@ public static class VerifyHelper
         );
     }
 
+    public static Task VerifyGeneratorWithErrors(string source, [CallerFilePath] string? callerFilePath = null)
+    {
+        string fileName =
+            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        AddReferenceAssemblyMarker<LuauState>();
+        AddReferenceAssemblyMarker<ILogger>();
+        return VerifyGenerator<DarpLuauInterceptor>(
+            [source],
+            [],
+            "DLUAU",
+            fileName,
+            task => task.ScrubGeneratedCodeAttribute(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string> { { "InterceptorsNamespaces", "Darp.Luau.Generator" } },
+            LanguageVersion.CSharp13,
+            allowCompilationErrors: true
+        );
+    }
+
     /// <summary>
     /// This functions ensures that the assembly is referenced and <see cref="AppDomain.GetAssemblies()"/> of the <see cref="AppDomain.CurrentDomain"/> contains this assembly
     /// </summary>
@@ -68,7 +87,8 @@ public static class VerifyHelper
         IReadOnlyDictionary<string, string> analyzerConfigOptions,
         IReadOnlyDictionary<string, string> features,
         LanguageVersion languageVersion = LanguageVersion.Default,
-        NullableContextOptions nullableContextOptions = NullableContextOptions.Enable
+        NullableContextOptions nullableContextOptions = NullableContextOptions.Enable,
+        bool allowCompilationErrors = false
     )
         where TGenerator : IIncrementalGenerator, new()
     {
@@ -93,10 +113,14 @@ public static class VerifyHelper
         );
 
         // Assert that there are no compilation errors (except for CS5001 which informs about the missing program entry)
-        compilation
-            .GetDiagnostics()
-            .Where(x => x.Id is not "CS5001" && (x.Severity > DiagnosticSeverity.Warning || x.IsWarningAsError))
-            .ShouldBeEmpty();
+        // Skip this check if allowCompilationErrors is true (for error tests)
+        if (!allowCompilationErrors)
+        {
+            compilation
+                .GetDiagnostics()
+                .Where(x => x.Id is not "CS5001" && (x.Severity > DiagnosticSeverity.Warning || x.IsWarningAsError))
+                .ShouldBeEmpty();
+        }
 
         var generator = new TGenerator();
 
