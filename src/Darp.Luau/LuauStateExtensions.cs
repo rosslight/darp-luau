@@ -6,7 +6,10 @@ public static class LuauStateExtensions
     {
         ArgumentNullException.ThrowIfNull(state);
         LuauTable table = state.CreateTable();
-        table.Set("0", values[0]);
+        for (int i = 0; i < values.Length; i++)
+        {
+            table.Set(i + 1, values[i]);
+        }
         return table;
     }
 }

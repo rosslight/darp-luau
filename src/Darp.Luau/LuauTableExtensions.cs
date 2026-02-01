@@ -2,8 +2,15 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Darp.Luau;
 
+/// <summary> Table extensions </summary>
 public static class LuauTableExtensions
 {
+    /// <summary> Tries to get a value of a specific type from the table </summary>
+    /// <param name="table"> The table to get the value from </param>
+    /// <param name="key"> The key to look up </param>
+    /// <param name="value"> The value, if present and of the correct type </param>
+    /// <typeparam name="TValue"> The type of the value </typeparam>
+    /// <returns> True, if the value could be retrieved and has the correct type. False, otherwise </returns>
     public static bool TryGet<TValue>(this in LuauTable table, IntoLuau key, [NotNullWhen(true)] out TValue? value)
         where TValue : allows ref struct
     {
@@ -11,4 +18,42 @@ public static class LuauTableExtensions
         table.State.ThrowIfDisposed();
         return table.TryGet(key, out LuauValue luauValue) && luauValue.TryGet(out value, acceptNil: false);
     }
+
+    /// <summary> Iterates on a table until the first value not matching the given type </summary>
+    /// <param name="table"> The table to enumerate </param>
+    /// <typeparam name="T"> The type to interpret the values with </typeparam>
+    /// <returns> An enumerable with index,value pairs </returns>
+    /// <remarks> Starts at index 1 and goes as long as there is no nil/different type value </remarks>
+    public static IEnumerable<KeyValuePair<int, T>> IPairs<T>(this LuauTable table)
+    {
+        foreach ((int i, LuauValue value) in table.IPairs())
+        {
+            if (value.TryGet(out T? v))
+                yield return new KeyValuePair<int, T>(i, v);
+            else
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Reinterprets the <see cref="LuauValue"/> as <typeparamref name="T"/> or returns null if different type
+    /// </summary>
+    /// <param name="value"> The value to cast </param>
+    /// <typeparam name="T"> The type to cast to </typeparam>
+    /// <returns> The value as the requested type or null </returns>
+    public static T? As<T>(this in LuauValue value)
+        where T : struct => value.Type is not LuauValueType.Nil && value.TryGet(out T v) ? v : null;
+}
+
+/// <summary> Additional table extensions. Necessary to have constraints both on class and struct types </summary>
+public static class LuauTableClassExtensions
+{
+    /// <summary>
+    /// Reinterprets the <see cref="LuauValue"/> as <typeparamref name="T"/> or returns null if different type
+    /// </summary>
+    /// <param name="value"> The value to cast </param>
+    /// <typeparam name="T"> The type to cast to </typeparam>
+    /// <returns> The value as the requested type or null </returns>
+    public static T? As<T>(this in LuauValue value)
+        where T : class => value.Type is not LuauValueType.Nil && value.TryGet(out T? v) ? v : null;
 }

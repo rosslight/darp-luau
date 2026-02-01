@@ -76,7 +76,9 @@ internal static class CreateFunctionInterceptorsEmitter
                     diagnostics
                 )
             )
+            {
                 return false;
+            }
             parameters.Add(new ParameterTypeInfo(luauType, isNullable, originalTypeName));
         }
         // Last is return type

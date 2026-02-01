@@ -24,14 +24,14 @@ public enum LuauValueType
 }
 
 [StructLayout(LayoutKind.Sequential)]
-public readonly ref struct LuauValue
+public readonly struct LuauValue
 {
     public LuauValueType Type { get; }
     private readonly LuauState? _state;
     private readonly LuauValueUnion _union;
 
     [StructLayout(LayoutKind.Explicit)]
-    private readonly ref struct LuauValueUnion
+    private readonly struct LuauValueUnion
     {
         [FieldOffset(0)]
         public readonly bool ValueBool;
