@@ -13,4 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Darp.Luau\Darp.Luau.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="scripts/*" Pack="true" PackagePath="scripts/" CopyToOutputDirectory="Always" />
+  </ItemGroup>
 </Project>
