@@ -1,17 +1,26 @@
 --!strict
 
-function add(a: number, b: number): ()
-    _G.log(string.format("add: a=%d, b=%d", a, b))
-    return a + b
+type ParseResult = { SubTypeName: string, [string] : string | number | boolean }
+
+
+function parse(strData: string) : ParseResult?
+    local result: ParseResult = { SubTypeName = "Beacon" }
+    result["Data"] = strData
+    result["_String_"] = "abc"
+    result["_Boolean_"] = true
+    result["_Number_"] = 444
+    return result
+    -- return nil
 end
 
-function subtract(a: number, b: number): ()
-    _G.log(string.format("subtract: a=%d, b=%d", a, b))
-    return a - b
-end
+
+print(_G.Data)
+_G.Result = parse(_G.Data)
+print(_G.Result)
+
 
 return
 {
-    add = add,
-    subtract = subtract,
+    parse = parse,
 }
+
