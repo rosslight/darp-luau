@@ -372,7 +372,7 @@ public readonly struct LuauValue
             case LuauValueType.Number:
                 lua_pushnumber(L, _union.ValueDouble);
                 break;
-            case LuauValueType.String or LuauValueType.Table or LuauValueType.Function:
+            case LuauValueType.String or LuauValueType.Table or LuauValueType.Function or LuauValueType.Buffer:
                 lua_getref(L, _union.ValueReference);
                 break;
             default:
@@ -403,6 +403,9 @@ public readonly struct LuauValue
             case lua_Type.LUA_TFUNCTION:
                 int referenceFunction = lua_ref(L, -1);
                 return new LuauValue(state, LuauValueType.Function, new LuauValueUnion(referenceFunction));
+            case lua_Type.LUA_TBUFFER:
+                int referenceBuffer = lua_ref(L, -1);
+                return new LuauValue(state, LuauValueType.Buffer, new LuauValueUnion(referenceBuffer));
             default:
                 throw new ArgumentOutOfRangeException();
         }
@@ -419,6 +422,7 @@ public readonly struct LuauValue
             LuauValueType.Boolean => _union.ValueBool ? "true" : "false",
             LuauValueType.Table => new LuauTable(_state, _union.ValueReference).ToString(),
             LuauValueType.Function => new LuauFunction(_state, _union.ValueReference).ToString(),
+            LuauValueType.Buffer => new LuauBuffer(_state,  _union.ValueReference).ToString(),
             _ => "n/a",
         };
     }
