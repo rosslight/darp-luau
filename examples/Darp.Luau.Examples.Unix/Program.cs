@@ -6,6 +6,7 @@ internal sealed class Progarm
 {
     private const string KEY_SubTypeName = "SubTypeName";
     private const string KEY_TheParseResult = "TheParseResult";
+    private const string FUNCTION_parse = "parse";
 
     [STAThread]
     public static void Main(string[] args)
@@ -13,8 +14,8 @@ internal sealed class Progarm
         using var state = new LuauState();
         SetupCallbacks(state);
 
-        state.DoString(File.ReadAllBytes("./scripts/main.luau"));
-        state.DoString(File.ReadAllBytes("./scripts/helpers.luau"), Encoding.UTF8.GetBytes("helpers"));
+        //TODO Support 'require' within scripts
+        state.DoString(File.ReadAllBytes("./scripts/main.luau"), Encoding.UTF8.GetBytes("main"));
         state.DoString(File.ReadAllBytes("./scripts/apple.luau"), Encoding.UTF8.GetBytes("apple"));
 
         // Beacon
@@ -29,16 +30,31 @@ internal sealed class Progarm
         Console.WriteLine("---------------------------------------------------------------------");
         Parse(state, "1006111E54C734B7");
         Console.WriteLine();
+
+        // Unknown
+        Console.WriteLine("---------------------------------------------------------------------");
+        Parse(state, "AABBCC");
+        Console.WriteLine();
     }
 
     private static void Parse(LuauState state, string strData)
     {
-        if (!state.Globals.TryGet("parse", out LuauFunction funcParse))
-            return;
+        Console.WriteLine("Data: {0}", strData);
+        Console.WriteLine();
 
+        if (!state.Globals.TryGet(FUNCTION_parse, out LuauFunction funcParse))
+        {
+            Console.Error.WriteLine("Function '{0}' not found", FUNCTION_parse)            ;
+            return;
+        }
+
+        //TODO Byte-Array as parameter type
         _ = funcParse.Call<bool>(strData);
         if (!state.Globals.TryGet(KEY_TheParseResult, out LuauTable table))
+        {
+            Console.Error.WriteLine("Key '{0}' not found", KEY_TheParseResult)            ;
             return;
+        }
 
         if (table.TryGet(KEY_SubTypeName, out LuauValue valSubTypeName))
         {
@@ -58,14 +74,14 @@ internal sealed class Progarm
 
     private static void SetupCallbacks(LuauState state)
     {
-        //TODO
+        //TODO Byte-Array as return type
         // state.Globals.Set("fromHexString", state.CreateFunctionBuilder((ref onCalled) =>
         // {
         //     byte[] bytes = Convert.FromHexString(onCalled.CheckString(1));
         //     onCalled.ReturnParameter(bytes);
         // }));
 
-        //TODO
+        //TODO Byte-Array as parameter type
         // state.Globals.Set("toHexString", state.CreateFunctionBuilder((ref onCalled) =>
         // {
         //     string str = Convert.ToHexString(onCalled.CheckBuffer(1));
