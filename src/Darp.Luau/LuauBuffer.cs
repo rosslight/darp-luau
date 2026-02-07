@@ -4,10 +4,13 @@ using static Luau.Native.NativeMethods;
 
 namespace Darp.Luau;
 
-public readonly ref struct LuauBuffer
+public struct LuauBuffer : ILuauReference, IDisposable
 {
-    internal LuauState? State { get; }
-    internal int Reference { get; }
+    /// <inheritdoc />
+    public LuauState? State { get; }
+
+    /// <inheritdoc />
+    public int Reference { get; private set; }
 
     [Obsolete("Do not initialize the LuauBuffer. Create using the LuauState instead", true)]
     public LuauBuffer() => State = null;
@@ -85,5 +88,15 @@ public readonly ref struct LuauBuffer
             return "<nil>";
 
         return Convert.ToHexString(span);
+    }
+
+    /// <summary> Remove the reference from the lua state </summary>
+    public unsafe void Dispose()
+    {
+        if (State is null || Reference is 0)
+            return;
+            
+        lua_unref(State.L, Reference);
+        Reference = 0;
     }
 }

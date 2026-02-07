@@ -10,8 +10,7 @@ public sealed class BufferTests
         byte[] expected = [0x01, 0x02, 0x03];
 
         using var state = new LuauState();
-
-        LuauBuffer buffer = state.CreateBuffer(expected);
+        using LuauBuffer buffer = state.CreateBuffer(expected);
 
         buffer.TryGet(out byte[] found).ShouldBeTrue();
         found.ShouldBe<byte>(expected);
@@ -23,8 +22,9 @@ public sealed class BufferTests
         byte[] expected = [0x01, 0x02, 0x03];
 
         using var state = new LuauState();
+        using LuauBuffer buffer = state.CreateBuffer(expected);
 
-        LuauValue value = state.CreateBuffer(expected);
+        LuauValue value = buffer;
         value.Type.ShouldBe(LuauValueType.Buffer);
 
         value.TryGet(out byte[]? found).ShouldBeTrue();
@@ -37,8 +37,9 @@ public sealed class BufferTests
         ReadOnlySpan<byte> expected = new ([0x01, 0x02, 0x03]);
 
         using var state = new LuauState();
+        using LuauBuffer buffer = state.CreateBuffer(expected);
 
-        LuauValue value = state.CreateBuffer(expected);
+        LuauValue value = buffer;
         value.Type.ShouldBe(LuauValueType.Buffer);
 
         value.TryGet(out ReadOnlySpan<byte> found).ShouldBeTrue();
@@ -48,15 +49,14 @@ public sealed class BufferTests
     [Fact]
     public void TryGet_Buffer()
     {
-        ReadOnlySpan<byte> expected = new ([0x01, 0x02, 0x03]);
-
         using var state = new LuauState();
+        using LuauBuffer expected = state.CreateBuffer(new ([0x01, 0x02, 0x03]));
 
-        LuauValue value = state.CreateBuffer(expected);
+        LuauValue value = expected;
         value.Type.ShouldBe(LuauValueType.Buffer);
 
         value.TryGet(out LuauBuffer found).ShouldBeTrue();
-        found.ToString().ShouldBeEquivalentTo(Convert.ToHexString(expected));
+        found.Reference.ShouldBeEquivalentTo(expected.Reference);
     }
 
     [Fact]
@@ -65,8 +65,8 @@ public sealed class BufferTests
         byte[] expected = [0x01, 0x02, 0x03];
 
         using var state = new LuauState();
+        using LuauBuffer buffer = state.CreateBuffer(expected);
 
-        LuauBuffer buffer = state.CreateBuffer(expected);
         buffer.ToString().ShouldBeEquivalentTo(Convert.ToHexString(expected));
     }
 }
