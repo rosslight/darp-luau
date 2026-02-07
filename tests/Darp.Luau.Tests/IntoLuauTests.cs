@@ -120,4 +120,12 @@ public sealed class IntoLuauTests
 
         intoValue.Type.ShouldBe(IntoLuau.Kind.Nil);
     }
+
+    [Fact]
+    internal void Into_Buffer()
+    {
+        IntoLuau intoValue = default(LuauBuffer);
+
+        intoValue.Type.ShouldBe(IntoLuau.Kind.Value);
+    }
 }

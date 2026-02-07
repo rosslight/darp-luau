@@ -328,7 +328,7 @@ public readonly struct LuauValue
                 if (typeof(T) == typeof(ReadOnlySpan<byte>))
                 {
                     var temp = new LuauBuffer(_state, _union.ValueReference);
-                    if (!temp.TryGetBytes(out ReadOnlySpan<byte> span))
+                    if (!temp.TryGet(out ReadOnlySpan<byte> span))
                         return false;
 
                     value = Unsafe.As<ReadOnlySpan<byte>, T>(ref span)!;
@@ -337,7 +337,7 @@ public readonly struct LuauValue
                 if (typeof(T) == typeof(byte[]))
                 {
                     var temp = new LuauBuffer(_state, _union.ValueReference);
-                    if (!temp.TryGetBytes(out byte[] bytes))
+                    if (!temp.TryGet(out byte[] bytes))
                         return false;
 
                     value = Unsafe.As<byte[], T>(ref bytes)!;

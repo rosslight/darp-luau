@@ -16,7 +16,7 @@ public readonly ref struct LuauBuffer
     
     public static implicit operator IntoLuau(LuauBuffer value) => (LuauValue)value;  
 
-    public unsafe bool TryGetBytes(out ReadOnlySpan<byte> span)
+    public unsafe bool TryGet(out ReadOnlySpan<byte> span)
     {
         span = ReadOnlySpan<byte>.Empty;
 
@@ -45,7 +45,7 @@ public readonly ref struct LuauBuffer
         }
     }
 
-    public unsafe bool TryGetBytes(out byte[] bytes)
+    public unsafe bool TryGet(out byte[] bytes)
     {
         bytes = [];
 
@@ -81,7 +81,7 @@ public readonly ref struct LuauBuffer
     /// <inheritdoc />
     public override string ToString()
     {
-        if (!TryGetBytes(out ReadOnlySpan<byte> span))
+        if (!TryGet(out ReadOnlySpan<byte> span))
             return "<nil>";
 
         return Convert.ToHexString(span);
