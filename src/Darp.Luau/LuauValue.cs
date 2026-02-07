@@ -71,6 +71,9 @@ public readonly struct LuauValue
     public static implicit operator LuauValue(LuauFunction value) =>
         new(value.State, LuauValueType.Function, new LuauValueUnion(value.Reference));
 
+    public static implicit operator LuauValue(LuauBuffer value) =>
+        new(value.State, LuauValueType.Buffer, new LuauValueUnion(value.Reference));
+
     public bool TryGet<T>([NotNullWhen(true)] out T? value, bool acceptNil = false)
         where T : allows ref struct
     {
@@ -318,6 +321,32 @@ public readonly struct LuauValue
                 {
                     var temp = new LuauFunction(_state, _union.ValueReference);
                     value = Unsafe.As<LuauFunction, T>(ref temp)!;
+                    return true;
+                }
+                return false;
+            case LuauValueType.Buffer:
+                if (typeof(T) == typeof(ReadOnlySpan<byte>))
+                {
+                    var temp = new LuauBuffer(_state, _union.ValueReference);
+                    if (!temp.TryGetBytes(out ReadOnlySpan<byte> span))
+                        return false;
+
+                    value = Unsafe.As<ReadOnlySpan<byte>, T>(ref span)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(byte[]))
+                {
+                    var temp = new LuauBuffer(_state, _union.ValueReference);
+                    if (!temp.TryGetBytes(out byte[] bytes))
+                        return false;
+
+                    value = Unsafe.As<byte[], T>(ref bytes)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(LuauBuffer))
+                {
+                    var temp = new LuauBuffer(_state, _union.ValueReference);
+                    value = Unsafe.As<LuauBuffer, T>(ref temp)!;
                     return true;
                 }
                 return false;
