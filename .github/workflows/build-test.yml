@@ -19,9 +19,10 @@ jobs:
       - name: Build
         run: dotnet build --no-restore
       - name: Test
-        run: dotnet test --no-build --verbosity normal \
-          --collect:"XPlat Code Coverage;Format=cobertura" \
-          --results-directory ./coverage-results
+        run: |
+          dotnet test --no-build --verbosity normal \
+            --collect:"XPlat Code Coverage;Format=cobertura" \
+            --results-directory ./coverage-results
 
       - name: Attach code-coverage comment
         uses: rosslight/pr-code-coverage-visualizer@v2.2.0
