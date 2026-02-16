@@ -21,10 +21,8 @@ public struct LuauBuffer : ILuauReference, IDisposable
 
     public unsafe bool TryGet(out ReadOnlySpan<byte> span)
     {
+        State.ThrowIfDisposed();
         span = ReadOnlySpan<byte>.Empty;
-
-        if (State is null)
-            return false;
 
         lua_State* L = State.L;
 #if DEBUG
