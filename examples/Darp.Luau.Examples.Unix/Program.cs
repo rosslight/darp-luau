@@ -14,28 +14,27 @@ internal sealed class Progarm
         using var state = new LuauState();
         SetupCallbacks(state);
 
-        //TODO Support 'require' within scripts
         state.DoString(File.ReadAllBytes("./scripts/main.luau"), Encoding.UTF8.GetBytes("main"));
         state.DoString(File.ReadAllBytes("./scripts/apple.luau"), Encoding.UTF8.GetBytes("apple"));
 
-        // Beacon
-        Console.WriteLine("---------------------------------------------------------------------");
-        Parse(state, "021550765CB7D9EA4E2199A4FA879613A492CB1AD302CE");
-        Console.WriteLine();
-
-        // NearbyInfo
-        Console.WriteLine("---------------------------------------------------------------------");
-        Parse(state, "1006091AD0C23F46");
-        Console.WriteLine();
-        Console.WriteLine("---------------------------------------------------------------------");
-        Parse(state, "1006111E54C734B7");
-        Console.WriteLine();
-
-        // Unknown
-        Console.WriteLine("---------------------------------------------------------------------");
-        Parse(state, "AABBCC");
-        Console.WriteLine();
+        foreach(string strData in AdvData)
+        {
+            Console.WriteLine("---------------------------------------------------------------------");
+            Parse(state, strData);
+            Console.WriteLine();
+        }
     }
+
+    private static readonly string[] AdvData =
+    [
+        // Apple - Beacon
+        "021550765CB7D9EA4E2199A4FA879613A492CB1AD302CE",
+        // Apple - NearbyInfo
+        "1006091AD0C23F46",
+        "1006111E54C734B7",
+        // Unknown
+        "AABBCC",
+    ];
 
     private static void Parse(LuauState state, string strData)
     {
@@ -44,15 +43,15 @@ internal sealed class Progarm
 
         if (!state.Globals.TryGet(FUNCTION_parse, out LuauFunction funcParse))
         {
-            Console.Error.WriteLine("Function '{0}' not found", FUNCTION_parse)            ;
+            Console.Error.WriteLine("Function '{0}' not found", FUNCTION_parse);
             return;
         }
 
-        //TODO Byte-Array as parameter type
-        _ = funcParse.Call<bool>(strData);
+        using LuauBuffer data = state.CreateBuffer(Convert.FromHexString(strData));
+        _ = funcParse.Call<bool>(data);
         if (!state.Globals.TryGet(KEY_TheParseResult, out LuauTable table))
         {
-            Console.Error.WriteLine("Key '{0}' not found", KEY_TheParseResult)            ;
+            Console.Error.WriteLine("Key '{0}' not found", KEY_TheParseResult);
             return;
         }
 
@@ -74,18 +73,17 @@ internal sealed class Progarm
 
     private static void SetupCallbacks(LuauState state)
     {
-        //TODO Byte-Array as return type
-        // state.Globals.Set("fromHexString", state.CreateFunctionBuilder((ref onCalled) =>
-        // {
-        //     byte[] bytes = Convert.FromHexString(onCalled.CheckString(1));
-        //     onCalled.ReturnParameter(bytes);
-        // }));
+        state.Globals.Set("fromHexString", state.CreateFunctionBuilder((ref onCalled) =>
+        {
+            byte[] bytes = Convert.FromHexString(onCalled.CheckString(1));
+            using LuauBuffer buffer = state.CreateBuffer(bytes);
+            onCalled.ReturnParameter(buffer);
+        }));
 
-        //TODO Byte-Array as parameter type
-        // state.Globals.Set("toHexString", state.CreateFunctionBuilder((ref onCalled) =>
-        // {
-        //     string str = Convert.ToHexString(onCalled.CheckBuffer(1));
-        //     onCalled.ReturnParameter(str);
-        // }));
+        state.Globals.Set("toHexString", state.CreateFunctionBuilder((ref onCalled) =>
+        {
+            string str = Convert.ToHexString(onCalled.CheckBuffer(1));
+            onCalled.ReturnParameter(str);
+        }));
     }
 }
