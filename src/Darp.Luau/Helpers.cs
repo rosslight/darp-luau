@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
-using Luau.Native;
+using Darp.Luau.Native;
+using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
@@ -26,18 +27,18 @@ internal static class Helpers
         lua_State* L = state.L;
         var toStringFunc = "tostring"u8;
 
-        NativeMethods.lua_getref(L, reference); // [value]
+        lua_getref(L, reference); // [value]
         fixed (byte* pToStrFunc = toStringFunc)
         {
-            NativeMethods.lua_getglobal(L, pToStrFunc); // [value, tostring]
+            lua_getglobal(L, pToStrFunc); // [value, tostring]
         }
-        NativeMethods.lua_pushvalue(L, -2); // [value, tostring, value]
-        NativeMethods.lua_call(L, 1, 1); // [value, result]
+        lua_pushvalue(L, -2); // [value, tostring, value]
+        lua_call(L, 1, 1); // [value, result]
 
         nuint length;
-        byte* pStr = NativeMethods.lua_tolstring(L, -1, &length);
+        byte* pStr = lua_tolstring(L, -1, &length);
         string str = pStr is null ? "<no_str>" : Encoding.UTF8.GetString(pStr, (int)length);
-        NativeMethods.lua_pop(L, 2);
+        lua_pop(L, 2);
         return str;
     }
 }

@@ -1,5 +1,5 @@
-using Luau.Native;
-using static Luau.Native.NativeMethods;
+using Darp.Luau.Native;
+using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 

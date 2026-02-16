@@ -1,10 +1,11 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
-using Luau.Native;
+using Darp.Luau.Native;
 using static Darp.Luau.LuauHelpers;
-using static Luau.Native.NativeMethods;
+using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
@@ -153,12 +154,13 @@ public sealed unsafe class LuauState : IDisposable
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        lua_CFunction f = F;
+        var f = F;
 #pragma warning disable CS0618 // This is the only place we want to save the delegates
         _delegateSave.Add(f);
+        IntPtr intPtr = Marshal.GetFunctionPointerForDelegate(f);
 #pragma warning restore CS0618 // Type or member is obsolete
 
-        lua_pushcfunction(L, f, null);
+        lua_pushcfunction(L, (delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr, null);
         int refs = luaL_ref(L, LUA_REGISTRYINDEX);
         return new LuauFunction(this, refs);
 
