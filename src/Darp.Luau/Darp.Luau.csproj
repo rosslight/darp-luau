@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Luau.Native" Version="0.1.6" />
+    <PackageReference Include="Darp.Luau.Native" Version="0.2.0" />
   </ItemGroup>
 
   <ItemGroup>
