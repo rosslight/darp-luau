@@ -228,6 +228,30 @@ public sealed unsafe class LuauState : IDisposable
         return new LuauString(this, reference);
     }
 
+    /// <summary> Creates a new luau buffer </summary>
+    /// <param name="span"> The bytes span </param>
+    /// <returns> The reference to the LuauBuffer </returns>
+    public LuauBuffer CreateBuffer(scoped ReadOnlySpan<byte> span)
+    {
+        this.ThrowIfDisposed();
+        ObjectDisposedException.ThrowIf(_disposing > 0, this);
+        if (span.IsEmpty)
+            throw new ArgumentNullException(nameof(span));
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        void* pDest = lua_newbuffer(L, (nuint)span.Length);
+
+        fixed (byte* pSrc = span)
+        {
+            Unsafe.CopyBlock(pDest, pSrc, (uint)span.Length);
+        }
+
+        int reference = lua_ref(L, -1);
+        lua_pop(L, 1);
+        return new LuauBuffer(this, reference);
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
