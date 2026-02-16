@@ -3,8 +3,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Luau.Native;
-using static Luau.Native.NativeMethods;
+using Darp.Luau.Native;
+using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
@@ -70,6 +70,9 @@ public readonly struct LuauValue
 
     public static implicit operator LuauValue(LuauFunction value) =>
         new(value.State, LuauValueType.Function, new LuauValueUnion(value.Reference));
+
+    public static implicit operator LuauValue(LuauBuffer value) =>
+        new(value.State, LuauValueType.Buffer, new LuauValueUnion(value.Reference));
 
     public bool TryGet<T>([NotNullWhen(true)] out T? value, bool acceptNil = false)
         where T : allows ref struct
@@ -321,6 +324,32 @@ public readonly struct LuauValue
                     return true;
                 }
                 return false;
+            case LuauValueType.Buffer:
+                if (typeof(T) == typeof(ReadOnlySpan<byte>))
+                {
+                    var temp = new LuauBuffer(_state, _union.ValueReference);
+                    if (!temp.TryGet(out ReadOnlySpan<byte> span))
+                        return false;
+
+                    value = Unsafe.As<ReadOnlySpan<byte>, T>(ref span)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(byte[]))
+                {
+                    var temp = new LuauBuffer(_state, _union.ValueReference);
+                    if (!temp.TryGet(out byte[] bytes))
+                        return false;
+
+                    value = Unsafe.As<byte[], T>(ref bytes)!;
+                    return true;
+                }
+                if (typeof(T) == typeof(LuauBuffer))
+                {
+                    var temp = new LuauBuffer(_state, _union.ValueReference);
+                    value = Unsafe.As<LuauBuffer, T>(ref temp)!;
+                    return true;
+                }
+                return false;
             default:
                 return false;
         }
@@ -343,7 +372,7 @@ public readonly struct LuauValue
             case LuauValueType.Number:
                 lua_pushnumber(L, _union.ValueDouble);
                 break;
-            case LuauValueType.String or LuauValueType.Table or LuauValueType.Function:
+            case LuauValueType.String or LuauValueType.Table or LuauValueType.Function or LuauValueType.Buffer:
                 lua_getref(L, _union.ValueReference);
                 break;
             default:
@@ -374,6 +403,9 @@ public readonly struct LuauValue
             case lua_Type.LUA_TFUNCTION:
                 int referenceFunction = lua_ref(L, -1);
                 return new LuauValue(state, LuauValueType.Function, new LuauValueUnion(referenceFunction));
+            case lua_Type.LUA_TBUFFER:
+                int referenceBuffer = lua_ref(L, -1);
+                return new LuauValue(state, LuauValueType.Buffer, new LuauValueUnion(referenceBuffer));
             default:
                 throw new ArgumentOutOfRangeException();
         }
@@ -390,6 +422,7 @@ public readonly struct LuauValue
             LuauValueType.Boolean => _union.ValueBool ? "true" : "false",
             LuauValueType.Table => new LuauTable(_state, _union.ValueReference).ToString(),
             LuauValueType.Function => new LuauFunction(_state, _union.ValueReference).ToString(),
+            LuauValueType.Buffer => new LuauBuffer(_state,  _union.ValueReference).ToString(),
             _ => "n/a",
         };
     }

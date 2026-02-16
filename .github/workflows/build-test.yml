@@ -1,0 +1,33 @@
+name: Build and test .NET
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+
+      - name: Restore dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore
+      - name: Test
+        run: |
+          dotnet test --no-build --verbosity normal \
+            --collect:"XPlat Code Coverage;Format=cobertura" \
+            --results-directory ./coverage-results
+
+      - name: Attach code-coverage comment
+        uses: rosslight/pr-code-coverage-visualizer@v2.2.0
+        with:
+          files: |
+            coverage-results/**/coverage.cobertura.xml
+          update-comment: true
+          show-changed-lines-only: true

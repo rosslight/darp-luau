@@ -201,4 +201,44 @@ public sealed class FunctionTests
 
         result.ShouldBe(expectedValue);
     }
+
+    [Fact]
+    public void Func_BufferArg_ReturnsString()
+    {
+        using var state = new LuauState();
+
+        const string expectedValue = "010203";
+
+        using LuauBuffer buffer = state.CreateBuffer(Convert.FromHexString(expectedValue));
+
+        state.Globals.Set("input", buffer);
+        state.Globals.Set("f", state.CreateFunctionBuilder((ref onCalled) =>
+        {
+            string str = Convert.ToHexString(onCalled.CheckBuffer(1));
+            onCalled.ReturnParameter(str);
+        }));
+        state.DoString("result = f(input)");
+        state.Globals.TryGet("result", out string? strResult).ShouldBeTrue();
+        
+        strResult.ShouldBe(expectedValue);
+    }
+
+    [Fact]
+    public void Func_StringArg_ReturnsBuffer()
+    {
+        using var state = new LuauState();
+
+        byte[] expected = [0x01, 0x02, 0x03];
+        
+        state.Globals.Set("input", Convert.ToHexString(expected));
+        state.Globals.Set("f", state.CreateFunctionBuilder((ref onCalled) =>
+        {
+            byte[] bytes = Convert.FromHexString(onCalled.CheckString(1));
+            using LuauBuffer buffer = state.CreateBuffer(bytes);
+            onCalled.ReturnParameter(buffer);
+        }));
+        state.DoString("result = f(input)");
+        state.Globals.TryGet("result", out ReadOnlySpan<byte> result).ShouldBeTrue();
+        result.ToArray().ShouldBe<byte>(expected);
+    }
 }
