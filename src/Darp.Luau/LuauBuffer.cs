@@ -30,10 +30,9 @@ public struct LuauBuffer : ILuauReference, IDisposable
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
+        _ = lua_getref(L, Reference);
         try
         {
-            _ = lua_getref(L, Reference);
-
             nuint nLength = 0;
             void* pBuf = lua_tobuffer(L, -1, &nLength);
             if (pBuf is null)
@@ -48,37 +47,16 @@ public struct LuauBuffer : ILuauReference, IDisposable
         }
     }
 
-    public unsafe bool TryGet(out byte[] bytes)
+    public bool TryGet(out byte[] bytes)
     {
-        bytes = [];
-
-        if (State is null)
-            return false;
-
-        lua_State* L = State.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        try
+        if (TryGet(out ReadOnlySpan<byte> span))
         {
-            _ = lua_getref(L, Reference);
-
-            nuint nLength = 0;
-            void* pSrc = lua_tobuffer(L, -1, &nLength);
-            if (pSrc is null)
-                return false;
-
-            bytes = new byte[(int)nLength];
-            fixed (void* pDest = bytes)
-            {
-                Unsafe.CopyBlock(pDest, pSrc, (uint)nLength);
-            }
+            bytes = span.ToArray();
             return true;
         }
-        finally
-        {
-            lua_pop(L, 1);
-        }
+
+        bytes = [];
+        return false;
     }
 
     /// <inheritdoc />
