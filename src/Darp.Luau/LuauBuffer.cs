@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
-using Luau.Native;
-using static Luau.Native.NativeMethods;
+using Darp.Luau.Native;
+using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
@@ -16,8 +16,8 @@ public struct LuauBuffer : ILuauReference, IDisposable
     public LuauBuffer() => State = null;
 
     internal LuauBuffer(LuauState? state, int reference) => (State, Reference) = (state, reference);
-    
-    public static implicit operator IntoLuau(LuauBuffer value) => (LuauValue)value;  
+
+    public static implicit operator IntoLuau(LuauBuffer value) => (LuauValue)value;
 
     public unsafe bool TryGet(out ReadOnlySpan<byte> span)
     {
@@ -69,7 +69,7 @@ public struct LuauBuffer : ILuauReference, IDisposable
                 return false;
 
             bytes = new byte[(int)nLength];
-            fixed(void* pDest = bytes)
+            fixed (void* pDest = bytes)
             {
                 Unsafe.CopyBlock(pDest, pSrc, (uint)nLength);
             }
@@ -95,7 +95,7 @@ public struct LuauBuffer : ILuauReference, IDisposable
     {
         if (State is null || Reference is 0)
             return;
-            
+
         lua_unref(State.L, Reference);
         Reference = 0;
     }
