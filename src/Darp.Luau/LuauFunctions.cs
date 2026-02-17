@@ -1,4 +1,5 @@
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
@@ -27,7 +28,7 @@ public unsafe ref struct LuauFunctions
     /// <param name="parameterIndex"> The index of the parameter. 1 based </param>
     /// <returns> The string bytes </returns>
     /// <remarks> The resulting span points to lua owned memory! If a GC cycle is triggered this span might no longer be valid! </remarks>
-    public ReadOnlySpan<byte> CheckString(int parameterIndex)
+    public readonly ReadOnlySpan<byte> CheckString(int parameterIndex)
     {
         _state.ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(parameterIndex, 0);
@@ -50,7 +51,7 @@ public unsafe ref struct LuauFunctions
         return new ReadOnlySpan<byte>(pStr, (int)len);
     }
 
-    public ReadOnlySpan<byte> CheckStringOrNil(int parameterIndex, out bool isNull)
+    public readonly ReadOnlySpan<byte> CheckStringOrNil(int parameterIndex, out bool isNull)
     {
         _state.ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(parameterIndex, 0);
@@ -79,7 +80,7 @@ public unsafe ref struct LuauFunctions
         return new ReadOnlySpan<byte>(pStr, (int)len);
     }
 
-    public double CheckNumber(int parameterIndex)
+    public readonly double CheckNumber(int parameterIndex)
     {
         _state.ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(parameterIndex, 0);
@@ -98,7 +99,7 @@ public unsafe ref struct LuauFunctions
         return lua_tonumber(L, parameterIndex);
     }
 
-    public bool CheckBoolean(int parameterIndex)
+    public readonly bool CheckBoolean(int parameterIndex)
     {
         _state.ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(parameterIndex, 0);
@@ -117,7 +118,7 @@ public unsafe ref struct LuauFunctions
         return lua_toboolean(L, parameterIndex) == 1;
     }
 
-    public bool? CheckBooleanOrNil(int parameterIndex)
+    public readonly bool? CheckBooleanOrNil(int parameterIndex)
     {
         _state.ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(parameterIndex, 0);
@@ -140,7 +141,7 @@ public unsafe ref struct LuauFunctions
         return lua_toboolean(L, parameterIndex) == 1;
     }
 
-    public double? CheckNumberOrNil(int parameterIndex)
+    public readonly double? CheckNumberOrNil(int parameterIndex)
     {
         _state.ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(parameterIndex, 0);
@@ -183,12 +184,12 @@ public unsafe ref struct LuauFunctions
                 $"Parameter {parameterIndex} must be {lua_Type.LUA_TBUFFER} but was {parameterType}."
             );
         }
-        
+
         nuint nLength = 0;
         void* pBuf = lua_tobuffer(L, -1, &nLength);
         if (pBuf is null)
             throw new ArgumentException($"Parameter {parameterIndex} returned a null pointer.");
-            
+
         return new ReadOnlySpan<byte>(pBuf, (int)nLength);
     }
 
@@ -223,13 +224,13 @@ public unsafe ref struct LuauFunctions
         return new ReadOnlySpan<byte>(pBuf, (int)nLength);
     }
 
-    public LuauValue CheckLuauValue(int parameterIndex) => throw new NotImplementedException();
+    public readonly LuauValue CheckLuauValue(int parameterIndex) => throw new NotImplementedException();
 
-    public LuauTable CheckLuauTable(int parameterIndex) => throw new NotImplementedException();
+    public readonly LuauTable CheckLuauTable(int parameterIndex) => throw new NotImplementedException();
 
-    public LuauFunction CheckLuauFunction(int parameterIndex) => throw new NotImplementedException();
+    public readonly LuauFunction CheckLuauFunction(int parameterIndex) => throw new NotImplementedException();
 
-    public LuauString CheckLuauString(int parameterIndex) => throw new NotImplementedException();
+    public readonly LuauString CheckLuauString(int parameterIndex) => throw new NotImplementedException();
 
     public void ReturnParameter(IntoLuau value)
     {

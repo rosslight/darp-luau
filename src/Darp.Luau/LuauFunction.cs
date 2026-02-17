@@ -1,15 +1,17 @@
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-public readonly ref struct LuauFunction : ILuauReference
+public struct LuauFunction : ILuauReference
 {
     /// <inheritdoc />
     public LuauState? State { get; }
 
     /// <inheritdoc />
-    public int Reference { get; }
+    public int Reference { get; private set; }
 
     /// <summary> Do (not) initialize a new LuauFunction </summary>
     [Obsolete("Do not initialize the LuauFunction. Create using the LuauState instead", false)]
@@ -17,10 +19,10 @@ public readonly ref struct LuauFunction : ILuauReference
 
     internal LuauFunction(LuauState? state, int reference) => (State, Reference) = (state, reference);
 
-    public unsafe TR Call<TR>()
+    public readonly unsafe TR Call<TR>()
         where TR : allows ref struct
     {
-        State.ThrowIfDisposed();
+        ThrowIfDisposed();
         lua_State* L = State.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
@@ -36,10 +38,10 @@ public readonly ref struct LuauFunction : ILuauReference
         return luaReturn.TryGet(out TR? result, acceptNil: true) ? result : throw new Exception();
     }
 
-    public unsafe TR Call<TR>(IntoLuau p1)
+    public readonly unsafe TR Call<TR>(IntoLuau p1)
         where TR : allows ref struct
     {
-        State.ThrowIfDisposed();
+        ThrowIfDisposed();
         lua_State* L = State.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
@@ -57,10 +59,10 @@ public readonly ref struct LuauFunction : ILuauReference
         return luaReturn.TryGet(out TR? result, acceptNil: true) ? result : throw new Exception();
     }
 
-    public unsafe TR Call<TR>(IntoLuau p1, IntoLuau p2)
+    public readonly unsafe TR Call<TR>(IntoLuau p1, IntoLuau p2)
         where TR : allows ref struct
     {
-        State.ThrowIfDisposed();
+        ThrowIfDisposed();
         lua_State* L = State.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
@@ -82,5 +84,22 @@ public readonly ref struct LuauFunction : ILuauReference
     public static implicit operator IntoLuau(LuauFunction value) => (LuauValue)value;
 
     /// <inheritdoc />
-    public override string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);
+    public override readonly string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);
+
+    /// <summary> Remove the reference from the lua state </summary>
+    public unsafe void Dispose()
+    {
+        if (State is null || Reference is 0)
+            return;
+        lua_unref(State.L, Reference);
+        Reference = 0;
+    }
+
+    [MemberNotNull(nameof(State))]
+    private readonly void ThrowIfDisposed()
+    {
+        State.ThrowIfDisposed();
+        if (Reference is 0)
+            throw new ObjectDisposedException(nameof(LuauTable), "The reference to the LuauTable is invalid");
+    }
 }

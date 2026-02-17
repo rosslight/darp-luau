@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
@@ -100,7 +101,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
 
     /// <summary> Gets the value associated with this key (or <see cref="LuauValueType.Nil"/>) </summary>
     /// <param name="key"> The key to look for </param>
-    public LuauValue this[IntoLuau key]
+    public readonly LuauValue this[IntoLuau key]
     {
         get
         {
@@ -187,7 +188,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
 
             // stack: [table, key, value]
             lua_pushvalue(L, -2); // [table, key, value, keyCopy]
-            int newKeyRef = LuauHelpers.luaL_ref(L, LUA_REGISTRYINDEX); // pops keyCopy
+            int newKeyRef = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX); // pops keyCopy
             if (_lastKeyRef != 0)
             {
                 lua_unref(L, _lastKeyRef);

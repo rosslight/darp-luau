@@ -18,7 +18,7 @@ public enum LuauValueType
     Table,
     Function,
     Thread,
-    UserData,
+    Userdata,
     Vector,
     Buffer,
 }
@@ -73,6 +73,9 @@ public readonly struct LuauValue
 
     public static implicit operator LuauValue(LuauBuffer value) =>
         new(value.State, LuauValueType.Buffer, new LuauValueUnion(value.Reference));
+
+    public static implicit operator LuauValue(LuauUserdata value) =>
+        new(value.State, LuauValueType.Userdata, new LuauValueUnion(value.Reference));
 
     public bool TryGet<T>([NotNullWhen(true)] out T? value, bool acceptNil = false)
         where T : allows ref struct
@@ -422,7 +425,7 @@ public readonly struct LuauValue
             LuauValueType.Boolean => _union.ValueBool ? "true" : "false",
             LuauValueType.Table => new LuauTable(_state, _union.ValueReference).ToString(),
             LuauValueType.Function => new LuauFunction(_state, _union.ValueReference).ToString(),
-            LuauValueType.Buffer => new LuauBuffer(_state,  _union.ValueReference).ToString(),
+            LuauValueType.Buffer => new LuauBuffer(_state, _union.ValueReference).ToString(),
             _ => "n/a",
         };
     }

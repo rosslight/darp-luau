@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
@@ -18,6 +19,7 @@ public readonly ref struct IntoLuau
         Unsigned,
         Chars,
         Value,
+        UserdataFactory,
     }
 
     /// <summary> Describes of which kind the resulting <see cref="LuauValue"/> will be </summary>
@@ -27,6 +29,7 @@ public readonly ref struct IntoLuau
     private readonly int _integer;
     private readonly ReadOnlySpan<char> _readOnlySpanChar;
     private readonly LuauValue _luauValue;
+    private readonly Func<LuauState, LuauUserdata>? _factory;
 
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
@@ -46,6 +49,12 @@ public readonly ref struct IntoLuau
     {
         Type = Kind.Value;
         _luauValue = value;
+    }
+
+    private IntoLuau(Func<LuauState, LuauUserdata> factory)
+    {
+        Type = Kind.Value;
+        _factory = factory;
     }
 
     internal unsafe void Push(lua_State* L)
@@ -86,6 +95,10 @@ public readonly ref struct IntoLuau
                 break;
             case Kind.Value:
                 _luauValue.Push(L);
+                break;
+            case Kind.UserdataFactory:
+                Debug.Assert(_factory is not null);
+                _factory.Invoke(null!);
                 break;
             case Kind.Nil:
             default:
@@ -187,4 +200,6 @@ public readonly ref struct IntoLuau
     /// <param name="value"> The Luau value </param>
     /// <returns> A temporary representation of the value </returns>
     public static implicit operator IntoLuau(LuauValue value) => new(value);
+
+    public static IntoLuau FromUserdata(Func<LuauState, LuauUserdata> factory) => new(factory);
 }

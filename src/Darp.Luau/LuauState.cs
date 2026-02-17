@@ -1,99 +1,82 @@
 using System.Buffers;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Darp.Luau.Native;
-using static Darp.Luau.LuauHelpers;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
+using static Darp.Luau.Utils.LuauNativeMethods;
 
 namespace Darp.Luau;
 
-#if DEBUG
-internal unsafe ref struct StackGuard(lua_State* l, int expectedDelta = 0, [CallerMemberName] string? callerName = null)
-    : IDisposable
+internal sealed record UserdataRegistryValue(
+    LuauState State,
+    UserdataRegistryValue.OnLuaCallback IndexCallback,
+    UserdataRegistryValue.OnLuaCallback NewIndexCallback,
+    UserdataRegistryValue.OnLuaCallback MethodCallback
+)
 {
-    private static Exception? s_exceptionInFlight;
-
-    private readonly lua_State* _L = l;
-    private readonly int _startTop = lua_gettop(l);
-    private int _expectedDelta = expectedDelta;
-    private readonly string? _callerName = callerName;
-
-    public void OverwriteExpectedDelta(int newExpectedDelta) => _expectedDelta = newExpectedDelta;
-
-    public void Dispose()
-    {
-        int now = lua_gettop(_L);
-        int expected = _startTop + _expectedDelta;
-
-        if (now == expected)
-            return;
-
-        string direction = now > _startTop ? "grown" : "decreased";
-        s_exceptionInFlight = _expectedDelta switch
-        {
-            0 => new InvalidOperationException(
-                $"Lua stack mismatch at {_callerName}: Stack has {direction} from {_startTop} to {now} but should be the same\n{StackDump()}",
-                s_exceptionInFlight
-            ),
-            _ => new InvalidOperationException(
-                $"Lua stack mismatch at {_callerName}: Stack has {direction} by {now - _startTop} from {_startTop} to {now} but should have by {_expectedDelta} to {_startTop + _expectedDelta}\n{StackDump()}",
-                s_exceptionInFlight
-            ),
-        };
-        throw s_exceptionInFlight;
-    }
-
-    private string StackDump()
-    {
-        using var writer = new StringWriter();
-        writer.WriteLine("Lua stack:");
-        int top = lua_gettop(_L);
-        for (int i = 1; i <= top; i++)
-        {
-            var t = (lua_Type)lua_type(_L, i);
-            switch (t)
-            {
-                case lua_Type.LUA_TBOOLEAN:
-                    writer.WriteLine($"  [{i}]: {lua_toboolean(_L, i)}");
-                    break;
-                case lua_Type.LUA_TSTRING:
-                    nuint lenStr = 0;
-                    byte* pStr = lua_tolstring(_L, i, &lenStr);
-                    writer.WriteLine($"  [{i}]: {Encoding.UTF8.GetString(pStr, (int)lenStr)}");
-                    break;
-                case lua_Type.LUA_TNUMBER:
-                    writer.WriteLine($"  [{i}]: {lua_tonumber(_L, i)}");
-                    break;
-                default:
-                    byte* pType = lua_typename(_L, (int)t);
-                    int lenType = 0;
-                    for (; ; )
-                    {
-                        if (pType is null || pType[lenType] == 0)
-                            break;
-                        lenType++;
-                    }
-                    writer.WriteLine($"  [{i}]: {Encoding.UTF8.GetString(pType, lenType)}");
-                    break;
-            }
-        }
-        return writer.ToString();
-    }
+    public unsafe delegate int OnLuaCallback(LuauState lua, object? userdata);
 }
-#endif
 
-internal static class LuauHelpers
+internal sealed class LuauCache(LuauState state)
 {
-    public static unsafe int luaL_ref(lua_State* L, int t)
+    private readonly LuauState _state = state;
+    private readonly Dictionary<Type, GCHandle> _x = new();
+
+    public unsafe GCHandle Register<T>()
+        where T : ILuauUserData<T>
     {
-        // Luau lua_ref behaves differently from normal lua!
-        // See https://github.com/luau-lang/luau/issues/247#issuecomment-983043114
-        Debug.Assert(t == LUA_REGISTRYINDEX);
-        int r = lua_ref(L, -1);
-        lua_pop(L, 1);
-        return r;
+        if (_x.TryGetValue(typeof(T), out GCHandle handle))
+            return handle;
+        var userRegistryValue = new UserdataRegistryValue(
+            _state,
+            IndexCallbackManaged,
+            static (_, _) => 0,
+            static (_, _) => 0
+        );
+        handle = GCHandle.Alloc(userRegistryValue);
+
+        fixed (byte* pIndexName = "__index"u8)
+        fixed (byte* pNewIndexName = "__newindex"u8)
+        fixed (byte* pNewCallName = "__namecall"u8)
+        {
+            Span<luaL_Reg> metatable =
+            [
+                new() { name = pIndexName, func = &IndexCallback },
+                new() { name = pNewIndexName, func = &IndexCallback },
+                new() { name = pNewCallName, func = &IndexCallback },
+                default,
+            ];
+            fixed (luaL_Reg* pMetatable = metatable)
+                luaL_register(_state.L, null, pMetatable);
+        }
+
+        return handle;
+
+        static int IndexCallbackManaged(LuauState lua, object? userdata)
+        {
+            if (userdata is not T tTarget)
+                throw new InvalidOperationException();
+            lua_State* L = lua.L;
+            nuint keyLength;
+            byte* keyUtf8 = lua_tolstring(L, 2, &keyLength); // Check string
+            string key = Encoding.UTF8.GetString(new ReadOnlySpan<byte>(keyUtf8, checked((int)keyLength)));
+            IntoLuau result = T.OnIndex(tTarget, lua, key);
+            result.Push(L);
+            return 0;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static unsafe int IndexCallback(lua_State* L)
+    {
+        var native = (LuauUserdataNative*)lua_touserdata(L, 1);
+        if (native->RegistryValueHandle.Target is not UserdataRegistryValue registryValue)
+            throw new InvalidOperationException();
+        if (registryValue.State.L != L)
+            throw new InvalidOperationException();
+        return registryValue.IndexCallback(registryValue.State, native->UserdataHandle.Target);
     }
 }
 
@@ -105,6 +88,7 @@ public sealed unsafe class LuauState : IDisposable
     internal readonly lua_State* L;
     private int _disposing; // 0 = false, 1 = true
     private readonly int _globalsReference;
+    private readonly LuauCache _cache;
 
     [Obsolete("Used for saving delegates used in unmanaged memory to prevent them going out of scope")]
     // ReSharper disable once CollectionNeverQueried.Local
@@ -127,6 +111,7 @@ public sealed unsafe class LuauState : IDisposable
         // Get the reference to the globals table
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         _globalsReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        _cache = new LuauCache(this);
     }
 
     /// <summary> Create a new table </summary>
@@ -197,6 +182,53 @@ public sealed unsafe class LuauState : IDisposable
     public LuauFunction CreateFunction<T>(T value)
         where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");
 
+    public LuauUserdata CreateUserdata<T>(in T userdata)
+        where T : ILuauUserData<T>
+    {
+        this.ThrowIfDisposed();
+
+        _cache.Register<T>();
+        GCHandle registrationHandle = _cache.Register<T>();
+        return CreateUserdataUnchecked(registrationHandle, userdata);
+    }
+
+    private bool TryRegisterUserdata<T>()
+        where T : ILuauUserData<T>
+    {
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        string tagName = typeof(T).FullName ?? typeof(T).Name;
+        Span<byte> tagNameBuffer = stackalloc byte[Encoding.UTF8.GetByteCount(tagName)];
+        int numberOfBytes = Encoding.UTF8.GetBytes(tagName, tagNameBuffer);
+        fixed (byte* pTagName = tagNameBuffer[..numberOfBytes])
+        {
+            // Returns 0, if there is already a metatable registered for this type
+            if (luaL_newmetatable(L, pTagName) != 1)
+                return false;
+        }
+        lua_newtable(L);
+        // Constructor
+        // lua_pushcfunction(L, s_Class2_MyFunc, "Class2.MyFunc");
+        return true;
+    }
+
+    private LuauUserdata CreateUserdataUnchecked<T>(GCHandle registrationHandle, T userdata)
+    {
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+        var ptr = (LuauUserdataNative*)lua_newuserdatatagged(
+            L,
+            (nuint)sizeof(LuauUserdataNative),
+            LuauUserdataNative.Tag
+        );
+        ptr->UserdataHandle = GCHandle.Alloc(userdata, GCHandleType.Normal);
+        ptr->RegistryValueHandle = registrationHandle;
+        int reference = luaL_ref(L, LUA_REGISTRYINDEX);
+        return new LuauUserdata(this, reference);
+#endif
+    }
+
     /// <summary> Creates a new luau string </summary>
     /// <param name="value"> The string </param>
     /// <returns> The reference to the LuauString </returns>
@@ -213,7 +245,6 @@ public sealed unsafe class LuauState : IDisposable
     public LuauString CreateString(scoped ReadOnlySpan<byte> utf8Value)
     {
         this.ThrowIfDisposed();
-        ObjectDisposedException.ThrowIf(_disposing > 0, this);
         if (utf8Value.IsEmpty)
             throw new ArgumentNullException(nameof(utf8Value));
 #if DEBUG
@@ -303,29 +334,5 @@ public sealed unsafe class LuauState : IDisposable
             int callStatus = lua_pcall(L, 0, 0, 0);
             LuaException.ThrowIfNotOk(L, callStatus);
         }
-    }
-}
-
-/// <summary> A lua exception </summary>
-public sealed class LuaException : Exception
-{
-    private LuaException(string message)
-        : base(message) { }
-
-    /// <summary> Throws if not ok </summary>
-    /// <param name="state"> The state that holds the error </param>
-    /// <param name="status"> The status </param>
-    /// <exception cref="LuaException"> The exception if the status is not ok </exception>
-    public static unsafe void ThrowIfNotOk(lua_State* state, int status)
-    {
-        if (status == 0)
-            return;
-
-        nuint outLength = 0;
-        byte* err = lua_tolstring(state, -1, &outLength);
-        lua_pop(state, 1);
-        string error = Encoding.UTF8.GetString(err, (int)outLength);
-        string message = $"Lua invocation failed with status {status}: {error}";
-        throw new LuaException(message);
     }
 }

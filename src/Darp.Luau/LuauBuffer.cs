@@ -1,10 +1,10 @@
-using System.Runtime.CompilerServices;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-public struct LuauBuffer : ILuauReference, IDisposable
+public struct LuauBuffer : ILuauReference
 {
     /// <inheritdoc />
     public LuauState? State { get; }
