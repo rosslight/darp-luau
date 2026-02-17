@@ -228,13 +228,47 @@ public unsafe ref struct LuauFunctions
         return new ReadOnlySpan<byte>(pBuf, (int)nLength);
     }
 
-    public readonly LuauValue CheckLuauValue(int parameterIndex) => throw new NotImplementedException();
+    public readonly LuauValue CheckLuauValue(int parameterIndex)
+    {
+        _state.ThrowIfDisposed();
+        int stackIndex = GetStackIndex(parameterIndex);
+        return new LuauView(_state, stackIndex).CheckLuauValue();
+    }
 
-    public readonly LuauTable CheckLuauTable(int parameterIndex) => throw new NotImplementedException();
+    public readonly LuauTable CheckLuauTable(int parameterIndex)
+    {
+        _state.ThrowIfDisposed();
+        int stackIndex = GetStackIndex(parameterIndex);
+        return new LuauView(_state, stackIndex).CheckTable();
+    }
 
-    public readonly LuauFunction CheckLuauFunction(int parameterIndex) => throw new NotImplementedException();
+    public readonly LuauFunction CheckLuauFunction(int parameterIndex)
+    {
+        _state.ThrowIfDisposed();
+        int stackIndex = GetStackIndex(parameterIndex);
+        return new LuauView(_state, stackIndex).CheckFunction();
+    }
 
-    public readonly LuauString CheckLuauString(int parameterIndex) => throw new NotImplementedException();
+    public readonly LuauString CheckLuauString(int parameterIndex)
+    {
+        _state.ThrowIfDisposed();
+        int stackIndex = GetStackIndex(parameterIndex);
+        lua_State* L = _state.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        var parameterType = (lua_Type)lua_type(L, stackIndex);
+        if (parameterType is not lua_Type.LUA_TSTRING)
+        {
+            throw new ArgumentException(
+                $"Parameter {parameterIndex} must be {lua_Type.LUA_TSTRING} but was {parameterType}."
+            );
+        }
+
+        lua_pushvalue(L, stackIndex);
+        int reference = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
+        return new LuauString(_state, reference);
+    }
 
     public void ReturnParameter(IntoLuau value)
     {

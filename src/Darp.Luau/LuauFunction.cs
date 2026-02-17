@@ -33,9 +33,17 @@ public struct LuauFunction : ILuauReference
         int status = lua_pcall(L, nargs: 0, nresults, 0);
         LuaException.ThrowIfNotOk(L, status);
 
+        if (nresults == 0)
+            return default!;
+
         var luaReturn = LuauValue.ToValue(State);
         lua_pop(L, 1);
-        return luaReturn.TryGet(out TR? result, acceptNil: true) ? result : throw new Exception();
+        if (luaReturn.TryGet(out TR? result, acceptNil: true))
+            return result;
+
+        throw new InvalidCastException(
+            $"Could not convert Lua return value of type '{luaReturn.Type}' to '{typeof(TR).FullName}'."
+        );
     }
 
     public readonly unsafe TR Call<TR>(IntoLuau p1)
@@ -54,9 +62,17 @@ public struct LuauFunction : ILuauReference
         int status = lua_pcall(L, nargs: 1, nresults, 0);
         LuaException.ThrowIfNotOk(L, status);
 
+        if (nresults == 0)
+            return default!;
+
         var luaReturn = LuauValue.ToValue(State);
         lua_pop(L, 1);
-        return luaReturn.TryGet(out TR? result, acceptNil: true) ? result : throw new Exception();
+        if (luaReturn.TryGet(out TR? result, acceptNil: true))
+            return result;
+
+        throw new InvalidCastException(
+            $"Could not convert Lua return value of type '{luaReturn.Type}' to '{typeof(TR).FullName}'."
+        );
     }
 
     public readonly unsafe TR Call<TR>(IntoLuau p1, IntoLuau p2)
@@ -76,9 +92,17 @@ public struct LuauFunction : ILuauReference
         int status = lua_pcall(L, nargs: 2, nresults, 0);
         LuaException.ThrowIfNotOk(L, status);
 
+        if (nresults == 0)
+            return default!;
+
         var luaReturn = LuauValue.ToValue(State);
         lua_pop(L, 1);
-        return luaReturn.TryGet(out TR? result, acceptNil: true) ? result : throw new Exception();
+        if (luaReturn.TryGet(out TR? result, acceptNil: true))
+            return result;
+
+        throw new InvalidCastException(
+            $"Could not convert Lua return value of type '{luaReturn.Type}' to '{typeof(TR).FullName}'."
+        );
     }
 
     public static implicit operator IntoLuau(LuauFunction value) => (LuauValue)value;
