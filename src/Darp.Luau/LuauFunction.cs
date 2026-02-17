@@ -48,7 +48,7 @@ public struct LuauFunction : ILuauReference
 #endif
         lua_getref(L, Reference);
 
-        p1.Push(L);
+        p1.Push(State);
 
         int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
         int status = lua_pcall(L, nargs: 1, nresults, 0);
@@ -69,8 +69,8 @@ public struct LuauFunction : ILuauReference
 #endif
 
         lua_getref(L, Reference);
-        p1.Push(L);
-        p2.Push(L);
+        p1.Push(State);
+        p2.Push(State);
 
         int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
         int status = lua_pcall(L, nargs: 2, nresults, 0);

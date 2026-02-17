@@ -53,12 +53,13 @@ public readonly ref struct IntoLuau
 
     private IntoLuau(Func<LuauState, LuauUserdata> factory)
     {
-        Type = Kind.Value;
+        Type = Kind.UserdataFactory;
         _factory = factory;
     }
 
-    internal unsafe void Push(lua_State* L)
+    internal unsafe void Push(LuauState state)
     {
+        lua_State* L = state.L;
         switch (Type)
         {
             case Kind.Chars:
@@ -98,7 +99,21 @@ public readonly ref struct IntoLuau
                 break;
             case Kind.UserdataFactory:
                 Debug.Assert(_factory is not null);
-                _factory.Invoke(null!);
+                LuauUserdata userdata = _factory.Invoke(state);
+                if (userdata.State is null || userdata.Reference is 0)
+                {
+                    lua_pushnil(L);
+                    break;
+                }
+
+                try
+                {
+                    ((LuauValue)userdata).Push(L);
+                }
+                finally
+                {
+                    userdata.Dispose();
+                }
                 break;
             case Kind.Nil:
             default:

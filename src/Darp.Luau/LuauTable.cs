@@ -35,8 +35,8 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         lua_getref(L, Reference);
-        key.Push(L);
-        value.Push(L);
+        key.Push(State);
+        value.Push(State);
         lua_settable(L, -3);
         lua_pop(L, 1);
     }
@@ -54,7 +54,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         lua_getref(L, Reference);
-        key.Push(L);
+        key.Push(State);
         _ = lua_gettable(L, -2);
         value = LuauValue.ToValue(State);
         lua_pop(L, 2);

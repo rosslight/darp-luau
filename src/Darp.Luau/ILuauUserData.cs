@@ -5,7 +5,7 @@ namespace Darp.Luau;
 public interface ILuauUserData<in T>
     where T : allows ref struct
 {
-    static abstract IntoLuau OnIndex(T self, in LuauState view, in ReadOnlySpan<char> fieldName);
+    static abstract bool OnIndex(T self, in LuauState view, in ReadOnlySpan<char> fieldName, out IntoLuau value);
 
     static abstract bool OnSetIndex(T self, in LuauView view, in ReadOnlySpan<char> fieldName);
 
