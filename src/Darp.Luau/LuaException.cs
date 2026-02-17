@@ -14,8 +14,9 @@ public sealed class LuaException : Exception
     /// <summary> Throws if not ok </summary>
     /// <param name="L"> The state that holds the error </param>
     /// <param name="status"> The status </param>
+    /// <param name="description"> Some more context about the exception </param>
     /// <exception cref="LuaException"> The exception if the status is not ok </exception>
-    public static unsafe void ThrowIfNotOk(lua_State* L, int status)
+    public static unsafe void ThrowIfNotOk(lua_State* L, int status, string description)
     {
         if (status == 0)
             return;
@@ -27,7 +28,7 @@ public sealed class LuaException : Exception
         byte* err = lua_tolstring(L, -1, &outLength);
         lua_pop(L, 1);
         string error = err is null ? "<unknown lua error>" : Encoding.UTF8.GetString(err, (int)outLength);
-        string message = $"Lua invocation failed with status {status}: {error}";
+        string message = $"Lua invocation {description} failed with status {status}: {error}";
         throw new LuaException(message);
     }
 }

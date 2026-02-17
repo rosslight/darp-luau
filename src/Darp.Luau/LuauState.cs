@@ -96,7 +96,8 @@ public sealed unsafe class LuauState : IDisposable
             }
             catch (Exception exception)
             {
-                return LuauStateMarshal.RaiseCallbackException(luaState, "managed function", exception);
+                LuauStateMarshal.RaiseCallbackException(luaState, "managed function", exception);
+                return 0;
             }
         }
     }
@@ -247,9 +248,9 @@ public sealed unsafe class LuauState : IDisposable
             nuint resultSize = 0;
             byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &resultSize);
             int loadStatus = luau_load(L, pChunkName, pByteCode, resultSize, 0);
-            LuaException.ThrowIfNotOk(L, loadStatus);
+            LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
             int callStatus = lua_pcall(L, 0, 0, 0);
-            LuaException.ThrowIfNotOk(L, callStatus);
+            LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
         }
     }
 }

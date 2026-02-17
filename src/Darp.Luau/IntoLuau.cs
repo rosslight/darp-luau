@@ -216,5 +216,11 @@ public readonly ref struct IntoLuau
     /// <returns> A temporary representation of the value </returns>
     public static implicit operator IntoLuau(LuauValue value) => new(value);
 
-    public static IntoLuau FromUserdata(Func<LuauState, LuauUserdata> factory) => new(factory);
+    public static IntoLuau FromUserdata<T>(T t)
+        where T : class, ILuauUserData<T> => new(state => state.CreateUserdata(t));
+
+    public static IntoLuau FromUserdat(Func<LuauState, LuauUserdata> factory)
+    {
+        return new IntoLuau(factory);
+    }
 }

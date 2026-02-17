@@ -30,101 +30,78 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         _registrations.Add(typeof(T), handle);
         return handle;
 
-        static int IndexCallbackManaged(LuauState state, object? userdata)
+        static LuaResult<int, string> IndexCallbackManaged(LuauState state, object? userdata)
         {
             lua_State* L = state.L;
-            try
-            {
-                if (userdata is not T target)
-                    return LuauStateMarshal.RaiseLuaError(L, $"Expected userdata of type '{typeof(T).FullName}'.");
+            if (userdata is not T target)
+                return $"Expected userdata of type '{typeof(T).FullName}'.";
 
-                if (!TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
-                    return LuauStateMarshal.RaiseLuaError(L, "userdata index access requires a string member name"u8);
+            if (!TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
+                return "userdata index access requires a string member name";
 
-                Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
-                int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
-                if (!T.OnIndex(target, state, memberName[..memberNameLength], out IntoLuau result))
-                    return 0;
-
-                result.Push(state);
-                return 1;
-            }
-            catch (Exception exception)
-            {
-                return LuauStateMarshal.RaiseCallbackException(state.L, "__index", exception);
-            }
-        }
-
-        static int NewIndexCallbackManaged(LuauState lua, object? userdata)
-        {
-            try
-            {
-                lua_State* L = lua.L;
-                if (userdata is not T target)
-                    return LuauStateMarshal.RaiseLuaError(L, $"Expected userdata of type '{typeof(T).FullName}'.");
-
-                if (!TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
-                    return LuauStateMarshal.RaiseLuaError(L, "userdata assignment requires a string member name"u8);
-
-                var valueView = new LuauView(lua, stackIndex: 3);
-                Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
-                int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
-                if (!T.OnSetIndex(target, valueView, memberName[..memberNameLength]))
-                    return LuauStateMarshal.RaiseLuaError(L, $"attempt to set unknown userdata member '{memberName}'");
+            Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
+            int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
+            if (!T.OnIndex(target, state, memberName[..memberNameLength], out IntoLuau result))
                 return 0;
-            }
-            catch (Exception exception)
-            {
-                return LuauStateMarshal.RaiseCallbackException(lua.L, "__newindex", exception);
-            }
+
+            result.Push(state);
+            return 1;
         }
 
-        static int MethodCallbackManaged(LuauState lua, object? userdata)
+        static LuaResult<int, string> NewIndexCallbackManaged(LuauState lua, object? userdata)
         {
             lua_State* L = lua.L;
-            int initialTop = LuauNative.lua_gettop(L);
-            try
+            if (userdata is not T target)
+                return $"Expected userdata of type '{typeof(T).FullName}'.";
+
+            if (!TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
+                return "userdata assignment requires a string member name";
+
+            var valueView = new LuauView(lua, stackIndex: 3);
+            Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
+            int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
+            if (!T.OnSetIndex(target, valueView, memberName[..memberNameLength]))
+                return (string)$"attempt to set unknown userdata member '{memberName}'";
+            return 0;
+        }
+
+        static LuaResult<int, string> MethodCallbackManaged(LuauState lua, object? userdata)
+        {
+            lua_State* L = lua.L;
+            if (userdata is not T target)
+                return $"Expected userdata of type '{typeof(T).FullName}'.";
+
+            int firstParameterStackIndex;
+            int numberOfParameters;
+            if (TryGetNameCall(L, out ReadOnlySpan<byte> utf8MethodName))
             {
-                if (userdata is not T target)
-                    return LuauStateMarshal.RaiseLuaError(L, $"Expected userdata of type '{typeof(T).FullName}'.");
-
-                int firstParameterStackIndex;
-                int numberOfParameters;
-                if (TryGetNameCall(L, out ReadOnlySpan<byte> utf8MethodName))
-                {
-                    numberOfParameters = Math.Max(0, LuauNative.lua_gettop(L) - 1);
-                    firstParameterStackIndex = 2;
-                }
-                else if (TryGetString(L, 2, out utf8MethodName))
-                {
-                    numberOfParameters = Math.Max(0, LuauNative.lua_gettop(L) - 2);
-                    firstParameterStackIndex = 3;
-                }
-                else
-                {
-                    return LuauStateMarshal.RaiseLuaError(L, "userdata method call requires a string method name");
-                }
-
-                int topBeforeInvoke = LuauNative.lua_gettop(L);
-                var functionArgs = new LuauFunctions(lua, numberOfParameters, firstParameterStackIndex);
-                Span<char> methodName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MethodName)];
-                int memberNameLength = Encoding.UTF8.GetChars(utf8MethodName, methodName);
-                bool handled = T.OnMethodCall(target, functionArgs, methodName[..memberNameLength]);
-                int outputCount = LuauNative.lua_gettop(L) - topBeforeInvoke;
-
-                if (handled)
-                    return Math.Max(0, outputCount);
-
-                if (outputCount > 0)
-                    LuauNative.lua_pop(L, outputCount);
-
-                return LuauStateMarshal.RaiseLuaError(L, $"attempt to call unknown userdata method '{methodName}'");
+                numberOfParameters = Math.Max(0, LuauNative.lua_gettop(L) - 1);
+                firstParameterStackIndex = 2;
             }
-            catch (Exception exception)
+            else if (TryGetString(L, 2, out utf8MethodName))
             {
-                LuauNative.lua_settop(L, initialTop);
-                return LuauStateMarshal.RaiseCallbackException(lua.L, "__namecall", exception);
+                numberOfParameters = Math.Max(0, LuauNative.lua_gettop(L) - 2);
+                firstParameterStackIndex = 3;
             }
+            else
+            {
+                return "userdata method call requires a string method name";
+            }
+
+            int topBeforeInvoke = LuauNative.lua_gettop(L);
+            var functionArgs = new LuauFunctions(lua, numberOfParameters, firstParameterStackIndex);
+            Span<char> methodName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MethodName)];
+            int memberNameLength = Encoding.UTF8.GetChars(utf8MethodName, methodName);
+            bool handled = T.OnMethodCall(target, functionArgs, methodName[..memberNameLength]);
+            int outputCount = LuauNative.lua_gettop(L) - topBeforeInvoke;
+
+            if (handled)
+                return Math.Max(0, outputCount);
+
+            if (outputCount > 0)
+                LuauNative.lua_pop(L, outputCount);
+
+            return (string)$"attempt to call unknown userdata method '{methodName}'";
         }
     }
 
@@ -227,25 +204,75 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static unsafe int IndexCallback(lua_State* L)
     {
-        if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
-            return LuauStateMarshal.RaiseLuaError(L, errorMessage);
-        return registration.OnIndexCallback(registration.State, userdata);
+        try
+        {
+            if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
+            {
+                LuauStateMarshal.RaiseLuaError(L, errorMessage);
+                return 0;
+            }
+            if (!registration.OnIndexCallback(registration.State, userdata).TryGetValue(out var value, out var error))
+            {
+                LuauStateMarshal.RaiseLuaError(L, error);
+                return 0;
+            }
+            return value;
+        }
+        catch (Exception exception) when (exception is not SEHException)
+        {
+            LuauStateMarshal.RaiseCallbackException(L, "__index", exception);
+            return 0;
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static unsafe int NewIndexCallback(lua_State* L)
     {
-        if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
-            return LuauStateMarshal.RaiseLuaError(L, errorMessage);
-        return registration.OnNewIndexCallback(registration.State, userdata);
+        try
+        {
+            if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
+            {
+                LuauStateMarshal.RaiseLuaError(L, errorMessage);
+                return 0;
+            }
+            if (
+                !registration.OnNewIndexCallback(registration.State, userdata).TryGetValue(out var value, out var error)
+            )
+            {
+                LuauStateMarshal.RaiseLuaError(L, error);
+                return 0;
+            }
+            return value;
+        }
+        catch (Exception exception) when (exception is not SEHException)
+        {
+            LuauStateMarshal.RaiseCallbackException(L, "__newindex", exception);
+            return 0;
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static unsafe int MethodCallback(lua_State* L)
     {
-        if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
-            return LuauStateMarshal.RaiseLuaError(L, errorMessage);
-        return registration.OnMethodCallback(registration.State, userdata);
+        try
+        {
+            if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
+            {
+                LuauStateMarshal.RaiseLuaError(L, errorMessage);
+                return 0;
+            }
+            if (!registration.OnMethodCallback(registration.State, userdata).TryGetValue(out var value, out var error))
+            {
+                LuauStateMarshal.RaiseLuaError(L, error);
+                return 0;
+            }
+            return value;
+        }
+        catch (Exception exception) when (exception is not SEHException)
+        {
+            LuauStateMarshal.RaiseCallbackException(L, "__namecall", exception);
+            return 0;
+        }
     }
 
     private static unsafe bool TryGetCallbackRegistration(
@@ -293,6 +320,40 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         UserdataCallbackRegistration.OnLuaCallback OnMethodCallback
     )
     {
-        public delegate int OnLuaCallback(LuauState lua, object? userdata);
+        public delegate LuaResult<int, string> OnLuaCallback(LuauState lua, object? userdata);
     }
+}
+
+public readonly ref struct LuaResult<T, TError>
+    where T : allows ref struct
+    where TError : allows ref struct
+{
+    private readonly T? _value;
+    private readonly TError? _error;
+
+    public bool IsOk { get; }
+
+    private LuaResult(bool isOk, T? value, TError? error)
+    {
+        IsOk = isOk;
+        _value = value;
+        _error = error;
+    }
+
+    public bool TryGetValue([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out TError? error)
+    {
+        if (IsOk)
+        {
+            value = _value!;
+            error = _error;
+            return true;
+        }
+        value = _value;
+        error = _error!;
+        return false;
+    }
+
+    public static implicit operator LuaResult<T, TError>(T value) => new(true, value, default);
+
+    public static implicit operator LuaResult<T, TError>(TError error) => new(false, default, error);
 }

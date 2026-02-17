@@ -31,7 +31,7 @@ public struct LuauFunction : ILuauReference
 
         int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
         int status = lua_pcall(L, nargs: 0, nresults, 0);
-        LuaException.ThrowIfNotOk(L, status);
+        LuaException.ThrowIfNotOk(L, status, "lua_pcall");
 
         if (nresults == 0)
             return default!;
@@ -60,7 +60,7 @@ public struct LuauFunction : ILuauReference
 
         int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
         int status = lua_pcall(L, nargs: 1, nresults, 0);
-        LuaException.ThrowIfNotOk(L, status);
+        LuaException.ThrowIfNotOk(L, status, "lua_pcall");
 
         if (nresults == 0)
             return default!;
@@ -90,7 +90,7 @@ public struct LuauFunction : ILuauReference
 
         int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
         int status = lua_pcall(L, nargs: 2, nresults, 0);
-        LuaException.ThrowIfNotOk(L, status);
+        LuaException.ThrowIfNotOk(L, status, "lua_pcall");
 
         if (nresults == 0)
             return default!;

@@ -9,8 +9,9 @@ namespace Darp.Luau;
 /// <summary> Unsafe operations to access the <see cref="lua_State"/> </summary>
 internal static class LuauStateMarshal
 {
+    /// <remarks> This function is only save to be called from a native callback! </remarks>
     [DoesNotReturn]
-    public static unsafe int RaiseLuaError(lua_State* state, ReadOnlySpan<byte> message)
+    public static unsafe void RaiseLuaError(lua_State* state, ReadOnlySpan<byte> message)
     {
         if (message.IsEmpty)
             message = "something went wrong"u8;
@@ -19,8 +20,9 @@ internal static class LuauStateMarshal
         throw new UnreachableException("lua_error should not return");
     }
 
+    /// <remarks> This function is only save to be called from a native callback! </remarks>
     [DoesNotReturn]
-    public static unsafe int RaiseLuaError(lua_State* state, ReadOnlySpan<char> message)
+    public static unsafe void RaiseLuaError(lua_State* state, ReadOnlySpan<char> message)
     {
         if (message.IsEmpty)
             message = "something went wrong";
@@ -29,11 +31,12 @@ internal static class LuauStateMarshal
         throw new UnreachableException("lua_error should not return");
     }
 
+    /// <remarks> This function is only save to be called from a native callback! </remarks>
     [DoesNotReturn]
-    public static unsafe int RaiseCallbackException(lua_State* state, string callbackName, Exception exception)
+    public static unsafe void RaiseCallbackException(lua_State* state, string callbackName, Exception exception)
     {
         string callbackError = $"{callbackName} callback failed: {exception.GetType().Name}: {exception.Message}";
-        return RaiseLuaError(state, callbackError);
+        RaiseLuaError(state, callbackError);
     }
 
     public static unsafe void PushString(lua_State* state, string? message)
