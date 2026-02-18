@@ -384,10 +384,10 @@ public readonly struct LuauValue
                 lua_pushnumber(L, _union.ValueDouble);
                 break;
             case LuauValueType.String
-                or LuauValueType.Table
-                or LuauValueType.Function
-                or LuauValueType.Userdata
-                or LuauValueType.Buffer:
+            or LuauValueType.Table
+            or LuauValueType.Function
+            or LuauValueType.Userdata
+            or LuauValueType.Buffer:
                 lua_getref(L, _union.ValueReference);
                 break;
             default:
