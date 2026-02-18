@@ -36,7 +36,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             if (userdata is not T target)
                 return $"Expected userdata of type '{typeof(T).FullName}'.";
 
-            if (!TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
+            if (!LuauStateMarshal.TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
                 return "userdata index access requires a string member name";
 
             Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
@@ -54,7 +54,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             if (userdata is not T target)
                 return $"Expected userdata of type '{typeof(T).FullName}'.";
 
-            if (!TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
+            if (!LuauStateMarshal.TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
                 return "userdata assignment requires a string member name";
 
             var valueView = new LuauView(lua, stackIndex: 3);
@@ -73,12 +73,12 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
             int firstParameterStackIndex;
             int numberOfParameters;
-            if (TryGetNameCall(L, out ReadOnlySpan<byte> utf8MethodName))
+            if (LuauStateMarshal.TryGetNameCall(L, out ReadOnlySpan<byte> utf8MethodName))
             {
                 numberOfParameters = Math.Max(0, LuauNative.lua_gettop(L) - 1);
                 firstParameterStackIndex = 2;
             }
-            else if (TryGetString(L, 2, out utf8MethodName))
+            else if (LuauStateMarshal.TryGetString(L, 2, out utf8MethodName))
             {
                 numberOfParameters = Math.Max(0, LuauNative.lua_gettop(L) - 2);
                 firstParameterStackIndex = 3;
@@ -128,19 +128,17 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
             fixed (byte* pIndexName = "__index\0"u8)
             {
-                LuauNative.lua_pushcfunction(L, &IndexCallback, pIndexName);
+                _state.PushWrappedCallback(&IndexCallback, pIndexName);
                 LuauNative.lua_setfield(L, -2, pIndexName);
             }
-
             fixed (byte* pNewIndexName = "__newindex\0"u8)
             {
-                LuauNative.lua_pushcfunction(L, &NewIndexCallback, pNewIndexName);
+                _state.PushWrappedCallback(&NewIndexCallback, pNewIndexName);
                 LuauNative.lua_setfield(L, -2, pNewIndexName);
             }
-
             fixed (byte* pNameCallName = "__namecall\0"u8)
             {
-                LuauNative.lua_pushcfunction(L, &MethodCallback, pNameCallName);
+                _state.PushWrappedCallback(&MethodCallback, pNameCallName);
                 LuauNative.lua_setfield(L, -2, pNameCallName);
             }
 
@@ -152,43 +150,6 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         {
             LuauNative.lua_settop(L, initialTop);
         }
-    }
-
-    private static unsafe bool TryGetString(lua_State* L, int stackIndex, out ReadOnlySpan<byte> value)
-    {
-        if ((lua_Type)LuauNative.lua_type(L, stackIndex) is not lua_Type.LUA_TSTRING)
-        {
-            value = default;
-            return false;
-        }
-
-        nuint keyLength;
-        byte* keyUtf8 = LuauNative.lua_tolstring(L, stackIndex, &keyLength);
-        if (keyUtf8 is null)
-        {
-            value = default;
-            return false;
-        }
-        value = new ReadOnlySpan<byte>(keyUtf8, checked((int)keyLength));
-        return true;
-    }
-
-    private static unsafe bool TryGetNameCall(lua_State* L, out ReadOnlySpan<byte> methodName)
-    {
-        int atom = 0;
-        byte* name = LuauNative.lua_namecallatom(L, &atom);
-        if (name is null)
-        {
-            methodName = default;
-            return false;
-        }
-
-        int length = 0;
-        while (name[length] != 0)
-            length++;
-
-        methodName = new ReadOnlySpan<byte>(name, length);
-        return true;
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -207,21 +168,13 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         try
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
-            {
-                LuauStateMarshal.RaiseLuaError(L, errorMessage);
-                return 0;
-            }
-            if (!registration.OnIndexCallback(registration.State, userdata).TryGetValue(out var value, out var error))
-            {
-                LuauStateMarshal.RaiseLuaError(L, error);
-                return 0;
-            }
-            return value;
+                return LuauStateMarshal.ReturnError(L, errorMessage);
+            LuaResult<int, string> result = registration.OnIndexCallback(registration.State, userdata);
+            return LuauStateMarshal.ReturnResult(L, result);
         }
-        catch (Exception exception) when (exception is not SEHException)
+        catch (Exception exception)
         {
-            LuauStateMarshal.RaiseCallbackException(L, "__index", exception);
-            return 0;
+            return LuauStateMarshal.ReturnCallbackException(L, "__index", exception);
         }
     }
 
@@ -231,23 +184,13 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         try
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
-            {
-                LuauStateMarshal.RaiseLuaError(L, errorMessage);
-                return 0;
-            }
-            if (
-                !registration.OnNewIndexCallback(registration.State, userdata).TryGetValue(out var value, out var error)
-            )
-            {
-                LuauStateMarshal.RaiseLuaError(L, error);
-                return 0;
-            }
-            return value;
+                return LuauStateMarshal.ReturnError(L, errorMessage);
+            LuaResult<int, string> result = registration.OnNewIndexCallback(registration.State, userdata);
+            return LuauStateMarshal.ReturnResult(L, result);
         }
-        catch (Exception exception) when (exception is not SEHException)
+        catch (Exception exception)
         {
-            LuauStateMarshal.RaiseCallbackException(L, "__newindex", exception);
-            return 0;
+            return LuauStateMarshal.ReturnCallbackException(L, "__newindex", exception);
         }
     }
 
@@ -257,21 +200,13 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         try
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
-            {
-                LuauStateMarshal.RaiseLuaError(L, errorMessage);
-                return 0;
-            }
-            if (!registration.OnMethodCallback(registration.State, userdata).TryGetValue(out var value, out var error))
-            {
-                LuauStateMarshal.RaiseLuaError(L, error);
-                return 0;
-            }
-            return value;
+                return LuauStateMarshal.ReturnError(L, errorMessage);
+            LuaResult<int, string> result = registration.OnMethodCallback(registration.State, userdata);
+            return LuauStateMarshal.ReturnResult(L, result);
         }
-        catch (Exception exception) when (exception is not SEHException)
+        catch (Exception exception)
         {
-            LuauStateMarshal.RaiseCallbackException(L, "__namecall", exception);
-            return 0;
+            return LuauStateMarshal.ReturnCallbackException(L, "__namecall", exception);
         }
     }
 
@@ -324,7 +259,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     }
 }
 
-public readonly ref struct LuaResult<T, TError>
+internal readonly ref struct LuaResult<T, TError>
     where T : allows ref struct
     where TError : allows ref struct
 {

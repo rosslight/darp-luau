@@ -17,6 +17,7 @@ public sealed unsafe class LuauState : IDisposable
     internal readonly lua_State* L;
     private int _disposing; // 0 = false, 1 = true
     private readonly int _globalsReference;
+    private readonly int _callbackWrapperReference;
     private readonly UserdataRegistrationCache _cache;
 
     [Obsolete("Used for saving delegates used in unmanaged memory to prevent them going out of scope")]
@@ -40,7 +41,66 @@ public sealed unsafe class LuauState : IDisposable
         // Get the reference to the globals table
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         _globalsReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        _callbackWrapperReference = RegisterCallbackWrapper();
         _cache = new UserdataRegistrationCache(this);
+    }
+
+    private int RegisterCallbackWrapper()
+    {
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        var source =
+            """
+            local function wrap(f)
+              return function(...)
+                -- packet = isPCallOk, okFlag, errorMessage, ...
+                local packed = table.pack(pcall(f, ...))
+                if not packed[1] then
+                  -- This should not happen
+                  error("UNWRAPPED LUA ERROR: raw lua_error/longjmp crossed boundary", 2)
+                end
+
+                local okFlag = packed[2]
+                if not okFlag then
+                  error(packed[3], 2)
+                end
+                return table.unpack(packed, 3, packed.n)
+              end
+            end
+            return wrap
+            """u8;
+
+        var chunkName = "managed_callback_wrapper"u8;
+        fixed (byte* pSource = source)
+        fixed (byte* pChunkName = chunkName)
+        {
+            nuint resultSize = 0;
+            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &resultSize);
+            int loadStatus = luau_load(L, pChunkName, pByteCode, resultSize, 0);
+            LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
+
+            int callStatus = lua_pcall(L, 0, 1, 0);
+            LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
+        }
+        if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TFUNCTION)
+        {
+            lua_pop(L, 1);
+            throw new InvalidOperationException("Managed callback wrapper chunk must return a function.");
+        }
+        return luaL_ref(L, LUA_REGISTRYINDEX);
+    }
+
+    internal void PushWrappedCallback(delegate* unmanaged[Cdecl]<lua_State*, int> callback, byte* debugName = null)
+    {
+        this.ThrowIfDisposed();
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 1);
+#endif
+        lua_getref(L, _callbackWrapperReference);
+        lua_pushcfunction(L, callback, debugName);
+        int callStatus = lua_pcall(L, 1, 1, 0);
+        LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
     }
 
     /// <summary> Create a new table </summary>
@@ -74,7 +134,7 @@ public sealed unsafe class LuauState : IDisposable
         IntPtr intPtr = Marshal.GetFunctionPointerForDelegate(f);
 #pragma warning restore CS0618 // Type or member is obsolete
 
-        lua_pushcfunction(L, (delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr, null);
+        PushWrappedCallback((delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr);
         int refs = luaL_ref(L, LUA_REGISTRYINDEX);
         return new LuauFunction(this, refs);
 
@@ -83,21 +143,28 @@ public sealed unsafe class LuauState : IDisposable
             ArgumentOutOfRangeException.ThrowIfNotEqual((nint)luaState, (nint)L);
             int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
-            using var guard = new StackGuard(L, expectedDelta: -numberOfParameters);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
+            int topBeforeInvoke = lua_gettop(luaState);
             var builder = new LuauFunctions(this, numberOfParameters);
             try
             {
                 onCalled(ref builder);
+                int outputCount = Math.Max(0, lua_gettop(luaState) - topBeforeInvoke);
+                int returnCount = LuauStateMarshal.ReturnSuccess(luaState, outputCount);
 #if DEBUG
-                guard.OverwriteExpectedDelta(builder.NumberOfOutputParameters);
+                guard.OverwriteExpectedDelta(returnCount);
 #endif
-                return builder.NumberOfOutputParameters;
+                return returnCount;
             }
             catch (Exception exception)
             {
-                LuauStateMarshal.RaiseCallbackException(luaState, "managed function", exception);
-                return 0;
+                lua_settop(luaState, topBeforeInvoke);
+                int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, "managed function", exception);
+#if DEBUG
+                guard.OverwriteExpectedDelta(returnCount);
+#endif
+                return returnCount;
             }
         }
     }
@@ -206,6 +273,8 @@ public sealed unsafe class LuauState : IDisposable
         if (Interlocked.Exchange(ref _disposing, 1) != 0)
             return;
         _cache.Dispose();
+        if (_callbackWrapperReference is not 0)
+            lua_unref(L, _callbackWrapperReference);
         lua_close(L);
 #pragma warning disable CS0618 // Type or member is obsolete -> This is the place we want to clear the delegates
         _delegateSave.Clear();
