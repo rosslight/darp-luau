@@ -3,7 +3,7 @@ using System.Text;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
-namespace Darp.Luau;
+namespace Darp.Luau.Utils;
 
 internal static class Helpers
 {
@@ -25,6 +25,9 @@ internal static class Helpers
     public static unsafe string RefToString(LuauState state, int reference)
     {
         lua_State* L = state.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         var toStringFunc = "tostring"u8;
 
         lua_getref(L, reference); // [value]

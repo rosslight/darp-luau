@@ -53,13 +53,9 @@ Unsupported for now
 
 ### `userdata`
 
-Unsupported for now. Planned:
-
-Any type that implements `ILuauUserData`
+Any `class` that implements `ILuauUserData<T>`
 
 ### `buffer`
-
-Unsupported for now. Planned:
 
 - `ReadOnlySpan<byte>`
 - `byte[]`

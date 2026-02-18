@@ -1,101 +1,13 @@
 using System.Buffers;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Darp.Luau.Native;
-using static Darp.Luau.LuauHelpers;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
+using static Darp.Luau.Utils.LuauNativeMethods;
 
 namespace Darp.Luau;
-
-#if DEBUG
-internal unsafe ref struct StackGuard(lua_State* l, int expectedDelta = 0, [CallerMemberName] string? callerName = null)
-    : IDisposable
-{
-    private static Exception? s_exceptionInFlight;
-
-    private readonly lua_State* _L = l;
-    private readonly int _startTop = lua_gettop(l);
-    private int _expectedDelta = expectedDelta;
-    private readonly string? _callerName = callerName;
-
-    public void OverwriteExpectedDelta(int newExpectedDelta) => _expectedDelta = newExpectedDelta;
-
-    public void Dispose()
-    {
-        int now = lua_gettop(_L);
-        int expected = _startTop + _expectedDelta;
-
-        if (now == expected)
-            return;
-
-        string direction = now > _startTop ? "grown" : "decreased";
-        s_exceptionInFlight = _expectedDelta switch
-        {
-            0 => new InvalidOperationException(
-                $"Lua stack mismatch at {_callerName}: Stack has {direction} from {_startTop} to {now} but should be the same\n{StackDump()}",
-                s_exceptionInFlight
-            ),
-            _ => new InvalidOperationException(
-                $"Lua stack mismatch at {_callerName}: Stack has {direction} by {now - _startTop} from {_startTop} to {now} but should have by {_expectedDelta} to {_startTop + _expectedDelta}\n{StackDump()}",
-                s_exceptionInFlight
-            ),
-        };
-        throw s_exceptionInFlight;
-    }
-
-    private string StackDump()
-    {
-        using var writer = new StringWriter();
-        writer.WriteLine("Lua stack:");
-        int top = lua_gettop(_L);
-        for (int i = 1; i <= top; i++)
-        {
-            var t = (lua_Type)lua_type(_L, i);
-            switch (t)
-            {
-                case lua_Type.LUA_TBOOLEAN:
-                    writer.WriteLine($"  [{i}]: {lua_toboolean(_L, i)}");
-                    break;
-                case lua_Type.LUA_TSTRING:
-                    nuint lenStr = 0;
-                    byte* pStr = lua_tolstring(_L, i, &lenStr);
-                    writer.WriteLine($"  [{i}]: {Encoding.UTF8.GetString(pStr, (int)lenStr)}");
-                    break;
-                case lua_Type.LUA_TNUMBER:
-                    writer.WriteLine($"  [{i}]: {lua_tonumber(_L, i)}");
-                    break;
-                default:
-                    byte* pType = lua_typename(_L, (int)t);
-                    int lenType = 0;
-                    for (; ; )
-                    {
-                        if (pType is null || pType[lenType] == 0)
-                            break;
-                        lenType++;
-                    }
-                    writer.WriteLine($"  [{i}]: {Encoding.UTF8.GetString(pType, lenType)}");
-                    break;
-            }
-        }
-        return writer.ToString();
-    }
-}
-#endif
-
-internal static class LuauHelpers
-{
-    public static unsafe int luaL_ref(lua_State* L, int t)
-    {
-        // Luau lua_ref behaves differently from normal lua!
-        // See https://github.com/luau-lang/luau/issues/247#issuecomment-983043114
-        Debug.Assert(t == LUA_REGISTRYINDEX);
-        int r = lua_ref(L, -1);
-        lua_pop(L, 1);
-        return r;
-    }
-}
 
 /// <summary> The LuauState </summary>
 /// <remarks> Not threadsafe </remarks>
@@ -105,6 +17,8 @@ public sealed unsafe class LuauState : IDisposable
     internal readonly lua_State* L;
     private int _disposing; // 0 = false, 1 = true
     private readonly int _globalsReference;
+    private readonly int _callbackWrapperReference;
+    private readonly UserdataRegistrationCache _cache;
 
     [Obsolete("Used for saving delegates used in unmanaged memory to prevent them going out of scope")]
     // ReSharper disable once CollectionNeverQueried.Local
@@ -127,6 +41,66 @@ public sealed unsafe class LuauState : IDisposable
         // Get the reference to the globals table
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         _globalsReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        _callbackWrapperReference = RegisterCallbackWrapper();
+        _cache = new UserdataRegistrationCache(this);
+    }
+
+    private int RegisterCallbackWrapper()
+    {
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        var source =
+            """
+            local function wrap(f)
+              return function(...)
+                -- packet = isPCallOk, okFlag, errorMessage, ...
+                local packed = table.pack(pcall(f, ...))
+                if not packed[1] then
+                  -- This should not happen
+                  error("UNWRAPPED LUA ERROR: raw lua_error/longjmp crossed boundary", 2)
+                end
+
+                local okFlag = packed[2]
+                if not okFlag then
+                  error(packed[3], 2)
+                end
+                return table.unpack(packed, 3, packed.n)
+              end
+            end
+            return wrap
+            """u8;
+
+        var chunkName = "managed_callback_wrapper"u8;
+        fixed (byte* pSource = source)
+        fixed (byte* pChunkName = chunkName)
+        {
+            nuint resultSize = 0;
+            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &resultSize);
+            int loadStatus = luau_load(L, pChunkName, pByteCode, resultSize, 0);
+            LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
+
+            int callStatus = lua_pcall(L, 0, 1, 0);
+            LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
+        }
+        if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TFUNCTION)
+        {
+            lua_pop(L, 1);
+            throw new InvalidOperationException("Managed callback wrapper chunk must return a function.");
+        }
+        return luaL_ref(L, LUA_REGISTRYINDEX);
+    }
+
+    internal void PushWrappedCallback(delegate* unmanaged[Cdecl]<lua_State*, int> callback, byte* debugName = null)
+    {
+        this.ThrowIfDisposed();
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 1);
+#endif
+        lua_getref(L, _callbackWrapperReference);
+        lua_pushcfunction(L, callback, debugName);
+        int callStatus = lua_pcall(L, 1, 1, 0);
+        LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
     }
 
     /// <summary> Create a new table </summary>
@@ -160,7 +134,7 @@ public sealed unsafe class LuauState : IDisposable
         IntPtr intPtr = Marshal.GetFunctionPointerForDelegate(f);
 #pragma warning restore CS0618 // Type or member is obsolete
 
-        lua_pushcfunction(L, (delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr, null);
+        PushWrappedCallback((delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr);
         int refs = luaL_ref(L, LUA_REGISTRYINDEX);
         return new LuauFunction(this, refs);
 
@@ -169,22 +143,28 @@ public sealed unsafe class LuauState : IDisposable
             ArgumentOutOfRangeException.ThrowIfNotEqual((nint)luaState, (nint)L);
             int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
-            using var guard = new StackGuard(L, expectedDelta: -numberOfParameters);
+            using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
+            int topBeforeInvoke = lua_gettop(luaState);
             var builder = new LuauFunctions(this, numberOfParameters);
             try
             {
                 onCalled(ref builder);
+                int outputCount = Math.Max(0, lua_gettop(luaState) - topBeforeInvoke);
+                int returnCount = LuauStateMarshal.ReturnSuccess(luaState, outputCount);
 #if DEBUG
-                guard.OverwriteExpectedDelta(builder.NumberOfOutputParameters);
+                guard.OverwriteExpectedDelta(returnCount);
 #endif
-                return builder.NumberOfOutputParameters;
+                return returnCount;
             }
-            catch (Exception e)
+            catch (Exception exception)
             {
-                // TODO: Handle the error (do i have to call luaL_error?)
-                throw;
-                return 0;
+                lua_settop(luaState, topBeforeInvoke);
+                int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, "managed function", exception);
+#if DEBUG
+                guard.OverwriteExpectedDelta(returnCount);
+#endif
+                return returnCount;
             }
         }
     }
@@ -196,6 +176,42 @@ public sealed unsafe class LuauState : IDisposable
     /// <remarks> THIS METHOD IS SUPPOSED TO BE INTERCEPTED AND WILL NOT WORK OTHERWISE </remarks>
     public LuauFunction CreateFunction<T>(T value)
         where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");
+
+    /// <summary> Register userdata at lua </summary>
+    /// <typeparam name="T"> The type of the userdata to create and register </typeparam>
+    /// <returns> The lua object that references userdata </returns>
+    public LuauUserdata CreateUserdata<T>()
+        where T : class, ILuauUserData<T>, new() => CreateUserdata(new T());
+
+    /// <summary> Register userdata at lua </summary>
+    /// <param name="userdata"> The userdata to register </param>
+    /// <typeparam name="T"> The type of the userdata to register </typeparam>
+    /// <returns> The lua object that references userdata </returns>
+    public LuauUserdata CreateUserdata<T>(in T userdata)
+        where T : class, ILuauUserData<T>
+    {
+        this.ThrowIfDisposed();
+
+        GCHandle registrationHandle = _cache.Register<T>();
+        return CreateUserdataUnchecked(registrationHandle, userdata);
+    }
+
+    private LuauUserdata CreateUserdataUnchecked<T>(GCHandle registrationHandle, T userdata)
+        where T : class
+    {
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        var ptr = (LuauUserdataNative*)lua_newuserdatataggedwithmetatable(
+            L,
+            (nuint)sizeof(LuauUserdataNative),
+            LuauUserdataNative.Tag
+        );
+        ptr->UserdataHandle = GCHandle.Alloc(userdata, GCHandleType.Normal);
+        ptr->RegistryValueHandle = registrationHandle;
+        int reference = luaL_ref(L, LUA_REGISTRYINDEX);
+        return new LuauUserdata(this, reference);
+    }
 
     /// <summary> Creates a new luau string </summary>
     /// <param name="value"> The string </param>
@@ -213,7 +229,6 @@ public sealed unsafe class LuauState : IDisposable
     public LuauString CreateString(scoped ReadOnlySpan<byte> utf8Value)
     {
         this.ThrowIfDisposed();
-        ObjectDisposedException.ThrowIf(_disposing > 0, this);
         if (utf8Value.IsEmpty)
             throw new ArgumentNullException(nameof(utf8Value));
 #if DEBUG
@@ -257,6 +272,9 @@ public sealed unsafe class LuauState : IDisposable
     {
         if (Interlocked.Exchange(ref _disposing, 1) != 0)
             return;
+        _cache.Dispose();
+        if (_callbackWrapperReference is not 0)
+            lua_unref(L, _callbackWrapperReference);
         lua_close(L);
 #pragma warning disable CS0618 // Type or member is obsolete -> This is the place we want to clear the delegates
         _delegateSave.Clear();
@@ -299,33 +317,9 @@ public sealed unsafe class LuauState : IDisposable
             nuint resultSize = 0;
             byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &resultSize);
             int loadStatus = luau_load(L, pChunkName, pByteCode, resultSize, 0);
-            LuaException.ThrowIfNotOk(L, loadStatus);
+            LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
             int callStatus = lua_pcall(L, 0, 0, 0);
-            LuaException.ThrowIfNotOk(L, callStatus);
+            LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
         }
-    }
-}
-
-/// <summary> A lua exception </summary>
-public sealed class LuaException : Exception
-{
-    private LuaException(string message)
-        : base(message) { }
-
-    /// <summary> Throws if not ok </summary>
-    /// <param name="state"> The state that holds the error </param>
-    /// <param name="status"> The status </param>
-    /// <exception cref="LuaException"> The exception if the status is not ok </exception>
-    public static unsafe void ThrowIfNotOk(lua_State* state, int status)
-    {
-        if (status == 0)
-            return;
-
-        nuint outLength = 0;
-        byte* err = lua_tolstring(state, -1, &outLength);
-        lua_pop(state, 1);
-        string error = Encoding.UTF8.GetString(err, (int)outLength);
-        string message = $"Lua invocation failed with status {status}: {error}";
-        throw new LuaException(message);
     }
 }

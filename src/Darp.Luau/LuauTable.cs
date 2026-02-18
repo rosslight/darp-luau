@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
@@ -34,8 +35,8 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         lua_getref(L, Reference);
-        key.Push(L);
-        value.Push(L);
+        key.Push(State);
+        value.Push(State);
         lua_settable(L, -3);
         lua_pop(L, 1);
     }
@@ -53,7 +54,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         lua_getref(L, Reference);
-        key.Push(L);
+        key.Push(State);
         _ = lua_gettable(L, -2);
         value = LuauValue.ToValue(State);
         lua_pop(L, 2);
@@ -100,7 +101,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
 
     /// <summary> Gets the value associated with this key (or <see cref="LuauValueType.Nil"/>) </summary>
     /// <param name="key"> The key to look for </param>
-    public LuauValue this[IntoLuau key]
+    public readonly LuauValue this[IntoLuau key]
     {
         get
         {
@@ -187,7 +188,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
 
             // stack: [table, key, value]
             lua_pushvalue(L, -2); // [table, key, value, keyCopy]
-            int newKeyRef = LuauHelpers.luaL_ref(L, LUA_REGISTRYINDEX); // pops keyCopy
+            int newKeyRef = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX); // pops keyCopy
             if (_lastKeyRef != 0)
             {
                 lua_unref(L, _lastKeyRef);

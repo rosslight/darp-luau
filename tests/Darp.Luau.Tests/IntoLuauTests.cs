@@ -128,4 +128,35 @@ public sealed class IntoLuauTests
 
         intoValue.Type.ShouldBe(IntoLuau.Kind.Value);
     }
+
+    [Fact]
+    internal void Into_UserdataFactory()
+    {
+        IntoLuau intoValue = IntoLuau.FromUserdata(new SimpleUserdataType());
+
+        intoValue.Type.ShouldBe(IntoLuau.Kind.UserdataFactory);
+    }
+}
+
+internal sealed class SimpleUserdataType : ILuauUserData<SimpleUserdataType>
+{
+    public static bool OnIndex(
+        SimpleUserdataType self,
+        in LuauState state,
+        in ReadOnlySpan<char> fieldName,
+        out IntoLuau value
+    )
+    {
+        value = default;
+        return false;
+    }
+
+    public static bool OnSetIndex(SimpleUserdataType self, in LuauView valueView, in ReadOnlySpan<char> fieldName) =>
+        false;
+
+    public static bool OnMethodCall(
+        SimpleUserdataType self,
+        LuauFunctions functionArgs,
+        in ReadOnlySpan<char> methodName
+    ) => false;
 }

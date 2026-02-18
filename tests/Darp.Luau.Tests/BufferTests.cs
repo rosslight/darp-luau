@@ -34,7 +34,7 @@ public sealed class BufferTests
     [Fact]
     public void TryGet_Span()
     {
-        ReadOnlySpan<byte> expected = new ([0x01, 0x02, 0x03]);
+        ReadOnlySpan<byte> expected = new([0x01, 0x02, 0x03]);
 
         using var state = new LuauState();
         using LuauBuffer buffer = state.CreateBuffer(expected);
@@ -50,7 +50,7 @@ public sealed class BufferTests
     public void TryGet_Buffer()
     {
         using var state = new LuauState();
-        using LuauBuffer expected = state.CreateBuffer(new ([0x01, 0x02, 0x03]));
+        using LuauBuffer expected = state.CreateBuffer(new([0x01, 0x02, 0x03]));
 
         LuauValue value = expected;
         value.Type.ShouldBe(LuauValueType.Buffer);

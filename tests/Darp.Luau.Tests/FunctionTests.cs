@@ -41,6 +41,39 @@ public sealed class FunctionTests
     }
 
     [Fact]
+    public void CSharpFunction_Exception_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set(
+            "explode",
+            state.CreateFunctionBuilder((ref _) => throw new InvalidOperationException("Boom from managed function"))
+        );
+
+        state.DoString("ok, err = pcall(explode)");
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("managed function callback failed");
+        err.ShouldContain("Boom from managed function");
+    }
+
+    [Fact]
+    public void CSharpFunction_Exception_ShouldBeCatchable()
+    {
+        using var state = new LuauState();
+        state.Globals.Set(
+            "explode",
+            state.CreateFunctionBuilder((ref _) => throw new InvalidOperationException("Boom from managed function"))
+        );
+
+        LuaException exception = Should.Throw<LuaException>(() => state.DoString("explode();"));
+        exception.Message.ShouldContain("managed function callback failed");
+        exception.Message.ShouldContain("Boom from managed function");
+    }
+
+    [Fact]
     public void Func_NoArgs_Returns()
     {
         using var lua = new LuauState();
@@ -212,14 +245,19 @@ public sealed class FunctionTests
         using LuauBuffer buffer = state.CreateBuffer(Convert.FromHexString(expectedValue));
 
         state.Globals.Set("input", buffer);
-        state.Globals.Set("f", state.CreateFunctionBuilder((ref onCalled) =>
-        {
-            string str = Convert.ToHexString(onCalled.CheckBuffer(1));
-            onCalled.ReturnParameter(str);
-        }));
+        state.Globals.Set(
+            "f",
+            state.CreateFunctionBuilder(
+                (ref onCalled) =>
+                {
+                    string str = Convert.ToHexString(onCalled.CheckBuffer(1));
+                    onCalled.ReturnParameter(str);
+                }
+            )
+        );
         state.DoString("result = f(input)");
         state.Globals.TryGet("result", out string? strResult).ShouldBeTrue();
-        
+
         strResult.ShouldBe(expectedValue);
     }
 
@@ -229,14 +267,19 @@ public sealed class FunctionTests
         using var state = new LuauState();
 
         byte[] expected = [0x01, 0x02, 0x03];
-        
+
         state.Globals.Set("input", Convert.ToHexString(expected));
-        state.Globals.Set("f", state.CreateFunctionBuilder((ref onCalled) =>
-        {
-            byte[] bytes = Convert.FromHexString(onCalled.CheckString(1));
-            using LuauBuffer buffer = state.CreateBuffer(bytes);
-            onCalled.ReturnParameter(buffer);
-        }));
+        state.Globals.Set(
+            "f",
+            state.CreateFunctionBuilder(
+                (ref onCalled) =>
+                {
+                    byte[] bytes = Convert.FromHexString(onCalled.CheckString(1));
+                    using LuauBuffer buffer = state.CreateBuffer(bytes);
+                    onCalled.ReturnParameter(buffer);
+                }
+            )
+        );
         state.DoString("result = f(input)");
         state.Globals.TryGet("result", out ReadOnlySpan<byte> result).ShouldBeTrue();
         result.ToArray().ShouldBe<byte>(expected);

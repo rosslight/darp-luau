@@ -1,0 +1,515 @@
+using Shouldly;
+
+namespace Darp.Luau.Tests;
+
+public sealed class UserdataTests
+{
+    [Fact]
+    public void Userdata_IndexSetterAndMethodCall_ShouldWork()
+    {
+        using var state = new LuauState();
+        var counter = new CounterUserdata();
+        CounterUserdata.LastMethodName = null;
+        CounterUserdata.LastParameterCount = -1;
+
+        state.Globals.Set("counter", counter);
+        state.DoString(
+            """
+            before = counter.value
+            counter.value = 41
+            after = counter.value
+            methodResult = getmetatable(counter).__namecall(counter, "add", 1)
+            """
+        );
+
+        state.Globals.TryGet("before", out int before).ShouldBeTrue();
+        before.ShouldBe(0);
+
+        state.Globals.TryGet("after", out int after).ShouldBeTrue();
+        after.ShouldBe(41);
+
+        CounterUserdata.LastMethodName.ShouldBe("add");
+        CounterUserdata.LastParameterCount.ShouldBe(1);
+
+        state.Globals.TryGet("methodResult", out LuauValue methodResultValue).ShouldBeTrue();
+        methodResultValue.Type.ShouldBe(LuauValueType.Number);
+        methodResultValue.TryGet(out int methodResult).ShouldBeTrue();
+        methodResult.ShouldBe(42);
+    }
+
+    [Fact]
+    public void Userdata_MethodCallViaColonSyntax_ShouldWork()
+    {
+        using var state = new LuauState();
+        CounterUserdata.LastMethodName = null;
+        CounterUserdata.LastParameterCount = -1;
+        state.Globals.Set("counter", new CounterUserdata());
+
+        state.DoString(
+            """
+            counter.value = 41
+            methodResult = counter:add(1)
+            """
+        );
+
+        state.Globals.TryGet("methodResult", out int methodResult).ShouldBeTrue();
+        methodResult.ShouldBe(42);
+        CounterUserdata.LastMethodName.ShouldBe("add");
+        CounterUserdata.LastParameterCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public void Userdata_ShouldRoundtripThroughLuauValue()
+    {
+        using var state = new LuauState();
+        var counter = new CounterUserdata();
+
+        using LuauUserdata userdata = state.CreateUserdata(counter);
+        state.Globals.Set("userdata", userdata);
+
+        state.Globals.TryGet("userdata", out LuauValue value).ShouldBeTrue();
+        value.Type.ShouldBe(LuauValueType.Userdata);
+        value.TryGet(out LuauUserdata roundtrip).ShouldBeTrue();
+
+        using (roundtrip)
+        {
+            state.Globals.Set("userdataFromValue", value);
+            state.DoString("isUserdataPresent = userdataFromValue ~= nil");
+            state.Globals.TryGet("isUserdataPresent", out bool isUserdataPresent).ShouldBeTrue();
+            isUserdataPresent.ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public void Userdata_UnknownIndex_ShouldReturnNil()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        state.DoString("missingValue = counter.missing");
+
+        state.Globals.TryGet("missingValue", out LuauValue missingValue).ShouldBeTrue();
+        missingValue.Type.ShouldBe(LuauValueType.Nil);
+    }
+
+    [Fact]
+    public void Userdata_NonStringIndexKey_ShouldRaiseLuaException()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        LuaException exception = Should.Throw<LuaException>(() => state.DoString("x = counter[1]"));
+
+        exception.Message.ShouldContain("userdata index access requires a string member name");
+    }
+
+    [Fact]
+    public void Userdata_UnknownSet_ShouldRaiseLuaException()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        LuaException exception = Should.Throw<LuaException>(() => state.DoString("counter.missing = 5"));
+
+        exception.Message.ShouldContain("unknown userdata member 'missing'");
+    }
+
+    [Fact]
+    public void Userdata_UnknownSet_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              counter.missing = 5
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("unknown userdata member 'missing'");
+    }
+
+    [Fact]
+    public void Userdata_NonStringSetKey_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              counter[1] = 5
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("userdata assignment requires a string member name");
+    }
+
+    [Fact]
+    public void Userdata_UnknownMethod_ShouldRaiseLuaException()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        LuaException exception = Should.Throw<LuaException>(() =>
+            state.DoString("result = getmetatable(counter).__namecall(counter, \"missingMethod\", 1)")
+        );
+
+        exception.Message.ShouldContain("unknown userdata method 'missingMethod'");
+    }
+
+    [Fact]
+    public void Userdata_UnknownMethod_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              return getmetatable(counter).__namecall(counter, "missingMethod", 1)
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("unknown userdata method 'missingMethod'");
+    }
+
+    [Fact]
+    public void Userdata_NonStringMethodName_ShouldRaiseLuaException()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        LuaException exception = Should.Throw<LuaException>(() =>
+            state.DoString("x = getmetatable(counter).__namecall(counter, 1, 1)")
+        );
+
+        exception.Message.ShouldContain("userdata method call requires a string method name");
+    }
+
+    [Fact]
+    public void Userdata_CallbackException_ShouldTranslateToLuaException()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        LuaException exception = Should.Throw<LuaException>(() => state.DoString("x = failing.explode"));
+
+        exception.Message.ShouldContain("__index callback failed");
+        exception.Message.ShouldContain("Boom from OnIndex");
+    }
+
+    [Fact]
+    public void Userdata_CallbackException_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              return failing.explode
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("__index callback failed");
+        err.ShouldContain("Boom from OnIndex");
+    }
+
+    [Fact]
+    public void Userdata_SetterCallbackException_ShouldTranslateToLuaException()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        LuaException exception = Should.Throw<LuaException>(() => state.DoString("failing.explodeSet = 1"));
+
+        exception.Message.ShouldContain("__newindex callback failed");
+        exception.Message.ShouldContain("Boom from OnSetIndex");
+    }
+
+    [Fact]
+    public void Userdata_SetterCallbackException_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              failing.explodeSet = 1
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("__newindex callback failed");
+        err.ShouldContain("Boom from OnSetIndex");
+    }
+
+    [Fact]
+    public void Userdata_MethodCallbackException_ShouldTranslateToLuaException()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        LuaException exception = Should.Throw<LuaException>(() =>
+            state.DoString("x = getmetatable(failing).__namecall(failing, \"explodeMethod\")")
+        );
+
+        exception.Message.ShouldContain("__namecall callback failed");
+        exception.Message.ShouldContain("Boom from OnMethodCall");
+    }
+
+    [Fact]
+    public void Userdata_MethodCallbackException_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              return getmetatable(failing).__namecall(failing, "explodeMethod")
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("__namecall callback failed");
+        err.ShouldContain("Boom from OnMethodCall");
+    }
+
+    [Fact]
+    public void Userdata_MethodCanReturnMultipleValues()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        state.DoString(
+            """
+            counter.value = 10
+            first, second = getmetatable(counter).__namecall(counter, "pair")
+            """
+        );
+
+        state.Globals.TryGet("first", out int first).ShouldBeTrue();
+        first.ShouldBe(10);
+
+        state.Globals.TryGet("second", out int second).ShouldBeTrue();
+        second.ShouldBe(11);
+    }
+
+    [Fact]
+    public void Userdata_MethodCanReturnNoValues()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        state.DoString(
+            """
+            counter.value = 10
+            noResult = getmetatable(counter).__namecall(counter, "touch")
+            after = counter.value
+            """
+        );
+
+        state.Globals.TryGet("noResult", out LuauValue noResult).ShouldBeTrue();
+        noResult.Type.ShouldBe(LuauValueType.Nil);
+
+        state.Globals.TryGet("after", out int after).ShouldBeTrue();
+        after.ShouldBe(11);
+    }
+
+    [Fact]
+    public void Userdata_UnhandledMethodThatPushes_ShouldStillErrorAndStayUsable()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              return getmetatable(counter).__namecall(counter, "badUnknown")
+            end)
+            after = getmetatable(counter).__namecall(counter, "add", 1)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("unknown userdata method 'badUnknown'");
+
+        state.Globals.TryGet("after", out int after).ShouldBeTrue();
+        after.ShouldBe(1);
+    }
+
+    [Fact]
+    public void Userdata_RepeatedPCallFailure_ShouldStayStable()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        state.DoString(
+            """
+            failures = 0
+            for i = 1, 2000 do
+              local ok = pcall(function()
+                failing.explodeSet = i
+              end)
+              if not ok then
+                failures = failures + 1
+              end
+            end
+            """
+        );
+
+        state.Globals.TryGet("failures", out int failures).ShouldBeTrue();
+        failures.ShouldBe(2000);
+    }
+
+    private sealed class CounterUserdata : ILuauUserData<CounterUserdata>
+    {
+        public static string? LastMethodName { get; set; }
+        public static int LastParameterCount { get; set; }
+
+        public int Value { get; private set; }
+
+        public static bool OnIndex(
+            CounterUserdata self,
+            in LuauState state,
+            in ReadOnlySpan<char> fieldName,
+            out IntoLuau value
+        )
+        {
+            if (fieldName is "value")
+            {
+                value = self.Value;
+                return true;
+            }
+            value = default;
+            return false;
+        }
+
+        public static bool OnSetIndex(CounterUserdata self, in LuauView valueView, in ReadOnlySpan<char> fieldName)
+        {
+            if (fieldName is "value")
+            {
+                self.Value = (int)valueView.CheckNumber();
+                return true;
+            }
+            return false;
+        }
+
+        public static bool OnMethodCall(
+            CounterUserdata self,
+            LuauFunctions functionArgs,
+            in ReadOnlySpan<char> methodName
+        )
+        {
+            LastMethodName = methodName.ToString();
+            LastParameterCount = functionArgs.NumberOfParameters;
+
+            if (methodName is "add")
+            {
+                ArgumentOutOfRangeException.ThrowIfNotEqual(functionArgs.NumberOfParameters, 1);
+                int offset = (int)functionArgs.CheckNumber(1);
+                functionArgs.ReturnParameter(self.Value + offset);
+                return true;
+            }
+
+            if (methodName is "pair")
+            {
+                ArgumentOutOfRangeException.ThrowIfNotEqual(functionArgs.NumberOfParameters, 0);
+                functionArgs.ReturnParameter(self.Value);
+                functionArgs.ReturnParameter(self.Value + 1);
+                return true;
+            }
+
+            if (methodName is "touch")
+            {
+                ArgumentOutOfRangeException.ThrowIfNotEqual(functionArgs.NumberOfParameters, 0);
+                self.Value++;
+                return true;
+            }
+
+            if (methodName is "badUnknown")
+            {
+                functionArgs.ReturnParameter(999);
+                return false;
+            }
+
+            return false;
+        }
+
+        public static implicit operator IntoLuau(CounterUserdata value) => IntoLuau.FromUserdata(value);
+    }
+
+    private sealed class FailingUserdata : ILuauUserData<FailingUserdata>
+    {
+        public static bool OnIndex(
+            FailingUserdata self,
+            in LuauState state,
+            in ReadOnlySpan<char> fieldName,
+            out IntoLuau value
+        )
+        {
+            if (fieldName is "explode")
+                throw new InvalidOperationException("Boom from OnIndex");
+
+            value = default;
+            return false;
+        }
+
+        public static bool OnSetIndex(FailingUserdata self, in LuauView valueView, in ReadOnlySpan<char> fieldName)
+        {
+            if (fieldName is "explodeSet")
+                throw new InvalidOperationException("Boom from OnSetIndex");
+
+            return false;
+        }
+
+        public static bool OnMethodCall(
+            FailingUserdata self,
+            LuauFunctions functionArgs,
+            in ReadOnlySpan<char> methodName
+        )
+        {
+            if (methodName is "explodeMethod")
+                throw new InvalidOperationException("Boom from OnMethodCall");
+
+            return false;
+        }
+
+        public static implicit operator IntoLuau(FailingUserdata value) => IntoLuau.FromUserdata(value);
+    }
+}
