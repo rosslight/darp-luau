@@ -83,6 +83,27 @@ public sealed class UserdataTests
     }
 
     [Fact]
+    public void Userdata_UnknownSet_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              counter.missing = 5
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("unknown userdata member 'missing'");
+    }
+
+    [Fact]
     public void Userdata_UnknownMethod_ShouldRaiseLuaException()
     {
         using var state = new LuauState();
@@ -96,6 +117,27 @@ public sealed class UserdataTests
     }
 
     [Fact]
+    public void Userdata_UnknownMethod_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("counter", new CounterUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              return getmetatable(counter).__namecall(counter, "missingMethod", 1)
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("unknown userdata method 'missingMethod'");
+    }
+
+    [Fact]
     public void Userdata_CallbackException_ShouldTranslateToLuaException()
     {
         using var state = new LuauState();
@@ -105,6 +147,28 @@ public sealed class UserdataTests
 
         exception.Message.ShouldContain("__index callback failed");
         exception.Message.ShouldContain("Boom from OnIndex");
+    }
+
+    [Fact]
+    public void Userdata_CallbackException_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              return failing.explode
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("__index callback failed");
+        err.ShouldContain("Boom from OnIndex");
     }
 
     private sealed class CounterUserdata : ILuauUserData<CounterUserdata>
