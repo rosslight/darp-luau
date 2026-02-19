@@ -322,4 +322,46 @@ public sealed unsafe class LuauState : IDisposable
             LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
         }
     }
+
+    /// <summary> Do the string </summary>
+    /// <param name="source"> The source to compile and run </param>
+    /// <param name="nNumExpectedRetValues">The number of expected return values</param>
+    /// <param name="chunkName"> The name of the chunk to load </param>
+    public LuauValue[] DoString(ReadOnlySpan<byte> source, int nNumExpectedRetValues, ReadOnlySpan<byte> chunkName = default)
+    {
+        this.ThrowIfDisposed();
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        if (chunkName.IsEmpty)
+            chunkName = "main"u8;
+        fixed (byte* pSource = source)
+        fixed (byte* pChunkName = chunkName)
+        {
+            nuint resultSize = 0;
+            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &resultSize);
+            int loadStatus = luau_load(L, pChunkName, pByteCode, resultSize, 0);
+            LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
+
+            int iStackBefore = lua_absindex(L, lua_gettop(L));
+
+            int callStatus = lua_pcall(L, 0, nNumExpectedRetValues, 0);
+            LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
+
+            int nNumActualRetValues = lua_absindex(L, lua_gettop(L)) - iStackBefore + 1;
+            if (nNumActualRetValues != nNumExpectedRetValues)
+                throw new LuaException($"Lua stack does not contain exactly {nNumExpectedRetValues} return values");
+
+            if (nNumExpectedRetValues == 0)
+                return [];
+
+            var results = new LuauValue[nNumExpectedRetValues];
+            while(--nNumExpectedRetValues >= 0)
+            {
+                results[nNumExpectedRetValues] = LuauValue.ToValue(this);
+                lua_pop(L, 1);
+            }
+            return results;
+        }
+    }
 }
