@@ -448,32 +448,32 @@ public sealed class UserdataTests
 
         public int Value { get; private set; }
 
-        public static LuauIndexResult OnIndex(CounterUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName)
+        public static LuauResultSingle OnIndex(
+            CounterUserdata self,
+            in LuauState state,
+            in ReadOnlySpan<char> fieldName
+        )
         {
             return fieldName switch
             {
-                "value" => LuauIndexResult.Value(self.Value),
-                _ => LuauIndexResult.NotHandled,
+                "value" => LuauResultSingle.Value(self.Value),
+                _ => LuauResultSingle.NotHandled,
             };
         }
 
-        public static LuauSetIndexResult OnSetIndex(
-            CounterUserdata self,
-            LuauSetIndexArgs setArgs,
-            in ReadOnlySpan<char> fieldName
-        )
+        public static LuauOutcome OnSetIndex(CounterUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName)
         {
             switch (fieldName)
             {
                 case "value":
                 {
-                    if (!setArgs.TryReadNumber(out double value, out string? error))
-                        return LuauSetIndexResult.Error(error);
-                    self.Value = (int)value;
-                    return LuauSetIndexResult.Handled;
+                    if (!args.TryReadNumber(out int value, out string? error))
+                        return LuauOutcome.Error(error);
+                    self.Value = value;
+                    return LuauOutcome.Handled;
                 }
                 default:
-                    return LuauSetIndexResult.NotHandled;
+                    return LuauOutcome.NotHandled;
             }
         }
 
@@ -492,7 +492,7 @@ public sealed class UserdataTests
                 {
                     if (functionArgs.ArgumentCount != 1)
                         return LuauReturn.Error($"expected 1 arguments, got {functionArgs.ArgumentCount}");
-                    if (!functionArgs.TryRead(1, out int offset, out string? error))
+                    if (!functionArgs.TryReadNumber(1, out int offset, out string? error))
                         return LuauReturn.Error(error);
 
                     return LuauReturn.Ok(self.Value + offset);
@@ -524,27 +524,27 @@ public sealed class UserdataTests
 
     private sealed class FailingUserdata : ILuauUserData<FailingUserdata>
     {
-        public static LuauIndexResult OnIndex(FailingUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName)
-        {
-            return fieldName switch
-            {
-                "explode" => throw new InvalidOperationException("Boom from OnIndex"),
-                "errorIndex" => LuauIndexResult.Error("error from OnIndex"),
-                _ => LuauIndexResult.NotHandled,
-            };
-        }
-
-        public static LuauSetIndexResult OnSetIndex(
+        public static LuauResultSingle OnIndex(
             FailingUserdata self,
-            LuauSetIndexArgs setArgs,
+            in LuauState state,
             in ReadOnlySpan<char> fieldName
         )
         {
             return fieldName switch
             {
+                "explode" => throw new InvalidOperationException("Boom from OnIndex"),
+                "errorIndex" => LuauResultSingle.Error("error from OnIndex"),
+                _ => LuauResultSingle.NotHandled,
+            };
+        }
+
+        public static LuauOutcome OnSetIndex(FailingUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName)
+        {
+            return fieldName switch
+            {
                 "explodeSet" => throw new InvalidOperationException("Boom from OnSetIndex"),
-                "errorSet" => LuauSetIndexResult.Error("error from OnSetIndex"),
-                _ => LuauSetIndexResult.NotHandled,
+                "errorSet" => LuauOutcome.Error("error from OnSetIndex"),
+                _ => LuauOutcome.NotHandled,
             };
         }
 

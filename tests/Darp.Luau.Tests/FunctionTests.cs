@@ -77,7 +77,9 @@ public sealed class FunctionTests
             "add",
             state.CreateFunctionBuilder(static args =>
             {
-                if (!args.TryRead(1, out int a, out string? error) || !args.TryRead(2, out int b, out error))
+                if (
+                    !args.TryReadNumber(1, out int a, out string? error) || !args.TryReadNumber(2, out int b, out error)
+                )
                     return LuauReturn.Error(error);
 
                 return LuauReturn.Ok(a + b);
@@ -367,7 +369,7 @@ public sealed class FunctionTests
             "f",
             state.CreateFunctionBuilder(static args =>
             {
-                if (!args.TryRead(1, out string hex, out string? error))
+                if (!args.TryReadUtf8String(1, out string? hex, out string? error))
                     return LuauReturn.Error(error);
 
                 return LuauReturn.Ok(Convert.FromHexString(hex));

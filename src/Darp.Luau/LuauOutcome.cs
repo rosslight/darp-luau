@@ -6,12 +6,12 @@ namespace Darp.Luau;
 /// Result of a managed userdata <c>__newindex</c> callback.
 /// Either handled, not-handled, or an error message.
 /// </summary>
-public readonly struct LuauSetIndexResult
+public readonly struct LuauOutcome
 {
     private readonly ResultKind _kind;
     private readonly string? _error;
 
-    private LuauSetIndexResult(ResultKind kind, string? error = null)
+    private LuauOutcome(ResultKind kind, string? error = null)
     {
         _kind = kind;
         _error = error;
@@ -23,11 +23,11 @@ public readonly struct LuauSetIndexResult
 
     public bool IsError => _kind is ResultKind.Error;
 
-    public static LuauSetIndexResult Handled => new(ResultKind.Handled);
+    public static LuauOutcome Handled => new(ResultKind.Handled);
 
-    public static LuauSetIndexResult NotHandled => default;
+    public static LuauOutcome NotHandled => default;
 
-    public static LuauSetIndexResult Error(string? error) =>
+    public static LuauOutcome Error(string? error) =>
         new(ResultKind.Error, string.IsNullOrWhiteSpace(error) ? "something went wrong" : error);
 
     public bool TryGetError([NotNullWhen(true)] out string? error)
@@ -35,8 +35,6 @@ public readonly struct LuauSetIndexResult
         error = _error;
         return IsError;
     }
-
-    public static implicit operator LuauSetIndexResult(string error) => Error(error);
 
     private enum ResultKind
     {

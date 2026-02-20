@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -43,7 +44,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
             ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
 
-            LuauIndexResult result = T.OnIndex(target, state, resolvedMemberName);
+            LuauResultSingle result = T.OnIndex(target, state, resolvedMemberName);
             if (result.IsNotHandled)
                 return 0;
 
@@ -70,8 +71,10 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
             ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
 
-            var setArgs = new LuauSetIndexArgs(new LuauArgs(lua, argumentCount: 1, firstParameterStackIndex: 3));
-            LuauSetIndexResult result = T.OnSetIndex(target, setArgs, resolvedMemberName);
+            var args = new LuauArgs(lua, argumentCount: 1, firstParameterStackIndex: 3);
+            Debug.Assert(args.ArgumentCount == 1);
+            var argsSingle = new LuauArgsSingle(args);
+            LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
             if (result.IsHandled)
                 return 0;
 
