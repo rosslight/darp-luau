@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -36,7 +37,7 @@ public readonly unsafe ref struct LuauArgs
     public bool TryValidateArgumentCount(int expectedArgumentCount, [NotNullWhen(false)] out string? error)
     {
         _state.ThrowIfDisposed();
-        if (expectedArgumentCount == ArgumentCount)
+        if (ArgumentCount >= expectedArgumentCount)
         {
             error = null;
             return true;
@@ -118,307 +119,6 @@ public readonly unsafe ref struct LuauArgs
 
         error = $"Parameter {parameterIndex} must be {expectedType} or {lua_Type.LUA_TNIL} but was {actualType}.";
         return false;
-    }
-
-    private int GetStackIndex(int parameterIndex)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(parameterIndex, 0);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(parameterIndex, ArgumentCount);
-        return _firstParameterStackIndex + parameterIndex - 1;
-    }
-
-    public ReadOnlySpan<byte> CheckString(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is not lua_Type.LUA_TSTRING)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TSTRING} but was {parameterType}."
-            );
-        }
-
-        nuint len;
-        byte* pStr = lua_tolstring(L, stackIndex, &len);
-        if (pStr is null)
-            throw new ArgumentException($"Parameter {parameterIndex} returned a null string pointer.");
-        return new ReadOnlySpan<byte>(pStr, (int)len);
-    }
-
-    public ReadOnlySpan<byte> CheckStringOrNil(int parameterIndex, out bool isNull)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is lua_Type.LUA_TNIL)
-        {
-            isNull = true;
-            return default;
-        }
-
-        if (parameterType is not lua_Type.LUA_TSTRING)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TSTRING} but was {parameterType}."
-            );
-        }
-
-        nuint len;
-        byte* pStr = lua_tolstring(L, stackIndex, &len);
-        if (pStr is null)
-            throw new ArgumentException($"Parameter {parameterIndex} returned a null string pointer.");
-
-        isNull = false;
-        return new ReadOnlySpan<byte>(pStr, (int)len);
-    }
-
-    public double CheckNumber(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is not lua_Type.LUA_TNUMBER)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TNUMBER} but was {parameterType}."
-            );
-        }
-
-        return lua_tonumber(L, stackIndex);
-    }
-
-    public double? CheckNumberOrNil(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is lua_Type.LUA_TNIL)
-            return null;
-
-        if (parameterType is not lua_Type.LUA_TNUMBER)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TNUMBER} or {lua_Type.LUA_TNIL} but was {parameterType}."
-            );
-        }
-
-        return lua_tonumber(L, stackIndex);
-    }
-
-    public bool CheckBoolean(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is not lua_Type.LUA_TBOOLEAN)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TBOOLEAN} but was {parameterType}."
-            );
-        }
-
-        return lua_toboolean(L, stackIndex) == 1;
-    }
-
-    public bool? CheckBooleanOrNil(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is lua_Type.LUA_TNIL)
-            return null;
-
-        if (parameterType is not lua_Type.LUA_TBOOLEAN)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TBOOLEAN} or {lua_Type.LUA_TNIL} but was {parameterType}."
-            );
-        }
-
-        return lua_toboolean(L, stackIndex) == 1;
-    }
-
-    public ReadOnlySpan<byte> CheckBuffer(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is not lua_Type.LUA_TBUFFER)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TBUFFER} but was {parameterType}."
-            );
-        }
-
-        nuint nLength = 0;
-        void* pBuf = lua_tobuffer(L, stackIndex, &nLength);
-        if (pBuf is null)
-            throw new ArgumentException($"Parameter {parameterIndex} returned a null pointer.");
-
-        return new ReadOnlySpan<byte>(pBuf, (int)nLength);
-    }
-
-    public ReadOnlySpan<byte> CheckBufferOrNil(int parameterIndex, out bool isNull)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is lua_Type.LUA_TNIL)
-        {
-            isNull = true;
-            return default;
-        }
-
-        if (parameterType is not lua_Type.LUA_TBUFFER)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TBUFFER} but was {parameterType}."
-            );
-        }
-
-        nuint nLength = 0;
-        void* pBuf = lua_tobuffer(L, stackIndex, &nLength);
-        if (pBuf is null)
-            throw new ArgumentException($"Parameter {parameterIndex} returned a null pointer.");
-
-        isNull = false;
-        return new ReadOnlySpan<byte>(pBuf, (int)nLength);
-    }
-
-    public LuauValue CheckLuauValue(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        lua_pushvalue(L, stackIndex);
-        try
-        {
-            return LuauValue.ToValue(_state);
-        }
-        finally
-        {
-            lua_pop(L, 1);
-        }
-    }
-
-    public LuauTable CheckLuauTable(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is not lua_Type.LUA_TTABLE)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TTABLE} but was {parameterType}."
-            );
-        }
-
-        lua_pushvalue(L, stackIndex);
-        int reference = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
-        return new LuauTable(_state, reference);
-    }
-
-    public LuauFunction CheckLuauFunction(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is not lua_Type.LUA_TFUNCTION)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TFUNCTION} but was {parameterType}."
-            );
-        }
-
-        lua_pushvalue(L, stackIndex);
-        int reference = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
-        return new LuauFunction(_state, reference);
-    }
-
-    public LuauString CheckLuauString(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is not lua_Type.LUA_TSTRING)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TSTRING} but was {parameterType}."
-            );
-        }
-
-        lua_pushvalue(L, stackIndex);
-        int reference = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
-        return new LuauString(_state, reference);
-    }
-
-    public LuauBuffer CheckLuauBuffer(int parameterIndex)
-    {
-        _state.ThrowIfDisposed();
-        int stackIndex = GetStackIndex(parameterIndex);
-        lua_State* L = _state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var parameterType = (lua_Type)lua_type(L, stackIndex);
-        if (parameterType is not lua_Type.LUA_TBUFFER)
-        {
-            throw new ArgumentException(
-                $"Parameter {parameterIndex} must be {lua_Type.LUA_TBUFFER} but was {parameterType}."
-            );
-        }
-
-        lua_pushvalue(L, stackIndex);
-        int reference = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
-        return new LuauBuffer(_state, reference);
     }
 
     /// <summary>
@@ -604,34 +304,37 @@ public readonly unsafe ref struct LuauArgs
     public bool TryReadLuauValue(int parameterIndex, out LuauValue value, [NotNullWhen(false)] out string? error)
     {
         value = default;
-        if (!TryGetParameterContext(parameterIndex, out _, out _, out _, out error))
+        _state.ThrowIfDisposed();
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out _, out error))
             return false;
 
-        value = CheckLuauValue(parameterIndex);
+        value = LuauValue.ToValue(_state, stackIndex);
         return true;
     }
 
     public bool TryReadLuauTable(int parameterIndex, out LuauTable value, [NotNullWhen(false)] out string? error)
     {
         value = default;
-        if (!TryGetParameterContext(parameterIndex, out _, out _, out lua_Type type, out error))
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TTABLE, out error))
             return false;
 
-        value = CheckLuauTable(parameterIndex);
+        int reference = lua_ref(L, stackIndex);
+        value = new LuauTable(_state, reference);
         return true;
     }
 
     public bool TryReadLuauFunction(int parameterIndex, out LuauFunction value, [NotNullWhen(false)] out string? error)
     {
         value = default;
-        if (!TryGetParameterContext(parameterIndex, out _, out _, out lua_Type type, out error))
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TFUNCTION, out error))
             return false;
 
-        value = CheckLuauFunction(parameterIndex);
+        int reference = lua_ref(L, stackIndex);
+        value = new LuauFunction(_state, reference);
         return true;
     }
 
@@ -643,12 +346,8 @@ public readonly unsafe ref struct LuauArgs
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TSTRING, out error))
             return false;
 
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        lua_pushvalue(L, stackIndex);
-        int reference = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
-        value = new LuauString(_state!, reference);
+        int reference = lua_ref(L, stackIndex);
+        value = new LuauString(_state, reference);
         return true;
     }
 
@@ -660,37 +359,32 @@ public readonly unsafe ref struct LuauArgs
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TBUFFER, out error))
             return false;
 
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        lua_pushvalue(L, stackIndex);
-        int reference = LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
+        int reference = lua_ref(L, stackIndex);
         value = new LuauBuffer(_state!, reference);
         return true;
     }
 
-    public bool TryRead(int parameterIndex, out int value, [NotNullWhen(false)] out string? error)
-    {
-        value = 0;
-        if (!TryReadNumber(parameterIndex, out double numericValue, out error))
-            return false;
-
-        value = (int)numericValue;
-        return true;
-    }
-
-    public bool TryRead<T>(int parameterIndex, out T value, [NotNullWhen(false)] out string? error)
+    public bool TryRead<T>(int parameterIndex, [NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
         where T : allows ref struct
     {
         value = default!;
         error = null;
+        if (!TryValidateArgumentCount(parameterIndex, out error))
+            return false;
 
         if (typeof(T) == typeof(double))
         {
             if (!TryReadNumber(parameterIndex, out double result, out error))
                 return false;
-
             value = Unsafe.As<double, T>(ref result)!;
+            return true;
+        }
+        if (typeof(T) == typeof(int))
+        {
+            if (!TryReadNumber(parameterIndex, out double result, out error))
+                return false;
+            int temp = (int)result;
+            value = Unsafe.As<int, T>(ref temp)!;
             return true;
         }
 
@@ -698,17 +392,16 @@ public readonly unsafe ref struct LuauArgs
         {
             if (!TryReadBoolean(parameterIndex, out bool result, out error))
                 return false;
-
             value = Unsafe.As<bool, T>(ref result)!;
             return true;
         }
 
-        if (typeof(T) == typeof(ReadOnlySpan<byte>))
+        if (typeof(T) == typeof(string))
         {
             if (!TryReadUtf8String(parameterIndex, out ReadOnlySpan<byte> result, out error))
                 return false;
-
-            value = Unsafe.As<ReadOnlySpan<byte>, T>(ref result)!;
+            string temp = Encoding.UTF8.GetString(result);
+            value = Unsafe.As<string, T>(ref temp)!;
             return true;
         }
 
@@ -716,7 +409,6 @@ public readonly unsafe ref struct LuauArgs
         {
             if (!TryReadLuauValue(parameterIndex, out LuauValue result, out error))
                 return false;
-
             value = Unsafe.As<LuauValue, T>(ref result)!;
             return true;
         }
@@ -725,7 +417,6 @@ public readonly unsafe ref struct LuauArgs
         {
             if (!TryReadLuauTable(parameterIndex, out LuauTable result, out error))
                 return false;
-
             value = Unsafe.As<LuauTable, T>(ref result)!;
             return true;
         }
@@ -734,7 +425,6 @@ public readonly unsafe ref struct LuauArgs
         {
             if (!TryReadLuauFunction(parameterIndex, out LuauFunction result, out error))
                 return false;
-
             value = Unsafe.As<LuauFunction, T>(ref result)!;
             return true;
         }
@@ -743,7 +433,6 @@ public readonly unsafe ref struct LuauArgs
         {
             if (!TryReadLuauString(parameterIndex, out LuauString result, out error))
                 return false;
-
             value = Unsafe.As<LuauString, T>(ref result)!;
             return true;
         }
@@ -752,34 +441,12 @@ public readonly unsafe ref struct LuauArgs
         {
             if (!TryReadLuauBuffer(parameterIndex, out LuauBuffer result, out error))
                 return false;
-
             value = Unsafe.As<LuauBuffer, T>(ref result)!;
             return true;
         }
 
-        if (parameterIndex <= 0 || parameterIndex > ArgumentCount)
-        {
-            error = $"Parameter index {parameterIndex} is out of range. Expected 1..{ArgumentCount}.";
-            return false;
-        }
-
-        try
-        {
-            LuauValue luauValue = CheckLuauValue(parameterIndex);
-            if (luauValue.TryGet(out T? result, acceptNil: true))
-            {
-                value = result;
-                return true;
-            }
-
-            error =
-                $"Parameter {parameterIndex} could not be converted from Lua type '{luauValue.Type}' to '{typeof(T).FullName}'.";
-            return false;
-        }
-        catch (Exception exception)
-        {
-            error = exception.Message;
-            return false;
-        }
+        error = $"Cannot read lua type {typeof(T)}. It is not supported.";
+        value = default;
+        return false;
     }
 }

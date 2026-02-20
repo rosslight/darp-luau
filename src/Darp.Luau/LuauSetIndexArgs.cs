@@ -12,32 +12,6 @@ public readonly ref struct LuauSetIndexArgs
 
     internal LuauSetIndexArgs(LuauArgs args) => _args = args;
 
-    public ReadOnlySpan<byte> CheckString() => _args.CheckString(1);
-
-    public ReadOnlySpan<byte> CheckStringOrNil(out bool isNull) => _args.CheckStringOrNil(1, out isNull);
-
-    public double CheckNumber() => _args.CheckNumber(1);
-
-    public double? CheckNumberOrNil() => _args.CheckNumberOrNil(1);
-
-    public bool CheckBoolean() => _args.CheckBoolean(1);
-
-    public bool? CheckBooleanOrNil() => _args.CheckBooleanOrNil(1);
-
-    public ReadOnlySpan<byte> CheckBuffer() => _args.CheckBuffer(1);
-
-    public ReadOnlySpan<byte> CheckBufferOrNil(out bool isNull) => _args.CheckBufferOrNil(1, out isNull);
-
-    public LuauValue CheckLuauValue() => _args.CheckLuauValue(1);
-
-    public LuauTable CheckLuauTable() => _args.CheckLuauTable(1);
-
-    public LuauFunction CheckLuauFunction() => _args.CheckLuauFunction(1);
-
-    public LuauString CheckLuauString() => _args.CheckLuauString(1);
-
-    public LuauBuffer CheckLuauBuffer() => _args.CheckLuauBuffer(1);
-
     public bool TryReadNumber(out double value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadNumber(1, out value, out error);
 
@@ -82,13 +56,4 @@ public readonly ref struct LuauSetIndexArgs
 
     public bool TryReadLuauBuffer(out LuauBuffer value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadLuauBuffer(1, out value, out error);
-
-    public bool TryRead(out int value, [NotNullWhen(false)] out string? error) =>
-        _args.TryRead(1, out value, out error);
-
-    public bool TryRead<T>(out T value, [NotNullWhen(false)] out string? error)
-        where T : allows ref struct
-    {
-        return _args.TryRead(1, out value, out error);
-    }
 }

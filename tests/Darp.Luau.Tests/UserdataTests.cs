@@ -467,9 +467,9 @@ public sealed class UserdataTests
             {
                 case "value":
                 {
-                    if (!setArgs.TryRead(out int value, out string? error))
+                    if (!setArgs.TryReadNumber(out double value, out string? error))
                         return LuauSetIndexResult.Error(error);
-                    self.Value = value;
+                    self.Value = (int)value;
                     return LuauSetIndexResult.Handled;
                 }
                 default:
