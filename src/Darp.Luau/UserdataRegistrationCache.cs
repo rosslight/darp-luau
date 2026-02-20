@@ -41,10 +41,19 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
             Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
-            if (!T.OnIndex(target, state, memberName[..memberNameLength], out IntoLuau result))
+            ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
+
+            LuauIndexResult result = T.OnIndex(target, state, resolvedMemberName);
+            if (result.IsNotHandled)
                 return 0;
 
-            result.Push(state);
+            if (result.TryGetError(out string? error))
+                return error;
+
+            if (!result.TryGetValue(out IntoLuau value))
+                return (string)$"userdata index callback returned invalid result for member '{resolvedMemberName}'";
+
+            value.Push(state);
             return 1;
         }
 
@@ -57,12 +66,22 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             if (!LuauStateMarshal.TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
                 return "userdata assignment requires a string member name";
 
-            var valueView = new LuauView(lua, stackIndex: 3);
             Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
-            if (!T.OnSetIndex(target, valueView, memberName[..memberNameLength]))
-                return (string)$"attempt to set unknown userdata member '{memberName}'";
-            return 0;
+            ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
+
+            var setArgs = new LuauSetIndexArgs(new LuauArgs(lua, argumentCount: 1, firstParameterStackIndex: 3));
+            LuauSetIndexResult result = T.OnSetIndex(target, setArgs, resolvedMemberName);
+            if (result.IsHandled)
+                return 0;
+
+            if (result.IsNotHandled)
+                return (string)$"attempt to set unknown userdata member '{resolvedMemberName}'";
+
+            if (result.TryGetError(out string? error))
+                return error;
+
+            return (string)$"userdata assignment callback returned invalid result for member '{resolvedMemberName}'";
         }
 
         static LuaResult<int, string> MethodCallbackManaged(LuauState lua, object? userdata)
@@ -89,19 +108,22 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             }
 
             int topBeforeInvoke = LuauNative.lua_gettop(L);
-            var functionArgs = new LuauFunctions(lua, numberOfParameters, firstParameterStackIndex);
+            var functionArgs = new LuauArgs(lua, numberOfParameters, firstParameterStackIndex);
             Span<char> methodName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MethodName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MethodName, methodName);
-            bool handled = T.OnMethodCall(target, functionArgs, methodName[..memberNameLength]);
-            int outputCount = LuauNative.lua_gettop(L) - topBeforeInvoke;
+            ReadOnlySpan<char> resolvedMethodName = methodName[..memberNameLength];
+            LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
+            LuauNative.lua_settop(L, topBeforeInvoke);
 
-            if (handled)
-                return Math.Max(0, outputCount);
+            if (!result.TryPushValues(lua, out int outputCount, out string? error))
+            {
+                if (error == LuauReturn.NotHandledError)
+                    return (string)$"attempt to call unknown userdata method '{resolvedMethodName}'";
 
-            if (outputCount > 0)
-                LuauNative.lua_pop(L, outputCount);
+                return error ?? "something went wrong";
+            }
 
-            return (string)$"attempt to call unknown userdata method '{methodName}'";
+            return outputCount;
         }
     }
 

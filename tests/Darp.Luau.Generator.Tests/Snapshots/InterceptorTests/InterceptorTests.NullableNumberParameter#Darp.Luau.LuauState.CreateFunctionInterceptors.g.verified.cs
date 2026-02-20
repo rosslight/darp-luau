@@ -13,11 +13,14 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(ref LuauFunctions x)
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 1);
-            double? v1 = x.CheckNumberOrNil(parameterIndex: 1);
-            onLuaCall(v1);
+            if (!args.TryValidateArgumentCount(1, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadNumberOrNil(parameterIndex: 1, out double? a1, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            onLuaCall(a1);
+            return global::Darp.Luau.LuauReturn.Ok();
         }
     }
     [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "W3NRnABO1aze+hZsF565kqUAAAA=")]
@@ -27,12 +30,15 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(ref LuauFunctions x)
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 1);
-            double? v1Lua = x.CheckNumberOrNil(parameterIndex: 1);
-            int? v1 = (int?)v1Lua;
-            onLuaCall(v1);
+            if (!args.TryValidateArgumentCount(1, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadNumberOrNil(parameterIndex: 1, out double? a1Raw, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            int? a1 = (int?)a1Raw;
+            onLuaCall(a1);
+            return global::Darp.Luau.LuauReturn.Ok();
         }
     }
 }

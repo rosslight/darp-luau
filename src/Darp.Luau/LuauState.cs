@@ -116,15 +116,16 @@ public sealed unsafe class LuauState : IDisposable
         return new LuauTable(this, refPtr);
     }
 
-    /// <summary> The delegate type that provides a save view to work with a function </summary>
-    public delegate void LuauFunctionBuilder(ref LuauFunctions builder);
+    /// <summary> The delegate type that maps Lua arguments to a single return or error </summary>
+    public delegate LuauReturn LuauFunctionBuilder(LuauArgs args);
 
     /// <summary> Create a new LuaFunction and get the reference to it </summary>
-    /// <param name="onCalled">The callback providing a </param>
+    /// <param name="onCalled">The callback returning either a value or an error</param>
     /// <returns> The LuaFunction with the reference to the lua memory </returns>
     public LuauFunction CreateFunctionBuilder(LuauFunctionBuilder onCalled)
     {
         this.ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(onCalled);
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
@@ -143,17 +144,27 @@ public sealed unsafe class LuauState : IDisposable
             ArgumentOutOfRangeException.ThrowIfNotEqual((nint)luaState, (nint)L);
             int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
-            using var guard = new StackGuard(L, expectedDelta: 0);
+            using var nestedGuard = new StackGuard(L, expectedDelta: 0);
 #endif
             int topBeforeInvoke = lua_gettop(luaState);
-            var builder = new LuauFunctions(this, numberOfParameters);
+            var args = new LuauArgs(this, numberOfParameters);
             try
             {
-                onCalled(ref builder);
-                int outputCount = Math.Max(0, lua_gettop(luaState) - topBeforeInvoke);
+                LuauReturn result = onCalled(args);
+                lua_settop(luaState, topBeforeInvoke);
+
+                if (!result.TryPushValues(this, out int outputCount, out string? error))
+                {
+                    int errorReturnCount = LuauStateMarshal.ReturnError(luaState, error);
+#if DEBUG
+                    nestedGuard.OverwriteExpectedDelta(errorReturnCount);
+#endif
+                    return errorReturnCount;
+                }
+
                 int returnCount = LuauStateMarshal.ReturnSuccess(luaState, outputCount);
 #if DEBUG
-                guard.OverwriteExpectedDelta(returnCount);
+                nestedGuard.OverwriteExpectedDelta(returnCount);
 #endif
                 return returnCount;
             }
@@ -162,7 +173,7 @@ public sealed unsafe class LuauState : IDisposable
                 lua_settop(luaState, topBeforeInvoke);
                 int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, "managed function", exception);
 #if DEBUG
-                guard.OverwriteExpectedDelta(returnCount);
+                nestedGuard.OverwriteExpectedDelta(returnCount);
 #endif
                 return returnCount;
             }
