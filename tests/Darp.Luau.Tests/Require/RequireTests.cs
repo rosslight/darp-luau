@@ -1,10 +1,10 @@
 using Shouldly;
 
-namespace Darp.Luau.Tests;
+namespace Darp.Luau.Tests.Require;
 
 public sealed class RequireTests
 {
-    private const string ScriptPath = "./scripts";
+    private const string ScriptPath = "./Require/scripts";
 
     [Fact]
     public void Result_in_globals()
