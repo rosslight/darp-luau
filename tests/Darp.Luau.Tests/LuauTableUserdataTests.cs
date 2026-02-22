@@ -6,7 +6,7 @@ namespace Darp.Luau.Tests;
 public sealed class LuauTableUserdataTests
 {
     [Fact]
-    public void Table_TryGetUserdata_ShouldResolveManagedInstance()
+    public void Table_GetUserdata_ShouldResolveManagedInstance()
     {
         using var state = new LuauState();
         LuauTable table = state.CreateTable();
@@ -14,12 +14,12 @@ public sealed class LuauTableUserdataTests
 
         table.Set("value", value);
 
-        table.TryGetUserdata("value", out ValueUserdata? resolved).ShouldBeTrue();
+        ValueUserdata resolved = table.GetUserdata<ValueUserdata>("value");
         ReferenceEquals(value, resolved).ShouldBeTrue();
     }
 
     [Fact]
-    public void Table_TryGetLuauUserdata_ShouldReturnReference()
+    public void Table_GetLuauUserdata_ShouldReturnReference()
     {
         using var state = new LuauState();
         LuauTable table = state.CreateTable();
@@ -27,8 +27,7 @@ public sealed class LuauTableUserdataTests
 
         table.Set("value", value);
 
-        table.TryGetLuauUserdata("value", out LuauUserdata userdata).ShouldBeTrue();
-        using (userdata)
+        using (LuauUserdata userdata = table.GetLuauUserdata("value"))
         {
             string? error;
             userdata.TryGetManaged(out ValueUserdata? resolved, out error).ShouldBeTrue(error);
@@ -37,7 +36,7 @@ public sealed class LuauTableUserdataTests
     }
 
     [Fact]
-    public void Table_TryGetUserdata_WhenTypeMismatches_ShouldFail()
+    public void Table_TryGetUserdata_WhenTypeMismatches_ReturnsFalse()
     {
         using var state = new LuauState();
         LuauTable table = state.CreateTable();
@@ -47,7 +46,7 @@ public sealed class LuauTableUserdataTests
     }
 
     [Fact]
-    public void Table_TryGetUserdata_WhenValueIsNil_ShouldFail()
+    public void Table_TryGetUserdata_WhenValueIsNil_ReturnsFalse()
     {
         using var state = new LuauState();
         LuauTable table = state.CreateTable();
@@ -56,7 +55,7 @@ public sealed class LuauTableUserdataTests
     }
 
     [Fact]
-    public void Table_TryGetUserdata_WhenValueIsNotUserdata_ShouldFail()
+    public void Table_TryGetUserdata_WhenValueIsNotUserdata_ReturnsFalse()
     {
         using var state = new LuauState();
         LuauTable table = state.CreateTable();
