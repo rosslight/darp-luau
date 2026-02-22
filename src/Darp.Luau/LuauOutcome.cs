@@ -25,20 +25,20 @@ public readonly ref struct LuauOutcome
     }
 
     /// <summary> Creates a successful callback result that indicates the assignment was handled. </summary>
-    public static LuauOutcome Ok => new(isOk: true);
-
-    /// <summary> Creates a callback result that signals the member assignment is not handled. </summary>
-    public static LuauOutcome NotHandledError => Error(LuauReturn.NotHandled);
+    public static LuauOutcome Ok() => new(isOk: true);
 
     /// <summary> Creates a failed callback result with an error message. </summary>
     /// <param name="error">Error message reported to the caller.</param>
     /// <remarks>When the provided text is empty or whitespace, <c>Unknown error</c> is used.</remarks>
     public static LuauOutcome Error(string error) => new(isOk: false, error: error);
 
+    /// <summary> Creates a callback result that signals the member assignment is not handled. </summary>
+    public static LuauOutcome NotHandledError => Error(LuauReturn.NotHandled);
+
     /// <summary> Gets the error message when this result is not successful. </summary>
     /// <param name="error">Receives the error message when <see cref="IsOk"/> is <c>false</c>.</param>
     /// <returns><c>true</c> when an error is present; otherwise <c>false</c>.</returns>
-    public bool TryGetError([NotNullWhen(true)] out string? error)
+    internal bool TryGetError([NotNullWhen(true)] out string? error)
     {
         if (IsOk)
         {

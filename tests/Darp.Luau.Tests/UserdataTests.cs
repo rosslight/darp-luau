@@ -470,7 +470,7 @@ public sealed class UserdataTests
                     if (!args.TryReadNumber(out int value, out string? error))
                         return LuauOutcome.Error(error);
                     self.Value = value;
-                    return LuauOutcome.Ok;
+                    return LuauOutcome.Ok();
                 }
                 default:
                     return LuauOutcome.NotHandledError;
