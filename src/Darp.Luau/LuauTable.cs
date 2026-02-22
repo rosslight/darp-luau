@@ -83,7 +83,7 @@ public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePai
 
     /// <summary> Gets the value associated with this key (or <see cref="LuauValueType.Nil"/>) </summary>
     /// <param name="key"> The key to look for </param>
-    public readonly LuauValue this[IntoLuau key] => GetLuauValue(key);
+    public readonly LuauValue this[IntoLuau key] => TryGetLuauValue(key, out LuauValue value) ? value : default;
 
     /// <summary> Get the values as a list in paris of index and value </summary>
     /// <returns> An enumerable of values </returns>
