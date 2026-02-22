@@ -98,7 +98,7 @@ public sealed class UserdataTests
     }
 
     [Fact]
-    public void Userdata_LuauUserdataTryGetManaged_ShouldResolveManagedInstance()
+    public void Userdata_LuauUserdata_TryGetManaged_ShouldResolveManagedInstance()
     {
         using var state = new LuauState();
         var counter = new CounterUserdata();
@@ -110,7 +110,7 @@ public sealed class UserdataTests
     }
 
     [Fact]
-    public void Userdata_TableTryGetUserdata_ShouldResolveManagedInstance()
+    public void Userdata_TableGetUserdata_ShouldResolveManagedInstance()
     {
         using var state = new LuauState();
         var counter = new CounterUserdata();
@@ -118,20 +118,16 @@ public sealed class UserdataTests
 
         table.Set("counter", counter);
 
-        table.TryGetUserdata("counter", out CounterUserdata? resolved).ShouldBeTrue();
+        CounterUserdata resolved = table.GetUserdata<CounterUserdata>("counter");
         ReferenceEquals(counter, resolved).ShouldBeTrue();
 
-        table.TryGetLuauUserdata("counter", out LuauUserdata reference).ShouldBeTrue();
-        using (reference)
-        {
-            string? error;
-            reference.TryGetManaged(out CounterUserdata? resolvedFromReference, out error).ShouldBeTrue(error);
-            ReferenceEquals(counter, resolvedFromReference).ShouldBeTrue();
-        }
+        using LuauUserdata reference = table.GetLuauUserdata("counter");
+        reference.TryGetManaged(out CounterUserdata? resolvedFromReference, out string? error).ShouldBeTrue(error);
+        ReferenceEquals(counter, resolvedFromReference).ShouldBeTrue();
     }
 
     [Fact]
-    public void Userdata_TableTryGetUserdata_WithWrongManagedType_ShouldFail()
+    public void Userdata_TableTryGetUserdata_WithWrongManagedType_ReturnsFalse()
     {
         using var state = new LuauState();
         LuauTable table = state.CreateTable();
