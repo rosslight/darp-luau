@@ -44,18 +44,13 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
             ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
 
-            LuauResultSingle result = T.OnIndex(target, state, resolvedMemberName);
-            if (result.IsNotHandled)
+            LuauReturnSingle result = T.OnIndex(target, state, resolvedMemberName);
+
+            if (result.TryPushValue(state, out string? error))
+                return 1;
+            if (error == LuauReturn.NotHandled)
                 return 0;
-
-            if (result.TryGetError(out string? error))
-                return error;
-
-            if (!result.TryGetValue(out IntoLuau value))
-                return (string)$"userdata index callback returned invalid result for member '{resolvedMemberName}'";
-
-            value.Push(state);
-            return 1;
+            return error;
         }
 
         static LuaResult<int, string> NewIndexCallbackManaged(LuauState lua, object? userdata)
@@ -75,16 +70,14 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             Debug.Assert(args.ArgumentCount == 1);
             var argsSingle = new LuauArgsSingle(args);
             LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
-            if (result.IsHandled)
+            if (!result.TryGetError(out string? error))
+            {
+                // Success
                 return 0;
-
-            if (result.IsNotHandled)
+            }
+            if (error == LuauReturn.NotHandled)
                 return (string)$"attempt to set unknown userdata member '{resolvedMemberName}'";
-
-            if (result.TryGetError(out string? error))
-                return error;
-
-            return (string)$"userdata assignment callback returned invalid result for member '{resolvedMemberName}'";
+            return error;
         }
 
         static LuaResult<int, string> MethodCallbackManaged(LuauState lua, object? userdata)
@@ -118,15 +111,11 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
             LuauNative.lua_settop(L, topBeforeInvoke);
 
-            if (!result.TryPushValues(lua, out int outputCount, out string? error))
-            {
-                if (error == LuauReturn.NotHandledError)
-                    return (string)$"attempt to call unknown userdata method '{resolvedMethodName}'";
-
-                return error ?? "something went wrong";
-            }
-
-            return outputCount;
+            if (result.TryPushValues(lua, out int outputCount, out string? error))
+                return outputCount;
+            if (error == LuauReturn.NotHandled)
+                return (string)$"attempt to call unknown userdata method '{resolvedMethodName}'";
+            return error;
         }
     }
 

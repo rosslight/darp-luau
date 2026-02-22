@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -151,7 +152,7 @@ public sealed unsafe class LuauState : IDisposable
             try
             {
                 LuauReturn result = onCalled(args);
-                lua_settop(luaState, topBeforeInvoke);
+                Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
 
                 if (!result.TryPushValues(this, out int outputCount, out string? error))
                 {

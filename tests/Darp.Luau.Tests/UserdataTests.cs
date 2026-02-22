@@ -448,7 +448,7 @@ public sealed class UserdataTests
 
         public int Value { get; private set; }
 
-        public static LuauResultSingle OnIndex(
+        public static LuauReturnSingle OnIndex(
             CounterUserdata self,
             in LuauState state,
             in ReadOnlySpan<char> fieldName
@@ -456,8 +456,8 @@ public sealed class UserdataTests
         {
             return fieldName switch
             {
-                "value" => LuauResultSingle.Value(self.Value),
-                _ => LuauResultSingle.NotHandled,
+                "value" => LuauReturnSingle.Ok(self.Value),
+                _ => LuauReturnSingle.NotHandled,
             };
         }
 
@@ -470,10 +470,10 @@ public sealed class UserdataTests
                     if (!args.TryReadNumber(out int value, out string? error))
                         return LuauOutcome.Error(error);
                     self.Value = value;
-                    return LuauOutcome.Handled;
+                    return LuauOutcome.Ok;
                 }
                 default:
-                    return LuauOutcome.NotHandled;
+                    return LuauOutcome.NotHandledError;
             }
         }
 
@@ -513,9 +513,9 @@ public sealed class UserdataTests
                     return LuauReturn.Ok();
                 }
                 case "badUnknown":
-                    return LuauReturn.Error(LuauReturn.NotHandledError);
+                    return LuauReturn.NotHandledError;
                 default:
-                    return LuauReturn.Error(LuauReturn.NotHandledError);
+                    return LuauReturn.NotHandledError;
             }
         }
 
@@ -524,7 +524,7 @@ public sealed class UserdataTests
 
     private sealed class FailingUserdata : ILuauUserData<FailingUserdata>
     {
-        public static LuauResultSingle OnIndex(
+        public static LuauReturnSingle OnIndex(
             FailingUserdata self,
             in LuauState state,
             in ReadOnlySpan<char> fieldName
@@ -533,8 +533,8 @@ public sealed class UserdataTests
             return fieldName switch
             {
                 "explode" => throw new InvalidOperationException("Boom from OnIndex"),
-                "errorIndex" => LuauResultSingle.Error("error from OnIndex"),
-                _ => LuauResultSingle.NotHandled,
+                "errorIndex" => LuauReturnSingle.Error("error from OnIndex"),
+                _ => LuauReturnSingle.NotHandled,
             };
         }
 
@@ -544,7 +544,7 @@ public sealed class UserdataTests
             {
                 "explodeSet" => throw new InvalidOperationException("Boom from OnSetIndex"),
                 "errorSet" => LuauOutcome.Error("error from OnSetIndex"),
-                _ => LuauOutcome.NotHandled,
+                _ => LuauOutcome.NotHandledError,
             };
         }
 
@@ -557,7 +557,7 @@ public sealed class UserdataTests
             return methodName switch
             {
                 "explodeMethod" => throw new InvalidOperationException("Boom from OnMethodCall"),
-                _ => LuauReturn.Error(LuauReturn.NotHandledError),
+                _ => LuauReturn.NotHandledError,
             };
         }
 
