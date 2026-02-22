@@ -216,8 +216,7 @@ public unsafe partial struct LuauTable
         using var guard = new StackGuard(State!.L, expectedDelta: 0);
 #endif
         value = default;
-        if (!TryGet(key, out lua_State* L, out error))
-            return false;
+        TryGet(key, out lua_State* L, out error);
 
         value = LuauValue.ToValue(State);
         lua_pop(L, 2);
@@ -302,7 +301,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private readonly bool TryGet(IntoLuau key, out lua_State* L, [NotNullWhen(false)] out string? error)
+    private readonly void TryGet(IntoLuau key, out lua_State* L, [NotNullWhen(false)] out string? error)
     {
         L = null;
         error = null;
@@ -312,7 +311,6 @@ public unsafe partial struct LuauTable
         lua_getref(L, Reference);
         key.Push(State);
         _ = (lua_Type)lua_gettable(L, -2);
-        return true;
     }
 
     private readonly bool TryGetRequired(
