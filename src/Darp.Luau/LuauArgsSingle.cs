@@ -155,6 +155,18 @@ public readonly ref struct LuauArgsSingle
     public bool TryReadLuauBuffer(out LuauBuffer value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadLuauBuffer(1, out value, out error);
 
+    /// <inheritdoc cref="LuauArgs.TryReadLuauUserdata(int, out LuauUserdata, out string)"/>
+    public bool TryReadLuauUserdata(out LuauUserdata value, [NotNullWhen(false)] out string? error) =>
+        _args.TryReadLuauUserdata(1, out value, out error);
+
+    /// <inheritdoc cref="LuauArgs.TryReadUserdata{T}(int, out T, out string)"/>
+    public bool TryReadUserdata<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
+        where T : class, ILuauUserData<T> => _args.TryReadUserdata(1, out value, out error);
+
+    /// <inheritdoc cref="LuauArgs.TryReadUserdataOrNil{T}(int, out T, out string)"/>
+    public bool TryReadUserdataOrNil<T>(out T? value, [NotNullWhen(false)] out string? error)
+        where T : class, ILuauUserData<T> => _args.TryReadUserdataOrNil(1, out value, out error);
+
     /// <inheritdoc cref="LuauArgs.TryReadBuffer(int, out ReadOnlySpan{byte}, out string)"/>
     public bool TryReadBuffer(out ReadOnlySpan<byte> value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadBuffer(1, out value, out error);

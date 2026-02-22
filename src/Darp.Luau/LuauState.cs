@@ -73,17 +73,7 @@ public sealed unsafe class LuauState : IDisposable
             """u8;
 
         var chunkName = "managed_callback_wrapper"u8;
-        fixed (byte* pSource = source)
-        fixed (byte* pChunkName = chunkName)
-        {
-            nuint resultSize = 0;
-            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &resultSize);
-            int loadStatus = luau_load(L, pChunkName, pByteCode, resultSize, 0);
-            LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
-
-            int callStatus = lua_pcall(L, 0, 1, 0);
-            LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
-        }
+        CompileLoadAndCall(L, source, chunkName, nResults: 1);
         if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TFUNCTION)
         {
             lua_pop(L, 1);
@@ -189,40 +179,18 @@ public sealed unsafe class LuauState : IDisposable
     public LuauFunction CreateFunction<T>(T value)
         where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");
 
-    /// <summary> Register userdata at lua </summary>
-    /// <typeparam name="T"> The type of the userdata to create and register </typeparam>
-    /// <returns> The lua object that references userdata </returns>
-    public LuauUserdata CreateUserdata<T>()
-        where T : class, ILuauUserData<T>, new() => CreateUserdata(new T());
-
-    /// <summary> Register userdata at lua </summary>
-    /// <param name="userdata"> The userdata to register </param>
-    /// <typeparam name="T"> The type of the userdata to register </typeparam>
-    /// <returns> The lua object that references userdata </returns>
-    public LuauUserdata CreateUserdata<T>(in T userdata)
+    /// <summary>
+    /// Gets an existing userdata for this managed instance or creates a new one.
+    /// </summary>
+    /// <param name="userdata">Managed userdata instance.</param>
+    /// <typeparam name="T">Managed userdata type.</typeparam>
+    /// <returns>A Lua userdata reference associated with <paramref name="userdata"/>.</returns>
+    public LuauUserdata GetOrCreateUserdata<T>(T userdata)
         where T : class, ILuauUserData<T>
     {
         this.ThrowIfDisposed();
-
-        GCHandle registrationHandle = _cache.Register<T>();
-        return CreateUserdataUnchecked(registrationHandle, userdata);
-    }
-
-    private LuauUserdata CreateUserdataUnchecked<T>(GCHandle registrationHandle, T userdata)
-        where T : class
-    {
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var ptr = (LuauUserdataNative*)lua_newuserdatataggedwithmetatable(
-            L,
-            (nuint)sizeof(LuauUserdataNative),
-            LuauUserdataNative.Tag
-        );
-        ptr->UserdataHandle = GCHandle.Alloc(userdata, GCHandleType.Normal);
-        ptr->RegistryValueHandle = registrationHandle;
-        int reference = luaL_ref(L, LUA_REGISTRYINDEX);
-        return new LuauUserdata(this, reference);
+        ArgumentNullException.ThrowIfNull(userdata);
+        return _cache.GetOrCreate(userdata);
     }
 
     /// <summary> Creates a new luau string </summary>
@@ -323,15 +291,6 @@ public sealed unsafe class LuauState : IDisposable
 #endif
         if (chunkName.IsEmpty)
             chunkName = "main"u8;
-        fixed (byte* pSource = source)
-        fixed (byte* pChunkName = chunkName)
-        {
-            nuint resultSize = 0;
-            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &resultSize);
-            int loadStatus = luau_load(L, pChunkName, pByteCode, resultSize, 0);
-            LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
-            int callStatus = lua_pcall(L, 0, 0, 0);
-            LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
-        }
+        CompileLoadAndCall(L, source, chunkName, nResults: 0);
     }
 }

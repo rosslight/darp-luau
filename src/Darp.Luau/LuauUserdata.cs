@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
@@ -43,6 +44,44 @@ public struct LuauUserdata : ILuauReference
     }
 
     public static implicit operator IntoLuau(LuauUserdata value) => (LuauValue)value;
+
+    /// <summary>
+    /// Attempts to resolve this userdata reference back to the managed userdata instance.
+    /// </summary>
+    /// <typeparam name="T">Managed userdata type.</typeparam>
+    /// <param name="value">Receives the managed instance when successful.</param>
+    /// <param name="error">Receives a descriptive error when resolution fails.</param>
+    /// <returns>
+    /// <c>true</c> when this reference points to managed userdata of type <typeparamref name="T"/>;
+    /// otherwise <c>false</c>.
+    /// </returns>
+    public unsafe bool TryGetManaged<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
+        where T : class, ILuauUserData<T>
+    {
+        value = null;
+        ThrowIfDisposed();
+        lua_State* L = State.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        lua_getref(L, Reference);
+        if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)
+        {
+            lua_pop(L, 1);
+            error = "userdata reference does not currently point to a userdata value.";
+            return false;
+        }
+
+        bool ok = ManagedUserdataResolver.TryResolve(
+            L,
+            -1,
+            out value,
+            out error,
+            valueLabel: "userdata reference"
+        );
+        lua_pop(L, 1);
+        return ok;
+    }
 
     /// <inheritdoc />
     public override readonly string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);
