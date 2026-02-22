@@ -411,6 +411,93 @@ public readonly unsafe ref partial struct LuauArgs
     }
 
     /// <summary>
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauUserdata"/>.
+    /// </summary>
+    /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
+    /// <param name="value">Receives a referenced <see cref="LuauUserdata"/> when successful.</param>
+    /// <param name="error">Receives a descriptive error when the read fails.</param>
+    /// <returns>
+    /// <c>true</c> when the parameter exists and has type <see cref="lua_Type.LUA_TUSERDATA"/>; otherwise <c>false</c>.
+    /// </returns>
+    public bool TryReadLuauUserdata(int parameterIndex, out LuauUserdata value, [NotNullWhen(false)] out string? error)
+    {
+        value = default;
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
+            return false;
+        if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TUSERDATA, out error))
+            return false;
+
+        int reference = lua_ref(L, stackIndex);
+        value = new LuauUserdata(_state!, reference);
+        return true;
+    }
+
+    /// <summary>
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as managed userdata of type <typeparamref name="T"/>.
+    /// </summary>
+    /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
+    /// <param name="value">Receives the managed userdata instance when successful.</param>
+    /// <param name="error">Receives a descriptive error when the read fails.</param>
+    /// <typeparam name="T">Managed userdata type.</typeparam>
+    /// <returns>
+    /// <c>true</c> when the parameter exists, is tagged userdata created by this library,
+    /// and the userdata payload is of type <typeparamref name="T"/>; otherwise <c>false</c>.
+    /// </returns>
+    public bool TryReadUserdata<T>(
+        int parameterIndex,
+        [NotNullWhen(true)] out T? value,
+        [NotNullWhen(false)] out string? error
+    )
+        where T : class, ILuauUserData<T>
+    {
+        value = null;
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
+            return false;
+        if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TUSERDATA, out error))
+            return false;
+
+        return ManagedUserdataResolver.TryResolve(
+            L,
+            stackIndex,
+            out value,
+            out error,
+            valueLabel: $"Parameter {parameterIndex}"
+        );
+    }
+
+    /// <summary>
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as managed userdata of type
+    /// <typeparamref name="T"/> or <c>nil</c>.
+    /// </summary>
+    /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
+    /// <param name="value">Receives the managed userdata instance; receives <c>null</c> when the parameter is <c>nil</c>.</param>
+    /// <param name="error">Receives a descriptive error when the read fails.</param>
+    /// <typeparam name="T">Managed userdata type.</typeparam>
+    /// <returns>
+    /// <c>true</c> when the parameter exists and is <c>nil</c>, or when it is userdata of type
+    /// <typeparamref name="T"/> created by this library; otherwise <c>false</c>.
+    /// </returns>
+    public bool TryReadUserdataOrNil<T>(int parameterIndex, out T? value, [NotNullWhen(false)] out string? error)
+        where T : class, ILuauUserData<T>
+    {
+        value = default;
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
+            return false;
+        if (!TryRequireTypeOrNil(parameterIndex, type, lua_Type.LUA_TUSERDATA, out bool isNil, out error))
+            return false;
+        if (isNil)
+            return true;
+
+        return ManagedUserdataResolver.TryResolve(
+            L,
+            stackIndex,
+            out value,
+            out error,
+            valueLabel: $"Parameter {parameterIndex}"
+        );
+    }
+
+    /// <summary>
     /// Resolves stack metadata for a parameter index.
     /// </summary>
     /// <param name="parameterIndex">1-based parameter index.</param>
@@ -513,4 +600,5 @@ public readonly unsafe ref partial struct LuauArgs
         error = $"Parameter {parameterIndex} must be {expectedType} or {lua_Type.LUA_TNIL} but was {actualType}.";
         return false;
     }
+
 }

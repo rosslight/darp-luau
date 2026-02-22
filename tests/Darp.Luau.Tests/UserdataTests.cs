@@ -64,7 +64,7 @@ public sealed class UserdataTests
         using var state = new LuauState();
         var counter = new CounterUserdata();
 
-        using LuauUserdata userdata = state.CreateUserdata(counter);
+        using LuauUserdata userdata = state.GetOrCreateUserdata(counter);
         state.Globals.Set("userdata", userdata);
 
         state.Globals.TryGet("userdata", out LuauValue value).ShouldBeTrue();
@@ -78,6 +78,66 @@ public sealed class UserdataTests
             state.Globals.TryGet("isUserdataPresent", out bool isUserdataPresent).ShouldBeTrue();
             isUserdataPresent.ShouldBeTrue();
         }
+    }
+
+    [Fact]
+    public void Userdata_GetOrCreate_WithSameManagedInstance_ShouldReuseLuaIdentity()
+    {
+        using var state = new LuauState();
+        var counter = new CounterUserdata();
+
+        using LuauUserdata first = state.GetOrCreateUserdata(counter);
+        using LuauUserdata second = state.GetOrCreateUserdata(counter);
+
+        state.Globals.Set("first", first);
+        state.Globals.Set("second", second);
+        state.DoString("sameIdentity = first == second");
+
+        state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
+        sameIdentity.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Userdata_LuauUserdataTryGetManaged_ShouldResolveManagedInstance()
+    {
+        using var state = new LuauState();
+        var counter = new CounterUserdata();
+
+        using LuauUserdata userdata = state.GetOrCreateUserdata(counter);
+        userdata.TryGetManaged(out CounterUserdata? resolved, out string? error).ShouldBeTrue(error);
+
+        ReferenceEquals(counter, resolved).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Userdata_TableTryGetUserdata_ShouldResolveManagedInstance()
+    {
+        using var state = new LuauState();
+        var counter = new CounterUserdata();
+        LuauTable table = state.CreateTable();
+
+        table.Set("counter", counter);
+
+        table.TryGetUserdata("counter", out CounterUserdata? resolved, out string? error).ShouldBeTrue(error);
+        ReferenceEquals(counter, resolved).ShouldBeTrue();
+
+        table.TryGetLuauUserdata("counter", out LuauUserdata reference, out error).ShouldBeTrue(error);
+        using (reference)
+        {
+            reference.TryGetManaged(out CounterUserdata? resolvedFromReference, out error).ShouldBeTrue(error);
+            ReferenceEquals(counter, resolvedFromReference).ShouldBeTrue();
+        }
+    }
+
+    [Fact]
+    public void Userdata_TableTryGetUserdata_WithWrongManagedType_ShouldFail()
+    {
+        using var state = new LuauState();
+        LuauTable table = state.CreateTable();
+        table.Set("failing", new FailingUserdata());
+
+        table.TryGetUserdata<CounterUserdata>("failing", out _, out string? error).ShouldBeFalse();
+        error.ShouldContain("must be userdata of type");
     }
 
     [Fact]

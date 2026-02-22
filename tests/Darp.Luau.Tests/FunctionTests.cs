@@ -379,4 +379,147 @@ public sealed class FunctionTests
         state.Globals.TryGet("result", out ReadOnlySpan<byte> result).ShouldBeTrue();
         result.ToArray().ShouldBe<byte>(expected);
     }
+
+    [Fact]
+    public void Func_UserdataArg_ShouldReadManagedUserdata()
+    {
+        using var state = new LuauState();
+
+        var input = new ArgsUserdataA { Value = 42 };
+        state.Globals.Set("input", input);
+        state.Globals.Set(
+            "f",
+            state.CreateFunctionBuilder(static args =>
+            {
+                if (!args.TryReadUserdata(1, out ArgsUserdataA? value, out string? error))
+                    return LuauReturn.Error(error);
+
+                return LuauReturn.Ok(value.Value);
+            })
+        );
+
+        state.DoString("result = f(input)");
+        state.Globals.TryGet("result", out int result).ShouldBeTrue();
+        result.ShouldBe(42);
+    }
+
+    [Fact]
+    public void Func_UserdataArg_WrongType_ShouldReturnError()
+    {
+        using var state = new LuauState();
+
+        state.Globals.Set("input", new ArgsUserdataB());
+        state.Globals.Set(
+            "f",
+            state.CreateFunctionBuilder(static args =>
+            {
+                if (!args.TryReadUserdata<ArgsUserdataA>(1, out _, out string? error))
+                    return LuauReturn.Error(error);
+
+                return LuauReturn.Ok();
+            })
+        );
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              f(input)
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("must be userdata of type");
+    }
+
+    [Fact]
+    public void Func_UserdataArgOrNil_ShouldHandleNil()
+    {
+        using var state = new LuauState();
+
+        state.Globals.Set(
+            "f",
+            state.CreateFunctionBuilder(static args =>
+            {
+                if (!args.TryReadUserdataOrNil(1, out ArgsUserdataA? value, out string? error))
+                    return LuauReturn.Error(error);
+
+                return LuauReturn.Ok(value is null ? "nil" : "value");
+            })
+        );
+
+        state.DoString(
+            """
+            fromNil = f(nil)
+            """
+        );
+
+        state.Globals.Set("input", new ArgsUserdataA());
+        state.DoString("fromUserdata = f(input)");
+
+        state.Globals.TryGet("fromNil", out string? fromNil).ShouldBeTrue();
+        fromNil.ShouldBe("nil");
+        state.Globals.TryGet("fromUserdata", out string? fromUserdata).ShouldBeTrue();
+        fromUserdata.ShouldBe("value");
+    }
+
+    [Fact]
+    public void Func_UserdataArg_ShouldReadLuauUserdataReference()
+    {
+        using var state = new LuauState();
+
+        state.Globals.Set("input", new ArgsUserdataA());
+        state.Globals.Set(
+            "f",
+            state.CreateFunctionBuilder(static args =>
+            {
+                if (!args.TryReadLuauUserdata(1, out LuauUserdata value, out string? error))
+                    return LuauReturn.Error(error);
+
+                return LuauReturn.Ok(value);
+            })
+        );
+
+        state.DoString("isSame = f(input) == input");
+        state.Globals.TryGet("isSame", out bool isSame).ShouldBeTrue();
+        isSame.ShouldBeTrue();
+    }
+}
+
+internal sealed class ArgsUserdataA : ILuauUserData<ArgsUserdataA>
+{
+    public int Value { get; set; }
+
+    public static LuauReturnSingle OnIndex(ArgsUserdataA self, in LuauState state, in ReadOnlySpan<char> fieldName) =>
+        LuauReturnSingle.NotHandled;
+
+    public static LuauOutcome OnSetIndex(ArgsUserdataA self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) =>
+        LuauOutcome.NotHandledError;
+
+    public static LuauReturn OnMethodCall(
+        ArgsUserdataA self,
+        LuauArgs functionArgs,
+        in ReadOnlySpan<char> methodName
+    ) => LuauReturn.NotHandledError;
+
+    public static implicit operator IntoLuau(ArgsUserdataA value) => IntoLuau.FromUserdata(value);
+}
+
+internal sealed class ArgsUserdataB : ILuauUserData<ArgsUserdataB>
+{
+    public static LuauReturnSingle OnIndex(ArgsUserdataB self, in LuauState state, in ReadOnlySpan<char> fieldName) =>
+        LuauReturnSingle.NotHandled;
+
+    public static LuauOutcome OnSetIndex(ArgsUserdataB self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) =>
+        LuauOutcome.NotHandledError;
+
+    public static LuauReturn OnMethodCall(
+        ArgsUserdataB self,
+        LuauArgs functionArgs,
+        in ReadOnlySpan<char> methodName
+    ) => LuauReturn.NotHandledError;
+
+    public static implicit operator IntoLuau(ArgsUserdataB value) => IntoLuau.FromUserdata(value);
 }

@@ -235,7 +235,7 @@ public readonly ref struct IntoLuau
     public static implicit operator IntoLuau(byte[] value) => new(value);
 
     public static IntoLuau FromUserdata<T>(T t)
-        where T : class, ILuauUserData<T> => new(state => state.CreateUserdata(t));
+        where T : class, ILuauUserData<T> => new(state => state.GetOrCreateUserdata(t));
 
     public static IntoLuau FromUserdat(Func<LuauState, LuauUserdata> factory)
     {

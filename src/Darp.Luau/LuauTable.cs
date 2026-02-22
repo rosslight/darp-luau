@@ -61,6 +61,91 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         return true;
     }
 
+    /// <summary>
+    /// Tries to get the value for a key as <see cref="LuauUserdata"/>.
+    /// </summary>
+    /// <param name="key">The key to get from the table.</param>
+    /// <param name="value">Receives the userdata value when present and of the correct type.</param>
+    /// <param name="error">Receives a descriptive error when retrieval fails.</param>
+    /// <returns><c>true</c> when the value exists and is userdata; otherwise <c>false</c>.</returns>
+    public readonly unsafe bool TryGetLuauUserdata(
+        IntoLuau key,
+        out LuauUserdata value,
+        [NotNullWhen(false)] out string? error
+    )
+    {
+        value = default;
+        ThrowIfDisposed();
+        lua_State* L = State.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        lua_getref(L, Reference);
+        key.Push(State);
+        _ = lua_gettable(L, -2);
+
+        var type = (lua_Type)lua_type(L, -1);
+        if (type != lua_Type.LUA_TUSERDATA)
+        {
+            error =
+                type == lua_Type.LUA_TNIL
+                    ? "Table value is nil but LUA_TUSERDATA is required."
+                    : $"Table value must be {lua_Type.LUA_TUSERDATA} but was {type}.";
+            lua_pop(L, 2);
+            return false;
+        }
+
+        int reference = lua_ref(L, -1);
+        value = new LuauUserdata(State, reference);
+        error = null;
+        lua_pop(L, 2);
+        return true;
+    }
+
+    /// <summary>
+    /// Tries to get the value for a key as managed userdata of type <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">Managed userdata type.</typeparam>
+    /// <param name="key">The key to get from the table.</param>
+    /// <param name="value">Receives the managed userdata instance when successful.</param>
+    /// <param name="error">Receives a descriptive error when retrieval fails.</param>
+    /// <returns>
+    /// <c>true</c> when the value exists, is managed userdata created by this library,
+    /// and has the requested managed type.
+    /// </returns>
+    public readonly unsafe bool TryGetUserdata<T>(
+        IntoLuau key,
+        [NotNullWhen(true)] out T? value,
+        [NotNullWhen(false)] out string? error
+    )
+        where T : class, ILuauUserData<T>
+    {
+        value = null;
+        ThrowIfDisposed();
+        lua_State* L = State.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        lua_getref(L, Reference);
+        key.Push(State);
+        _ = lua_gettable(L, -2);
+
+        var type = (lua_Type)lua_type(L, -1);
+        if (type != lua_Type.LUA_TUSERDATA)
+        {
+            error =
+                type == lua_Type.LUA_TNIL
+                    ? "Table value is nil but LUA_TUSERDATA is required."
+                    : $"Table value must be {lua_Type.LUA_TUSERDATA} but was {type}.";
+            lua_pop(L, 2);
+            return false;
+        }
+
+        bool ok = ManagedUserdataResolver.TryResolve(L, -1, out value, out error, valueLabel: "Table value");
+        lua_pop(L, 2);
+        return ok;
+    }
+
     /// <summary> Ability for <see cref="LuauTable"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
     /// <param name="value"> The table </param>
     /// <returns> The converted value </returns>
