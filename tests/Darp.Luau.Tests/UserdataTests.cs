@@ -118,12 +118,13 @@ public sealed class UserdataTests
 
         table.Set("counter", counter);
 
-        table.TryGetUserdata("counter", out CounterUserdata? resolved, out string? error).ShouldBeTrue(error);
+        table.TryGetUserdata("counter", out CounterUserdata? resolved).ShouldBeTrue();
         ReferenceEquals(counter, resolved).ShouldBeTrue();
 
-        table.TryGetLuauUserdata("counter", out LuauUserdata reference, out error).ShouldBeTrue(error);
+        table.TryGetLuauUserdata("counter", out LuauUserdata reference).ShouldBeTrue();
         using (reference)
         {
+            string? error;
             reference.TryGetManaged(out CounterUserdata? resolvedFromReference, out error).ShouldBeTrue(error);
             ReferenceEquals(counter, resolvedFromReference).ShouldBeTrue();
         }
@@ -136,8 +137,7 @@ public sealed class UserdataTests
         LuauTable table = state.CreateTable();
         table.Set("failing", new FailingUserdata());
 
-        table.TryGetUserdata<CounterUserdata>("failing", out _, out string? error).ShouldBeFalse();
-        error.ShouldContain("must be userdata of type");
+        table.TryGetUserdata<CounterUserdata>("failing", out _).ShouldBeFalse();
     }
 
     [Fact]

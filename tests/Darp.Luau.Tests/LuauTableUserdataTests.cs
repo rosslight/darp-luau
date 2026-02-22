@@ -14,7 +14,7 @@ public sealed class LuauTableUserdataTests
 
         table.Set("value", value);
 
-        table.TryGetUserdata("value", out ValueUserdata? resolved, out string? error).ShouldBeTrue(error);
+        table.TryGetUserdata("value", out ValueUserdata? resolved).ShouldBeTrue();
         ReferenceEquals(value, resolved).ShouldBeTrue();
     }
 
@@ -27,9 +27,10 @@ public sealed class LuauTableUserdataTests
 
         table.Set("value", value);
 
-        table.TryGetLuauUserdata("value", out LuauUserdata userdata, out string? error).ShouldBeTrue(error);
+        table.TryGetLuauUserdata("value", out LuauUserdata userdata).ShouldBeTrue();
         using (userdata)
         {
+            string? error;
             userdata.TryGetManaged(out ValueUserdata? resolved, out error).ShouldBeTrue(error);
             ReferenceEquals(value, resolved).ShouldBeTrue();
         }
@@ -42,8 +43,7 @@ public sealed class LuauTableUserdataTests
         LuauTable table = state.CreateTable();
         table.Set("value", new OtherValueUserdata());
 
-        table.TryGetUserdata<ValueUserdata>("value", out _, out string? error).ShouldBeFalse();
-        error.ShouldContain("must be userdata of type");
+        table.TryGetUserdata<ValueUserdata>("value", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -52,8 +52,7 @@ public sealed class LuauTableUserdataTests
         using var state = new LuauState();
         LuauTable table = state.CreateTable();
 
-        table.TryGetUserdata<ValueUserdata>("missing", out _, out string? error).ShouldBeFalse();
-        error.ShouldContain("nil");
+        table.TryGetUserdata<ValueUserdata>("missing", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -63,7 +62,6 @@ public sealed class LuauTableUserdataTests
         LuauTable table = state.CreateTable();
         table.Set("value", 42);
 
-        table.TryGetUserdata<ValueUserdata>("value", out _, out string? error).ShouldBeFalse();
-        error.ShouldContain("LUA_TUSERDATA");
+        table.TryGetUserdata<ValueUserdata>("value", out _).ShouldBeFalse();
     }
 }

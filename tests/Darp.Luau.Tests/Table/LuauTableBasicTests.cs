@@ -11,9 +11,19 @@ public sealed class LuauTableBasicTests
         LuauTable table = lua.CreateTable();
         table.Set("myKey", 1);
 
-        table.TryGet("myKey", out double value).ShouldBeTrue();
+        double value = table.GetNumber("myKey");
 
         value.ShouldBe(1);
+    }
+
+    [Fact]
+    public void Set_then_GetNumber_roundtrips()
+    {
+        using var lua = new LuauState();
+        LuauTable table = lua.CreateTable();
+        table.Set("myKey", 1);
+
+        table.GetNumber("myKey").ShouldBe(1);
     }
 
     [Fact]
@@ -23,7 +33,7 @@ public sealed class LuauTableBasicTests
         LuauTable table = lua.CreateTable();
         table.Set("boolKey", true);
 
-        table.TryGet("boolKey", out bool value).ShouldBeTrue();
+        bool value = table.GetBoolean("boolKey");
 
         value.ShouldBeTrue();
     }
@@ -95,6 +105,34 @@ public sealed class LuauTableBasicTests
         table.TryGet("missing", out double value).ShouldBeFalse();
 
         value.ShouldBe(0);
+    }
+
+    [Fact]
+    public void GetNumber_missing_key_throws_Exception()
+    {
+        using var lua = new LuauState();
+        LuauTable table = lua.CreateTable();
+
+        Should.Throw<Exception>(() => table.GetNumber("missing"));
+    }
+
+    [Fact]
+    public void TryGetNumberOrNil_missing_key_returns_true_and_null()
+    {
+        using var lua = new LuauState();
+        LuauTable table = lua.CreateTable();
+
+        table.TryGetNumberOrNil("missing", out double? value).ShouldBeTrue();
+        value.ShouldBeNull();
+    }
+
+    [Fact]
+    public void GetNumberOrNil_missing_key_returns_null()
+    {
+        using var lua = new LuauState();
+        LuauTable table = lua.CreateTable();
+
+        table.GetNumberOrNil("missing").ShouldBeNull();
     }
 
     [Fact]
