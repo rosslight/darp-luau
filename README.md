@@ -6,7 +6,7 @@ Luau bindings and a higher level wrapper
 - Fully Native AOT compatible
 - Execution of sync scripts
 - Generation of type definitions (TODO)
-- Support for UserData (TODO)
+- Support for UserData
 - Clean, safe and performant API with ref structs for Lifetime management of references
 - Managed and typed function callbacks by using interceptors (TODO)
 - Confidence through high unit test coverage (TODO)

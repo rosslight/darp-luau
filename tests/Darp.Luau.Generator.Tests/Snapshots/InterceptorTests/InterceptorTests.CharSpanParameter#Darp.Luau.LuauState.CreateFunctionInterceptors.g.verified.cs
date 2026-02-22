@@ -13,13 +13,16 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(ref LuauFunctions x)
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 1);
-            global::System.ReadOnlySpan<byte> v1Lua = x.CheckString(parameterIndex: 1);
-            global::System.Span<char> v1 = stackalloc char[global::System.Text.Encoding.UTF8.GetCharCount(v1Lua)];
-            _ = global::System.Text.Encoding.UTF8.TryGetChars(v1Lua, v1, out _);
-            onLuaCall(v1);
+            if (!args.TryValidateArgumentCount(1, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            global::System.Span<char> a1 = stackalloc char[global::System.Text.Encoding.UTF8.GetCharCount(a1Raw)];
+            _ = global::System.Text.Encoding.UTF8.GetChars(a1Raw, a1);
+            onLuaCall(a1);
+            return global::Darp.Luau.LuauReturn.Ok();
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -41,11 +42,15 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
             Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
-            if (!T.OnIndex(target, state, memberName[..memberNameLength], out IntoLuau result))
-                return 0;
+            ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
 
-            result.Push(state);
-            return 1;
+            LuauReturnSingle result = T.OnIndex(target, state, resolvedMemberName);
+
+            if (result.TryPushValue(state, out string? error))
+                return 1;
+            if (error == LuauReturn.NotHandled)
+                return 0;
+            return error;
         }
 
         static LuaResult<int, string> NewIndexCallbackManaged(LuauState lua, object? userdata)
@@ -57,12 +62,22 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             if (!LuauStateMarshal.TryGetString(L, 2, out ReadOnlySpan<byte> utf8MemberName))
                 return "userdata assignment requires a string member name";
 
-            var valueView = new LuauView(lua, stackIndex: 3);
             Span<char> memberName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MemberName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
-            if (!T.OnSetIndex(target, valueView, memberName[..memberNameLength]))
-                return (string)$"attempt to set unknown userdata member '{memberName}'";
-            return 0;
+            ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
+
+            var args = new LuauArgs(lua, argumentCount: 1, firstParameterStackIndex: 3);
+            Debug.Assert(args.ArgumentCount == 1);
+            var argsSingle = new LuauArgsSingle(args);
+            LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
+            if (!result.TryGetError(out string? error))
+            {
+                // Success
+                return 0;
+            }
+            if (error == LuauReturn.NotHandled)
+                return (string)$"attempt to set unknown userdata member '{resolvedMemberName}'";
+            return error;
         }
 
         static LuaResult<int, string> MethodCallbackManaged(LuauState lua, object? userdata)
@@ -89,19 +104,18 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             }
 
             int topBeforeInvoke = LuauNative.lua_gettop(L);
-            var functionArgs = new LuauFunctions(lua, numberOfParameters, firstParameterStackIndex);
+            var functionArgs = new LuauArgs(lua, numberOfParameters, firstParameterStackIndex);
             Span<char> methodName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MethodName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MethodName, methodName);
-            bool handled = T.OnMethodCall(target, functionArgs, methodName[..memberNameLength]);
-            int outputCount = LuauNative.lua_gettop(L) - topBeforeInvoke;
+            ReadOnlySpan<char> resolvedMethodName = methodName[..memberNameLength];
+            LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
+            LuauNative.lua_settop(L, topBeforeInvoke);
 
-            if (handled)
-                return Math.Max(0, outputCount);
-
-            if (outputCount > 0)
-                LuauNative.lua_pop(L, outputCount);
-
-            return (string)$"attempt to call unknown userdata method '{methodName}'";
+            if (result.TryPushValues(lua, out int outputCount, out string? error))
+                return outputCount;
+            if (error == LuauReturn.NotHandled)
+                return (string)$"attempt to call unknown userdata method '{resolvedMethodName}'";
+            return error;
         }
     }
 
