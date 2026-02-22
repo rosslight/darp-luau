@@ -8,7 +8,7 @@ namespace Darp.Luau;
 
 /// <summary> A reference to a luau table </summary>
 /// <remarks> A view of the table  </remarks>
-public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, LuauValue>>, IDisposable
+public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
 {
     /// <inheritdoc />
     public LuauState? State { get; }
@@ -16,6 +16,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
     /// <inheritdoc />
     public int Reference { get; private set; }
 
+    /// <summary> Do (not) initialize a new LuauTable </summary>
     [Obsolete("Do not initialize the LuauTable. Create using the LuauState instead", true)]
     public LuauTable() { }
 
@@ -25,7 +26,8 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
     /// <param name="key"> The key of the value to set </param>
     /// <param name="value"> The value to set </param>
     /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
-    public unsafe void Set(IntoLuau key, IntoLuau value)
+    /// <exception cref="ArgumentNullException"> Thrown if a <c>Nil</c> <paramref name="key"/> is provided </exception>
+    public void Set(IntoLuau key, IntoLuau value)
     {
         ThrowIfDisposed();
         if (key.Type is IntoLuau.Kind.Nil)
@@ -41,111 +43,6 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         lua_pop(L, 1);
     }
 
-    /// <summary> Try to get the value for a given key </summary>
-    /// <param name="key"> The key to get from the table </param>
-    /// <param name="value"> The value if present </param>
-    /// <returns> True, if the value could be retrieved. False, otherwise </returns>
-    /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
-    public readonly unsafe bool TryGet(IntoLuau key, out LuauValue value)
-    {
-        ThrowIfDisposed();
-        lua_State* L = State.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        lua_getref(L, Reference);
-        key.Push(State);
-        _ = lua_gettable(L, -2);
-        value = LuauValue.ToValue(State);
-        lua_pop(L, 2);
-        return true;
-    }
-
-    /// <summary>
-    /// Tries to get the value for a key as <see cref="LuauUserdata"/>.
-    /// </summary>
-    /// <param name="key">The key to get from the table.</param>
-    /// <param name="value">Receives the userdata value when present and of the correct type.</param>
-    /// <param name="error">Receives a descriptive error when retrieval fails.</param>
-    /// <returns><c>true</c> when the value exists and is userdata; otherwise <c>false</c>.</returns>
-    public readonly unsafe bool TryGetLuauUserdata(
-        IntoLuau key,
-        out LuauUserdata value,
-        [NotNullWhen(false)] out string? error
-    )
-    {
-        value = default;
-        ThrowIfDisposed();
-        lua_State* L = State.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        lua_getref(L, Reference);
-        key.Push(State);
-        _ = lua_gettable(L, -2);
-
-        var type = (lua_Type)lua_type(L, -1);
-        if (type != lua_Type.LUA_TUSERDATA)
-        {
-            error =
-                type == lua_Type.LUA_TNIL
-                    ? "Table value is nil but LUA_TUSERDATA is required."
-                    : $"Table value must be {lua_Type.LUA_TUSERDATA} but was {type}.";
-            lua_pop(L, 2);
-            return false;
-        }
-
-        int reference = lua_ref(L, -1);
-        value = new LuauUserdata(State, reference);
-        error = null;
-        lua_pop(L, 2);
-        return true;
-    }
-
-    /// <summary>
-    /// Tries to get the value for a key as managed userdata of type <typeparamref name="T"/>.
-    /// </summary>
-    /// <typeparam name="T">Managed userdata type.</typeparam>
-    /// <param name="key">The key to get from the table.</param>
-    /// <param name="value">Receives the managed userdata instance when successful.</param>
-    /// <param name="error">Receives a descriptive error when retrieval fails.</param>
-    /// <returns>
-    /// <c>true</c> when the value exists, is managed userdata created by this library,
-    /// and has the requested managed type.
-    /// </returns>
-    public readonly unsafe bool TryGetUserdata<T>(
-        IntoLuau key,
-        [NotNullWhen(true)] out T? value,
-        [NotNullWhen(false)] out string? error
-    )
-        where T : class, ILuauUserData<T>
-    {
-        value = null;
-        ThrowIfDisposed();
-        lua_State* L = State.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        lua_getref(L, Reference);
-        key.Push(State);
-        _ = lua_gettable(L, -2);
-
-        var type = (lua_Type)lua_type(L, -1);
-        if (type != lua_Type.LUA_TUSERDATA)
-        {
-            error =
-                type == lua_Type.LUA_TNIL
-                    ? "Table value is nil but LUA_TUSERDATA is required."
-                    : $"Table value must be {lua_Type.LUA_TUSERDATA} but was {type}.";
-            lua_pop(L, 2);
-            return false;
-        }
-
-        bool ok = ManagedUserdataResolver.TryResolve(L, -1, out value, out error, valueLabel: "Table value");
-        lua_pop(L, 2);
-        return ok;
-    }
-
     /// <summary> Ability for <see cref="LuauTable"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
     /// <param name="value"> The table </param>
     /// <returns> The converted value </returns>
@@ -153,7 +50,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
 
     /// <summary> Gets the count of the table if viewed as a list </summary>
     /// <remarks> If a lua table has holes, this property is unreliable! </remarks>
-    public readonly unsafe int ListCount
+    public readonly int ListCount
     {
         get
         {
@@ -186,14 +83,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
 
     /// <summary> Gets the value associated with this key (or <see cref="LuauValueType.Nil"/>) </summary>
     /// <param name="key"> The key to look for </param>
-    public readonly LuauValue this[IntoLuau key]
-    {
-        get
-        {
-            TryGet(key, out LuauValue value);
-            return value;
-        }
-    }
+    public readonly LuauValue this[IntoLuau key] => GetLuauValue(key);
 
     /// <summary> Get the values as a list in paris of index and value </summary>
     /// <returns> An enumerable of values </returns>
@@ -205,7 +95,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
     }
 
     /// <summary> Remove the reference from the lua state </summary>
-    public unsafe void Dispose()
+    public void Dispose()
     {
         if (State is null || Reference is 0)
             return;
@@ -247,7 +137,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         }
 
         /// <inheritdoc />
-        public unsafe bool MoveNext()
+        public bool MoveNext()
         {
             _table.ThrowIfDisposed();
             lua_State* L = _state.L;
@@ -290,7 +180,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         }
 
         /// <inheritdoc />
-        public unsafe void Reset()
+        public void Reset()
         {
             if (_lastKeyRef != 0 && !_state.IsDisposed)
             {

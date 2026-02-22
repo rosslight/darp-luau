@@ -32,3 +32,5 @@ public sealed class LuaException : Exception
         throw new LuaException(message);
     }
 }
+
+public sealed class LuaGetException(string message) : Exception(message);

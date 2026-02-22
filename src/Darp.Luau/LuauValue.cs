@@ -80,6 +80,12 @@ public readonly struct LuauValue
     public bool TryGet<T>([NotNullWhen(true)] out T? value, bool acceptNil = false)
         where T : allows ref struct
     {
+        if (typeof(T) == typeof(LuauValue))
+        {
+            LuauValue temp = this;
+            value = Unsafe.As<LuauValue, T>(ref temp)!;
+            return true;
+        }
         value = default;
         switch (Type)
         {

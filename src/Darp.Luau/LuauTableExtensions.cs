@@ -17,7 +17,7 @@ public static class LuauTableExtensions
     {
         value = default;
         table.State.ThrowIfDisposed();
-        return table.TryGet(key, out LuauValue luauValue) && luauValue.TryGet(out value, acceptNil: false);
+        return table.TryGetLuauValue(key, out LuauValue luauValue) && luauValue.TryGet(out value, acceptNil: false);
     }
 
     /// <summary> Iterates on a table until the first value not matching the given type </summary>
