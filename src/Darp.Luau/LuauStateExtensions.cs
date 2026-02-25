@@ -24,9 +24,10 @@ public static class LuauStateExtensions
         if (Path.IsPathRooted(strScriptPath))
             throw new ArgumentException($"Script path may not be rooted: {strScriptPath}");
 
-        state.Globals.Set("require", state.CreateFunctionBuilder((ref onCalled) =>
+        state.Globals.Set("require", state.CreateFunctionBuilder(args =>
         {
-            string strPath = Encoding.UTF8.GetString(onCalled.CheckString(1));
+            if (!args.TryReadUtf8String(1, out string? strPath, out string? strError))
+                throw new ArgumentException($"Missing path argument: {strError}");
             if (!Path.IsPathRooted(strPath))
                 strPath = Path.Combine(Directory.GetCurrentDirectory(), strScriptPath, Path.GetFileName(strPath));
             if (!Path.HasExtension(strPath))
@@ -36,7 +37,7 @@ public static class LuauStateExtensions
 
             string strChunkName = Path.GetFileNameWithoutExtension(strPath);
             LuauValue[] results = state.DoString(File.ReadAllBytes(strPath), nNumExpectedRetValues: 1, Encoding.UTF8.GetBytes(strChunkName));
-            onCalled.ReturnParameter(results[0]);
+            return LuauReturn.Ok(results[0]);
         }));
     }
 }
