@@ -100,10 +100,15 @@ public sealed unsafe class LuauState : IDisposable
         lua_call(L, 1, 0);
     }
 
+    /// <summary> The delegate type used to build a custom library table. </summary>
+    /// <param name="state"> The <see cref="LuauState"/> the library is registered for </param>
+    /// <param name="lib"> The lib table </param>
+    public delegate void OpenLibraryFunc(LuauState state, in LuauTable lib);
+
     /// <summary>Registers a custom library table in globals.</summary>
     /// <param name="name">Global name of the library table.</param>
     /// <param name="build">Callback used to populate the created table.</param>
-    public void RegisterLibrary(ReadOnlySpan<char> name, Action<LuauState, LuauTable> build)
+    public void OpenLibrary(ReadOnlySpan<char> name, OpenLibraryFunc build)
     {
         ArgumentNullException.ThrowIfNull(build);
         this.ThrowIfDisposed();

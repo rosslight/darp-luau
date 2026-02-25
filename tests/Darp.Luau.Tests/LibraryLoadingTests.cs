@@ -33,9 +33,9 @@ public sealed class LibraryLoadingTests
     public void CustomLibrary_ShouldBeAvailableAsGlobalTable()
     {
         using var state = new LuauState();
-        state.RegisterLibrary(
+        state.OpenLibrary(
             "game",
-            static (state, library) =>
+            static (state, in library) =>
             {
                 library.Set("answer", 42);
 
@@ -67,9 +67,9 @@ public sealed class LibraryLoadingTests
     public void CustomLibrary_Conflict_ShouldThrow()
     {
         using var state = new LuauState();
-        state.RegisterLibrary("game", static (_, _) => { });
+        state.OpenLibrary("game", static (_, in _) => { });
 
-        Should.Throw<InvalidOperationException>(() => state.RegisterLibrary("game", static (_, _) => { }));
+        Should.Throw<InvalidOperationException>(() => state.OpenLibrary("game", static (_, in _) => { }));
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class LibraryLoadingTests
     {
         using var state = new LuauState();
 
-        state.RegisterLibrary("game", static (_, library) => library.Set("answer", 99));
+        state.OpenLibrary("game", static (_, in library) => library.Set("answer", 99));
         state.DoString("answer = game.answer");
 
         state.Globals.TryGet("answer", out int answer).ShouldBeTrue();

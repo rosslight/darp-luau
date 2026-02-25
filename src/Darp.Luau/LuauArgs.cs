@@ -600,5 +600,4 @@ public readonly unsafe ref partial struct LuauArgs
         error = $"Parameter {parameterIndex} must be {expectedType} or {lua_Type.LUA_TNIL} but was {actualType}.";
         return false;
     }
-
 }
