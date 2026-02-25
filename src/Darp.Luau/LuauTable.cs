@@ -27,7 +27,7 @@ public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePai
     /// <param name="value"> The value to set </param>
     /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
     /// <exception cref="ArgumentNullException"> Thrown if a <c>Nil</c> <paramref name="key"/> is provided </exception>
-    public void Set(IntoLuau key, IntoLuau value)
+    public readonly void Set(IntoLuau key, IntoLuau value)
     {
         ThrowIfDisposed();
         if (key.Type is IntoLuau.Kind.Nil)

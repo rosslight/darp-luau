@@ -105,6 +105,7 @@ public sealed unsafe class LuauState : IDisposable
     /// <param name="build">Callback used to populate the created table.</param>
     public void RegisterLibrary(ReadOnlySpan<char> name, Action<LuauState, LuauTable> build)
     {
+        ArgumentNullException.ThrowIfNull(build);
         this.ThrowIfDisposed();
         if (Globals.ContainsKey(name))
             throw new InvalidOperationException($"Global '{name}' already exists.");
