@@ -71,7 +71,7 @@ Unsupported for now. Planned:
 
 ### Script execution
 
-Create a `LuauState`, register globals, and run Luau code from file or inline strings.
+Create a `LuauState`, optionally configure built-in libraries and custom libraries, then run Luau code from file or inline strings.
 
 ```csharp
 using var state = new LuauState();
@@ -189,4 +189,22 @@ internal sealed class PlayerUserdata : ILuauUserData<PlayerUserdata>
 
     public static implicit operator IntoLuau(PlayerUserdata value) => IntoLuau.FromUserdata(value);
 }
+```
+
+### Library configuration
+
+`LuauState` supports both built-in and custom libraries.
+
+- Configure built-in Luau libraries via `LuauLibraries` in the constructor.
+- Register custom libraries via `RegisterLibrary(...)`.
+- `LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
+
+```csharp
+using var state = new LuauState(LuauLibraries.Math | LuauLibraries.String);
+
+state.OpenLibrary("game", static (_, in lib) =>
+{
+    lib.Set("answer", 42);
+    lib.Set("add", (int a, int b) => a + b);
+});
 ```

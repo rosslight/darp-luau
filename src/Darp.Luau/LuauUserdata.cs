@@ -72,13 +72,7 @@ public struct LuauUserdata : ILuauReference
             return false;
         }
 
-        bool ok = ManagedUserdataResolver.TryResolve(
-            L,
-            -1,
-            out value,
-            out error,
-            valueLabel: "userdata reference"
-        );
+        bool ok = ManagedUserdataResolver.TryResolve(L, -1, out value, out error, valueLabel: "userdata reference");
         lua_pop(L, 1);
         return ok;
     }

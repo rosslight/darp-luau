@@ -74,6 +74,50 @@ public sealed class LuauTableBasicTests
     }
 
     [Fact]
+    public void ContainsKey_PresentKey_ReturnsTrue()
+    {
+        using var lua = new LuauState();
+        LuauTable table = lua.CreateTable();
+        table.Set("present", 1);
+
+        table.ContainsKey("present").ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ContainsKey_MissingKey_ReturnsFalse()
+    {
+        using var lua = new LuauState();
+        LuauTable table = lua.CreateTable();
+
+        table.ContainsKey("missing").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ContainsKey_KeySetToNil_ReturnsFalse()
+    {
+        using var lua = new LuauState();
+        LuauTable table = lua.CreateTable();
+        table.Set("key", 1);
+        table.Set("key", (string?)null);
+
+        table.ContainsKey("key").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ContainsKey_UsesIndexMetamethod_ReturnsTrue()
+    {
+        using var lua = new LuauState();
+        LuauTable table = lua.CreateTable();
+        lua.Globals.Set("tableUnderTest", table);
+
+        lua.DoString(
+            "setmetatable(tableUnderTest, { __index = function(_, key) if key == 'virtualKey' then return 123 end end })"
+        );
+
+        table.ContainsKey("virtualKey").ShouldBeTrue();
+    }
+
+    [Fact]
     public void Set_NestedTable_RoundTrips()
     {
         using var lua = new LuauState();
