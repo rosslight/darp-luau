@@ -31,19 +31,95 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary> If true, the LuauState is disposed and any method will throw </summary>
     public bool IsDisposed => _disposing > 0;
 
-    /// <summary> Initializes a new LuauState, and opens default libs. </summary>
+    /// <summary>The effective set of built-in libraries loaded into this state.</summary>
+    public LuauLibraries EnabledLibraries { get; }
+
+    /// <summary> Initializes a new LuauState, and opens all default libs. </summary>
     /// <exception cref="InvalidOperationException"> Thrown if the luau state could not be created </exception>
     public LuauState()
+        : this(LuauLibraries.All) { }
+
+    /// <summary>Initializes a new LuauState with explicit library loading options.</summary>
+    /// <param name="builtinLibraries">Configuration for built-in and custom libraries. Automatically adds <see cref="LuauLibraries.Minimal"/> libraries</param>
+    /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
+    public LuauState(LuauLibraries builtinLibraries)
     {
+        builtinLibraries |= LuauLibraries.Minimal;
+
         L = luaL_newstate();
         if (L is null)
             throw new InvalidOperationException("Could not create Lua state.");
-        luaL_openlibs(L);
-        // Get the reference to the globals table
+
+        EnabledLibraries = builtinLibraries;
+        OpenBuiltinLibraries(EnabledLibraries);
+
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         _globalsReference = luaL_ref(L, LUA_REGISTRYINDEX);
+
         _callbackWrapperReference = RegisterCallbackWrapper();
         _cache = new UserdataRegistrationCache(this);
+    }
+
+    private void OpenBuiltinLibraries(LuauLibraries libraries)
+    {
+        if (libraries.HasFlag(LuauLibraries.Base))
+            openlib(L, ""u8, luaopen_base);
+        if (libraries.HasFlag(LuauLibraries.Coroutine))
+            openlib(L, LUA_COLIBNAME, luaopen_coroutine);
+        if (libraries.HasFlag(LuauLibraries.Table))
+            openlib(L, LUA_TABLIBNAME, luaopen_table);
+        if (libraries.HasFlag(LuauLibraries.Os))
+            openlib(L, LUA_OSLIBNAME, luaopen_os);
+        if (libraries.HasFlag(LuauLibraries.String))
+            openlib(L, LUA_STRLIBNAME, luaopen_string);
+        if (libraries.HasFlag(LuauLibraries.Math))
+            openlib(L, LUA_MATHLIBNAME, luaopen_math);
+        if (libraries.HasFlag(LuauLibraries.Debug))
+            openlib(L, LUA_DBLIBNAME, luaopen_debug);
+        if (libraries.HasFlag(LuauLibraries.Utf8))
+            openlib(L, LUA_UTF8LIBNAME, luaopen_utf8);
+        if (libraries.HasFlag(LuauLibraries.Bit32))
+            openlib(L, LUA_BITLIBNAME, luaopen_bit32);
+        if (libraries.HasFlag(LuauLibraries.Buffer))
+            openlib(L, LUA_BUFFERLIBNAME, luaopen_buffer);
+        if (libraries.HasFlag(LuauLibraries.Vector))
+            openlib(L, LUA_VECLIBNAME, luaopen_vector);
+    }
+
+    private delegate int OpenLibFunc(lua_State* L);
+
+    private static void openlib(lua_State* L, ReadOnlySpan<byte> name, OpenLibFunc openf)
+    {
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        IntPtr intPtr = Marshal.GetFunctionPointerForDelegate(openf);
+        lua_pushcfunction(L, (delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr, null);
+        fixed (byte* pName = name)
+            lua_pushstring(L, pName);
+        lua_call(L, 1, 0);
+    }
+
+    /// <summary>Registers a custom library table in globals.</summary>
+    /// <param name="name">Global name of the library table.</param>
+    /// <param name="build">Callback used to populate the created table.</param>
+    public void RegisterLibrary(ReadOnlySpan<char> name, Action<LuauState, LuauTable> build)
+    {
+        this.ThrowIfDisposed();
+        if (Globals.ContainsKey(name))
+            throw new InvalidOperationException($"Global '{name}' already exists.");
+
+        using LuauTable table = CreateTable();
+        try
+        {
+            build(this, table);
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException($"Failed to register custom library '{name}'.", exception);
+        }
+
+        Globals.Set(name, table);
     }
 
     private int RegisterCallbackWrapper()

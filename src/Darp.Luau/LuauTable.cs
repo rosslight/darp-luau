@@ -43,6 +43,24 @@ public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePai
         lua_pop(L, 1);
     }
 
+    /// <summary> Determines whether <paramref name="key"/> resolves to a non-<c>nil</c> value. </summary>
+    /// <param name="key">The key to resolve.</param>
+    /// <remarks>Uses regular table lookup and therefore honors table metamethods such as <c>__index</c>.</remarks>
+    public readonly bool ContainsKey(IntoLuau key)
+    {
+        ThrowIfDisposed();
+        lua_State* L = State.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        lua_getref(L, Reference);
+        key.Push(State);
+        _ = lua_gettable(L, -2);
+        bool hasValue = !lua_isnil(L, -1);
+        lua_pop(L, 2);
+        return hasValue;
+    }
+
     /// <summary> Ability for <see cref="LuauTable"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
     /// <param name="value"> The table </param>
     /// <returns> The converted value </returns>

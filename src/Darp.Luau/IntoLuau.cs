@@ -237,8 +237,5 @@ public readonly ref struct IntoLuau
     public static IntoLuau FromUserdata<T>(T t)
         where T : class, ILuauUserData<T> => new(state => state.GetOrCreateUserdata(t));
 
-    public static IntoLuau FromUserdat(Func<LuauState, LuauUserdata> factory)
-    {
-        return new IntoLuau(factory);
-    }
+    public static IntoLuau FromUserdata(Func<LuauState, LuauUserdata> factory) => new(factory);
 }
