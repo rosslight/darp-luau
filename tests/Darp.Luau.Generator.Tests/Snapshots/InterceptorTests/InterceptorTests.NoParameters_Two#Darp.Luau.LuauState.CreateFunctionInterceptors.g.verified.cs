@@ -14,11 +14,13 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(ref LuauFunctions x)
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 0);
+            if (!args.TryValidateArgumentCount(0, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
 
             onLuaCall();
+            return global::Darp.Luau.LuauReturn.Ok();
         }
     }
 }

@@ -79,6 +79,19 @@ internal static class CreateFunctionInterceptorsEmitter
             {
                 return false;
             }
+
+            if (isNullable && !SupportsNullableParameter(luauType))
+            {
+                var diagnostic = Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                    parameterLocation,
+                    typeArg.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    usageDescription
+                );
+                diagnostics.Add(diagnostic);
+                return false;
+            }
+
             parameters.Add(new ParameterTypeInfo(luauType, isNullable, originalTypeName));
         }
         // Last is return type
@@ -101,11 +114,46 @@ internal static class CreateFunctionInterceptorsEmitter
             {
                 return false;
             }
+
+            if (isReturnNullable && !SupportsNullableParameter(returnType))
+            {
+                var diagnostic = Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                    returnLocation,
+                    invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    returnUsageDescription
+                );
+                diagnostics.Add(diagnostic);
+                return false;
+            }
+
             returnTypes.Add(new ParameterTypeInfo(returnType, isReturnNullable, returnOriginalTypeName));
         }
 
         signature = new InvocationMethodSignature(parameters.ToImmutableArray(), returnTypes.ToImmutableArray());
         return true;
+    }
+
+    private static bool SupportsNullableParameter(LuauValueType type)
+    {
+        return type
+            is LuauValueType.Boolean
+                or LuauValueType.StringString
+                or LuauValueType.Number
+                or LuauValueType.NumberByte
+                or LuauValueType.NumberUShort
+                or LuauValueType.NumberUInt
+                or LuauValueType.NumberULong
+                or LuauValueType.NumberUInt128
+                or LuauValueType.NumberSByte
+                or LuauValueType.NumberShort
+                or LuauValueType.NumberInt
+                or LuauValueType.NumberLong
+                or LuauValueType.NumberInt128
+                or LuauValueType.NumberHalf
+                or LuauValueType.NumberFloat
+                or LuauValueType.NumberDecimal
+                or LuauValueType.Enum;
     }
 
     private static bool TryMapTypeToLuauValueType(
@@ -226,6 +274,9 @@ internal static class CreateFunctionInterceptorsEmitter
             case "global::Darp.Luau.LuauString":
                 luauType = LuauValueType.LuauString;
                 return true;
+            case "global::Darp.Luau.LuauBuffer":
+                luauType = LuauValueType.LuauBuffer;
+                return true;
         }
 
         // Report unsupported type diagnostic at the call site
@@ -304,12 +355,12 @@ internal static class CreateFunctionInterceptorsEmitter
         return delegateExpression.GetLocation();
     }
 
-    private static string GetCheckFunction(LuauValueType type)
+    private static string GetTryFunction(LuauValueType type)
     {
         return type switch
         {
-            LuauValueType.Boolean => "CheckBoolean",
-            LuauValueType.String or LuauValueType.StringCharSpan or LuauValueType.StringString => "CheckString",
+            LuauValueType.Boolean => "TryReadBoolean",
+            LuauValueType.String or LuauValueType.StringCharSpan or LuauValueType.StringString => "TryReadUtf8String",
             LuauValueType.Number
             or LuauValueType.NumberByte
             or LuauValueType.NumberUShort
@@ -324,55 +375,66 @@ internal static class CreateFunctionInterceptorsEmitter
             or LuauValueType.NumberHalf
             or LuauValueType.NumberFloat
             or LuauValueType.NumberDecimal
-            or LuauValueType.Enum => "CheckNumber",
-            LuauValueType.LuauValue => "CheckLuauValue",
-            LuauValueType.LuauString => "CheckLuauString",
-            LuauValueType.LuauTable => "CheckLuauTable",
-            LuauValueType.LuauFunction => "CheckLuauFunction",
-            LuauValueType.LuauBuffer => "CheckLuauBuffer",
-            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not get the Check function"),
+            or LuauValueType.Enum => "TryReadNumber",
+            LuauValueType.LuauValue => "TryReadLuauValue",
+            LuauValueType.LuauString => "TryReadLuauString",
+            LuauValueType.LuauTable => "TryReadLuauTable",
+            LuauValueType.LuauFunction => "TryReadLuauFunction",
+            LuauValueType.LuauBuffer => "TryReadLuauBuffer",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not get the TryRead function"),
         };
     }
 
     private static string GenerateCheckParameter(int parameterIndex, ParameterTypeInfo param)
     {
         string dotnetType = GetDotnetType(param);
-        string dotnetCheckFunction = param.IsNullable
-            ? $"{GetCheckFunction(param.Type)}OrNil"
-            : GetCheckFunction(param.Type);
+        string tryFunctionName = GetTryFunction(param.Type);
 
         return param.Type switch
         {
-            LuauValueType.Boolean
-            or LuauValueType.String
-            or LuauValueType.Number
-            or LuauValueType.LuauValue
-            or LuauValueType.LuauTable
-            or LuauValueType.LuauString
-            or LuauValueType.LuauFunction =>
-                $"{dotnetType} v{parameterIndex} = x.{dotnetCheckFunction}(parameterIndex: {parameterIndex});",
-            LuauValueType.Enum => param.IsNullable
+            LuauValueType.Boolean => param.IsNullable
                 ? $"""
-                    double? v{parameterIndex}Lua = x.CheckNumberOrNil(parameterIndex: {parameterIndex});
-                    {dotnetType} v{parameterIndex} = v{parameterIndex}Lua.HasValue ? ({param.OriginalTypeName})v{parameterIndex}Lua.Value : null;
+                    if (!args.TryReadBooleanOrNil(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
                     """
                 : $"""
-                    double v{parameterIndex}Lua = x.CheckNumber(parameterIndex: {parameterIndex});
-                    {dotnetType} v{parameterIndex} = ({param.OriginalTypeName})v{parameterIndex}Lua;
+                    if (!args.TryReadBoolean(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    """,
+            LuauValueType.String => param.IsNullable
+                ? $"""
+                    if (!args.TryReadUtf8StringOrNil(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out var isNil, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    """
+                : $"""
+                    if (!args.TryReadUtf8String(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
                     """,
             LuauValueType.StringCharSpan => $"""
-                global::System.ReadOnlySpan<byte> v{parameterIndex}Lua = x.{dotnetCheckFunction}(parameterIndex: {parameterIndex});
-                global::System.Span<char> v{parameterIndex} = stackalloc char[global::System.Text.Encoding.UTF8.GetCharCount(v{parameterIndex}Lua)];
-                _ = global::System.Text.Encoding.UTF8.TryGetChars(v{parameterIndex}Lua, v{parameterIndex}, out _);
+                if (!args.TryReadUtf8String(parameterIndex: {parameterIndex}, out global::System.ReadOnlySpan<byte> a{parameterIndex}Raw, out error))
+                    return global::Darp.Luau.LuauReturn.Error(error);
+                global::System.Span<char> a{parameterIndex} = stackalloc char[global::System.Text.Encoding.UTF8.GetCharCount(a{parameterIndex}Raw)];
+                _ = global::System.Text.Encoding.UTF8.GetChars(a{parameterIndex}Raw, a{parameterIndex});
                 """,
             LuauValueType.StringString => param.IsNullable
                 ? $"""
-                    global::System.ReadOnlySpan<byte> v{parameterIndex}Lua = x.CheckStringOrNil(parameterIndex: {parameterIndex}, out bool v{parameterIndex}IsNull);
-                    {dotnetType} v{parameterIndex} = v{parameterIndex}IsNull ? null : global::System.Text.Encoding.UTF8.GetString(v{parameterIndex}Lua);
+                    if (!args.TryReadUtf8StringOrNil(parameterIndex: {parameterIndex}, out global::System.ReadOnlySpan<byte> a{parameterIndex}Raw, out bool a{parameterIndex}IsNil, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    {dotnetType} a{parameterIndex} = a{parameterIndex}IsNil ? null : global::System.Text.Encoding.UTF8.GetString(a{parameterIndex}Raw);
                     """
                 : $"""
-                    global::System.ReadOnlySpan<byte> v{parameterIndex}Lua = x.CheckString(parameterIndex: {parameterIndex});
-                    string v{parameterIndex} = global::System.Text.Encoding.UTF8.GetString(v{parameterIndex}Lua);
+                    if (!args.TryReadUtf8String(parameterIndex: {parameterIndex}, out global::System.ReadOnlySpan<byte> a{parameterIndex}Raw, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    string a{parameterIndex} = global::System.Text.Encoding.UTF8.GetString(a{parameterIndex}Raw);
+                    """,
+            LuauValueType.Number => param.IsNullable
+                ? $"""
+                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    """
+                : $"""
+                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
                     """,
             LuauValueType.NumberByte
             or LuauValueType.NumberUShort
@@ -388,13 +450,34 @@ internal static class CreateFunctionInterceptorsEmitter
             or LuauValueType.NumberFloat
             or LuauValueType.NumberDecimal => param.IsNullable
                 ? $"""
-                    double? v{parameterIndex}Lua = x.CheckNumberOrNil(parameterIndex: {parameterIndex});
-                    {dotnetType} v{parameterIndex} = ({dotnetType})v{parameterIndex}Lua;
+                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out double? a{parameterIndex}Raw, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    {dotnetType} a{parameterIndex} = ({dotnetType})a{parameterIndex}Raw;
                     """
                 : $"""
-                    double v{parameterIndex}Lua = x.CheckNumber(parameterIndex: {parameterIndex});
-                    {dotnetType} v{parameterIndex} = ({dotnetType})v{parameterIndex}Lua;
+                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out double a{parameterIndex}Raw, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    {dotnetType} a{parameterIndex} = ({dotnetType})a{parameterIndex}Raw;
                     """,
+            LuauValueType.Enum => param.IsNullable
+                ? $"""
+                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out double? a{parameterIndex}Raw, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    {dotnetType} a{parameterIndex} = a{parameterIndex}Raw.HasValue ? ({param.OriginalTypeName})a{parameterIndex}Raw.Value : null;
+                    """
+                : $"""
+                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out double a{parameterIndex}Raw, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    {dotnetType} a{parameterIndex} = ({param.OriginalTypeName})a{parameterIndex}Raw;
+                    """,
+            LuauValueType.LuauValue
+            or LuauValueType.LuauTable
+            or LuauValueType.LuauString
+            or LuauValueType.LuauFunction
+            or LuauValueType.LuauBuffer => $"""
+                if (!args.{tryFunctionName}(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
+                    return global::Darp.Luau.LuauReturn.Error(error);
+                """,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(param),
                 param.Type,
@@ -410,18 +493,17 @@ internal static class CreateFunctionInterceptorsEmitter
             .ToArray();
 
         string callExpression =
-            $"onLuaCall({string.Join(", ", Enumerable.Range(1, paramExtractions.Length).Select(x => $"v{x}"))});";
+            $"onLuaCall({string.Join(", ", Enumerable.Range(1, paramExtractions.Length).Select(i => $"a{i}"))})";
 
-        writer.WriteLine("void F(ref LuauFunctions x)");
+        writer.WriteLine("global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)");
         writer.WriteLine("{");
         writer.Indent++;
-        writer.WriteLine(
-            $"global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, {signature.Parameters.Length});"
-        );
+        writer.WriteLine($"if (!args.TryValidateArgumentCount({signature.Parameters.Length}, out string? error))");
+        writer.WriteLine("    return global::Darp.Luau.LuauReturn.Error(error);");
         writer.WriteMultiLine(string.Join("\n", paramExtractions));
         if (!signature.ReturnParameters.IsEmpty)
         {
-            writer.WriteLine($"var returns = {callExpression}");
+            writer.WriteLine($"var returns = {callExpression};");
             if (
                 signature.ReturnParameters[0].Type
                 is LuauValueType.NumberDecimal
@@ -430,21 +512,22 @@ internal static class CreateFunctionInterceptorsEmitter
             )
             {
                 string type = signature.ReturnParameters[0].IsNullable ? "double?" : "double";
-                writer.WriteLine($"x.ReturnParameter(({type})returns);");
+                writer.WriteLine($"return global::Darp.Luau.LuauReturn.Ok(({type})returns);");
             }
             else if (signature.ReturnParameters[0].Type == LuauValueType.Enum)
             {
                 string type = signature.ReturnParameters[0].IsNullable ? "double?" : "double";
-                writer.WriteLine($"x.ReturnParameter(({type})returns);");
+                writer.WriteLine($"return global::Darp.Luau.LuauReturn.Ok(({type})returns);");
             }
             else
             {
-                writer.WriteLine("x.ReturnParameter(returns);");
+                writer.WriteLine("return global::Darp.Luau.LuauReturn.Ok(returns);");
             }
         }
         else
         {
-            writer.WriteLine(callExpression);
+            writer.WriteLine($"{callExpression};");
+            writer.WriteLine("return global::Darp.Luau.LuauReturn.Ok();");
         }
         writer.Indent--;
         writer.WriteLine("}");

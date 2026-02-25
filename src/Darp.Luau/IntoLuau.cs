@@ -19,6 +19,7 @@ public readonly ref struct IntoLuau
         Unsigned,
         Chars,
         Value,
+        Buffer,
         UserdataFactory,
     }
 
@@ -28,6 +29,7 @@ public readonly ref struct IntoLuau
     private readonly double _number;
     private readonly int _integer;
     private readonly ReadOnlySpan<char> _readOnlySpanChar;
+    private readonly ReadOnlySpan<byte> _readOnlyBuffer;
     private readonly LuauValue _luauValue;
     private readonly Func<LuauState, LuauUserdata>? _factory;
 
@@ -43,6 +45,12 @@ public readonly ref struct IntoLuau
     {
         Type = Kind.Chars;
         _readOnlySpanChar = valueChars;
+    }
+
+    private IntoLuau(ReadOnlySpan<byte> valueChars)
+    {
+        Type = Kind.Buffer;
+        _readOnlyBuffer = valueChars;
     }
 
     private IntoLuau(LuauValue value)
@@ -81,6 +89,11 @@ public readonly ref struct IntoLuau
                         lua_pushlstring(L, pStr, (nuint)numberOfBytes);
                     }
                 }
+                break;
+            case Kind.Buffer:
+                void* pDest = lua_newbuffer(L, (nuint)_readOnlyBuffer.Length);
+                var destination = new Span<byte>(pDest, _readOnlyBuffer.Length);
+                _readOnlyBuffer.CopyTo(destination);
                 break;
             case Kind.Bool:
                 lua_pushboolean(L, _bool ? 1 : 0);
@@ -216,11 +229,13 @@ public readonly ref struct IntoLuau
     /// <returns> A temporary representation of the value </returns>
     public static implicit operator IntoLuau(LuauValue value) => new(value);
 
-    public static IntoLuau FromUserdata<T>(T t)
-        where T : class, ILuauUserData<T> => new(state => state.CreateUserdata(t));
+    /// <summary> Converts to a buffer </summary>
+    /// <param name="value"> The byte array </param>
+    /// <returns> A temporary representation of the value </returns>
+    public static implicit operator IntoLuau(byte[] value) => new(value);
 
-    public static IntoLuau FromUserdat(Func<LuauState, LuauUserdata> factory)
-    {
-        return new IntoLuau(factory);
-    }
+    public static IntoLuau FromUserdata<T>(T t)
+        where T : class, ILuauUserData<T> => new(state => state.GetOrCreateUserdata(t));
+
+    public static IntoLuau FromUserdata(Func<LuauState, LuauUserdata> factory) => new(factory);
 }

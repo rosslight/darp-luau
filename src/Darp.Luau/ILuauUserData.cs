@@ -1,29 +1,45 @@
 namespace Darp.Luau;
 
-/// <summary> A generic interface which provides callbacks for a userdata </summary>
-/// <typeparam name="T"> The C# Type of the userdata </typeparam>
+/// <summary>
+/// Provides callback hooks for userdata behavior exposed to Luau.
+/// </summary>
+/// <typeparam name="T">Managed userdata type.</typeparam>
 public interface ILuauUserData<in T>
     where T : class
 {
-    /// <summary> Called when Luau tries to read a member on userdata (index access) </summary>
-    /// <param name="self"> The managed userdata instance </param>
-    /// <param name="state"> The current Luau state </param>
-    /// <param name="fieldName"> The requested member name </param>
-    /// <param name="value"> The resulting value to push if the member is handled </param>
-    /// <returns> True if member read was handled; false otherwise </returns>
-    static abstract bool OnIndex(T self, in LuauState state, in ReadOnlySpan<char> fieldName, out IntoLuau value);
+    /// <summary>
+    /// Called when Luau reads a userdata member (<c>__index</c>).
+    /// </summary>
+    /// <param name="self">Managed userdata instance.</param>
+    /// <param name="state">Current Luau state.</param>
+    /// <param name="fieldName">Requested member name.</param>
+    /// <returns>
+    /// Callback result.
+    /// Return <see cref="LuauReturnSingle.NotHandled"/> to signal unknown members.
+    /// </returns>
+    static abstract LuauReturnSingle OnIndex(T self, in LuauState state, in ReadOnlySpan<char> fieldName);
 
-    /// <summary> Called when Luau tries to assign a member on userdata (newindex access) </summary>
-    /// <param name="self"> The managed userdata instance </param>
-    /// <param name="valueView"> View of the assigned Lua value </param>
-    /// <param name="fieldName"> The assigned member name </param>
-    /// <returns> True if member assignment was handled; false otherwise </returns>
-    static abstract bool OnSetIndex(T self, in LuauView valueView, in ReadOnlySpan<char> fieldName);
+    /// <summary>
+    /// Called when Luau assigns a userdata member (<c>__newindex</c>).
+    /// </summary>
+    /// <param name="self">Managed userdata instance.</param>
+    /// <param name="args">View of the assigned Lua value.</param>
+    /// <param name="fieldName">Assigned member name.</param>
+    /// <returns>
+    /// Callback result.
+    /// Return <see cref="LuauOutcome.NotHandledError"/> to signal unknown members.
+    /// </returns>
+    static abstract LuauOutcome OnSetIndex(T self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName);
 
-    /// <summary> Called when Luau tries to call a member as a function </summary>
-    /// <param name="self"> The luau UserData </param>
-    /// <param name="functionArgs"> The method call arguments and return value builder </param>
-    /// <param name="methodName"> The name of the member </param>
-    /// <returns> True, if the method call was handled; False, otherwise </returns>
-    static abstract bool OnMethodCall(T self, LuauFunctions functionArgs, in ReadOnlySpan<char> methodName);
+    /// <summary>
+    /// Called when Luau calls a userdata member as a function.
+    /// </summary>
+    /// <param name="self">Managed userdata instance.</param>
+    /// <param name="functionArgs">Method call arguments.</param>
+    /// <param name="methodName">Name of the member.</param>
+    /// <returns>
+    /// Callback result.
+    /// Return <see cref="LuauReturn.NotHandledError"/> to signal unknown methods.
+    /// </returns>
+    static abstract LuauReturn OnMethodCall(T self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName);
 }

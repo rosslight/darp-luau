@@ -6,7 +6,7 @@ Luau bindings and a higher level wrapper
 - Fully Native AOT compatible
 - Execution of sync scripts
 - Generation of type definitions (TODO)
-- Support for UserData (TODO)
+- Support for UserData
 - Clean, safe and performant API with ref structs for Lifetime management of references
 - Managed and typed function callbacks by using interceptors (TODO)
 - Confidence through high unit test coverage (TODO)
@@ -69,11 +69,12 @@ Unsupported for now. Planned:
 
 ## Usage
 
-```csharp
-using var state = new LuaState();
+### Script execution
 
-// Set a callback
-state.Globals.Set("log", (string s) => Console.WriteLine(s));
+Create a `LuauState`, optionally configure built-in libraries and custom libraries, then run Luau code from file or inline strings.
+
+```csharp
+using var state = new LuauState();
 
 // Execute a script
 state.DoFile("path/to_my_file.lua");
@@ -85,34 +86,125 @@ state.DoString(
     log("hello from lua")
     """
 );
+```
 
-// Call a lua function
-double result = state.Globals.GetFunction("add").Call<double, double, double>(1, 2);
+### Functions
 
-// Set values
-state.Globals.Set("my_string", "value");
-state.Globals.Set("my_number", 1);
-var myTable = state.CreateTable("my_table");
+Get a Luau function reference from globals and call it with typed arguments and return values.
+
+```csharp
+// Add typed callbacks
+state.Globals.Set("log", (string s) => Console.WriteLine(s));
+
+// Get existing lua functions
+using LuauFunction add = state.Globals.GetLuauFunction("add");
+
+// Call
+double result = add.Call<double>(1, 2);
+```
+
+### Tables
+
+Create and populate tables, then read values via `Get*` (throwing) or `TryGet*` (non-throwing).
+
+```csharp
+// Create a new table
+LuauTable myTable = state.CreateTable();
+
+// Set values on the table
 myTable.Set("my_number", 1);
 myTable.Set("my_boolean", true);
-myTable.Set("my_sequence", [1, 2, 3]);
+myTable.Set("my_buffer", new byte[] { 1, 2, 3 });
 
-TODO:
+// Access the global table
+state.Globals.Set("my_string", "value");
+state.Globals.Set("my_number", 1);
+state.Globals.Set("my_table", myTable);
 
-// Set values with dict syntax
-state.Globals["my_string"] = "value";
-state.Globals["my_number"] = 1;
+using LuauTable table = state.Globals.GetLuauTable("my_table");
 
-// Get values safely
-_ = state.Globals.TryGetTable("my_table", out var myTable)
-    && myTable.TryGetInteger("my_number", out long myNumber)
-    && myTable.TryGetBoolean("my_boolean", out bool myBool)
-    && myTable.TryGetIntegerSequence("my_sequence", out long[] mySequence);
-if (myTable.TryGetPairs(out var parisIterator))
+// Get values from the table
+double myNumber = table.GetNumber("my_number");
+bool myBool = table.GetBoolean("my_boolean");
+byte[] myBuffer = table.GetBuffer("my_buffer");
+double? maybeNumber = table.GetNumberOrNil("maybe_number");
+
+// Get values savely
+_ = table.TryGetNumber("my_number", out int numberAsInt);
+_ = table.TryGetUtf8StringOrNil("optional_name", out string? optionalName);
+_ = table.TryGetBoolean("missing_flag", out _);
+```
+
+### Userdata
+
+Store managed objects as userdata, expose selected fields to Luau, and resolve them back in C#.
+Lua will interact with the managed object through the callbacks overwritten on the `ILuauUserData<T>` interface.
+
+```csharp
+// Create new userdata and link it to lua
+var player = new PlayerUserdata { Name = "Ada", Score = 42 };
+table.Set("player", player);
+
+// Retrieve userdata from lua
+PlayerUserdata samePlayer = table.GetUserdata<PlayerUserdata>("player");
+_ = table.TryGetUserdataOrNil("maybe_player", out PlayerUserdata? maybePlayer);
+
+using LuauUserdata playerRef = table.GetLuauUserdata("player");
+_ = playerRef.TryGetManaged(out PlayerUserdata? resolvedPlayer, out string? error);
+
+// Example definition of a userdata
+internal sealed class PlayerUserdata : ILuauUserData<PlayerUserdata>
 {
-    // Do something
-}
+    public required string Name { get; init; }
+    public int Score { get; set; }
 
-// Get values unsafely
-var myNumber = state.Globals["my_table"]["my_number"].GetInteger();
+    public static LuauReturnSingle OnIndex(PlayerUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName)
+    {
+        return fieldName switch
+        {
+            "name" => LuauReturnSingle.Ok(self.Name),
+            "score" => LuauReturnSingle.Ok(self.Score),
+            _ => LuauReturnSingle.NotHandled,
+        };
+    }
+
+    public static LuauOutcome OnSetIndex(PlayerUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName)
+    {
+        switch (fieldName)
+        {
+            case "score":
+            {
+                if (!args.TryReadNumber(out int score, out string? error))
+                    return LuauOutcome.Error(error);
+                self.Score = score;
+                return LuauOutcome.Ok();
+            }
+            default:
+                return LuauOutcome.NotHandledError;
+        }
+    }
+
+    public static LuauReturn OnMethodCall(PlayerUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) =>
+        LuauReturn.NotHandledError;
+
+    public static implicit operator IntoLuau(PlayerUserdata value) => IntoLuau.FromUserdata(value);
+}
+```
+
+### Library configuration
+
+`LuauState` supports both built-in and custom libraries.
+
+- Configure built-in Luau libraries via `LuauLibraries` in the constructor.
+- Register custom libraries via `RegisterLibrary(...)`.
+- `LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
+
+```csharp
+using var state = new LuauState(LuauLibraries.Math | LuauLibraries.String);
+
+state.OpenLibrary("game", static (_, in lib) =>
+{
+    lib.Set("answer", 42);
+    lib.Set("add", (int a, int b) => a + b);
+});
 ```

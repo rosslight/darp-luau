@@ -8,7 +8,7 @@ namespace Darp.Luau;
 
 /// <summary> A reference to a luau table </summary>
 /// <remarks> A view of the table  </remarks>
-public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, LuauValue>>, IDisposable
+public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
 {
     /// <inheritdoc />
     public LuauState? State { get; }
@@ -16,6 +16,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
     /// <inheritdoc />
     public int Reference { get; private set; }
 
+    /// <summary> Do (not) initialize a new LuauTable </summary>
     [Obsolete("Do not initialize the LuauTable. Create using the LuauState instead", true)]
     public LuauTable() { }
 
@@ -25,7 +26,8 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
     /// <param name="key"> The key of the value to set </param>
     /// <param name="value"> The value to set </param>
     /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
-    public unsafe void Set(IntoLuau key, IntoLuau value)
+    /// <exception cref="ArgumentNullException"> Thrown if a <c>Nil</c> <paramref name="key"/> is provided </exception>
+    public readonly void Set(IntoLuau key, IntoLuau value)
     {
         ThrowIfDisposed();
         if (key.Type is IntoLuau.Kind.Nil)
@@ -41,12 +43,10 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         lua_pop(L, 1);
     }
 
-    /// <summary> Try to get the value for a given key </summary>
-    /// <param name="key"> The key to get from the table </param>
-    /// <param name="value"> The value if present </param>
-    /// <returns> True, if the value could be retrieved. False, otherwise </returns>
-    /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
-    public readonly unsafe bool TryGet(IntoLuau key, out LuauValue value)
+    /// <summary> Determines whether <paramref name="key"/> resolves to a non-<c>nil</c> value. </summary>
+    /// <param name="key">The key to resolve.</param>
+    /// <remarks>Uses regular table lookup and therefore honors table metamethods such as <c>__index</c>.</remarks>
+    public readonly bool ContainsKey(IntoLuau key)
     {
         ThrowIfDisposed();
         lua_State* L = State.L;
@@ -56,9 +56,9 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         lua_getref(L, Reference);
         key.Push(State);
         _ = lua_gettable(L, -2);
-        value = LuauValue.ToValue(State);
+        bool hasValue = !lua_isnil(L, -1);
         lua_pop(L, 2);
-        return true;
+        return hasValue;
     }
 
     /// <summary> Ability for <see cref="LuauTable"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
@@ -68,7 +68,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
 
     /// <summary> Gets the count of the table if viewed as a list </summary>
     /// <remarks> If a lua table has holes, this property is unreliable! </remarks>
-    public readonly unsafe int ListCount
+    public readonly int ListCount
     {
         get
         {
@@ -101,14 +101,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
 
     /// <summary> Gets the value associated with this key (or <see cref="LuauValueType.Nil"/>) </summary>
     /// <param name="key"> The key to look for </param>
-    public readonly LuauValue this[IntoLuau key]
-    {
-        get
-        {
-            TryGet(key, out LuauValue value);
-            return value;
-        }
-    }
+    public readonly LuauValue this[IntoLuau key] => TryGetLuauValue(key, out LuauValue value) ? value : default;
 
     /// <summary> Get the values as a list in paris of index and value </summary>
     /// <returns> An enumerable of values </returns>
@@ -120,7 +113,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
     }
 
     /// <summary> Remove the reference from the lua state </summary>
-    public unsafe void Dispose()
+    public void Dispose()
     {
         if (State is null || Reference is 0)
             return;
@@ -162,7 +155,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         }
 
         /// <inheritdoc />
-        public unsafe bool MoveNext()
+        public bool MoveNext()
         {
             _table.ThrowIfDisposed();
             lua_State* L = _state.L;
@@ -205,7 +198,7 @@ public struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, Lu
         }
 
         /// <inheritdoc />
-        public unsafe void Reset()
+        public void Reset()
         {
             if (_lastKeyRef != 0 && !_state.IsDisposed)
             {

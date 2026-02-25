@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -30,19 +31,101 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary> If true, the LuauState is disposed and any method will throw </summary>
     public bool IsDisposed => _disposing > 0;
 
-    /// <summary> Initializes a new LuauState, and opens default libs. </summary>
+    /// <summary>The effective set of built-in libraries loaded into this state.</summary>
+    public LuauLibraries EnabledLibraries { get; }
+
+    /// <summary> Initializes a new LuauState, and opens all default libs. </summary>
     /// <exception cref="InvalidOperationException"> Thrown if the luau state could not be created </exception>
     public LuauState()
+        : this(LuauLibraries.All) { }
+
+    /// <summary>Initializes a new LuauState with explicit library loading options.</summary>
+    /// <param name="builtinLibraries">Configuration for built-in and custom libraries. Automatically adds <see cref="LuauLibraries.Minimal"/> libraries</param>
+    /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
+    public LuauState(LuauLibraries builtinLibraries)
     {
+        builtinLibraries |= LuauLibraries.Minimal;
+
         L = luaL_newstate();
         if (L is null)
             throw new InvalidOperationException("Could not create Lua state.");
-        luaL_openlibs(L);
-        // Get the reference to the globals table
+
+        EnabledLibraries = builtinLibraries;
+        OpenBuiltinLibraries(EnabledLibraries);
+
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         _globalsReference = luaL_ref(L, LUA_REGISTRYINDEX);
+
         _callbackWrapperReference = RegisterCallbackWrapper();
         _cache = new UserdataRegistrationCache(this);
+    }
+
+    private void OpenBuiltinLibraries(LuauLibraries libraries)
+    {
+        if (libraries.HasFlag(LuauLibraries.Base))
+            openlib(L, ""u8, luaopen_base);
+        if (libraries.HasFlag(LuauLibraries.Coroutine))
+            openlib(L, LUA_COLIBNAME, luaopen_coroutine);
+        if (libraries.HasFlag(LuauLibraries.Table))
+            openlib(L, LUA_TABLIBNAME, luaopen_table);
+        if (libraries.HasFlag(LuauLibraries.Os))
+            openlib(L, LUA_OSLIBNAME, luaopen_os);
+        if (libraries.HasFlag(LuauLibraries.String))
+            openlib(L, LUA_STRLIBNAME, luaopen_string);
+        if (libraries.HasFlag(LuauLibraries.Math))
+            openlib(L, LUA_MATHLIBNAME, luaopen_math);
+        if (libraries.HasFlag(LuauLibraries.Debug))
+            openlib(L, LUA_DBLIBNAME, luaopen_debug);
+        if (libraries.HasFlag(LuauLibraries.Utf8))
+            openlib(L, LUA_UTF8LIBNAME, luaopen_utf8);
+        if (libraries.HasFlag(LuauLibraries.Bit32))
+            openlib(L, LUA_BITLIBNAME, luaopen_bit32);
+        if (libraries.HasFlag(LuauLibraries.Buffer))
+            openlib(L, LUA_BUFFERLIBNAME, luaopen_buffer);
+        if (libraries.HasFlag(LuauLibraries.Vector))
+            openlib(L, LUA_VECLIBNAME, luaopen_vector);
+    }
+
+    private delegate int OpenLibFunc(lua_State* L);
+
+    private static void openlib(lua_State* L, ReadOnlySpan<byte> name, OpenLibFunc openf)
+    {
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        IntPtr intPtr = Marshal.GetFunctionPointerForDelegate(openf);
+        lua_pushcfunction(L, (delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr, null);
+        fixed (byte* pName = name)
+            lua_pushstring(L, pName);
+        lua_call(L, 1, 0);
+    }
+
+    /// <summary> The delegate type used to build a custom library table. </summary>
+    /// <param name="state"> The <see cref="LuauState"/> the library is registered for </param>
+    /// <param name="lib"> The lib table </param>
+    public delegate void OpenLibraryFunc(LuauState state, in LuauTable lib);
+
+    /// <summary>Registers a custom library table in globals.</summary>
+    /// <param name="name">Global name of the library table.</param>
+    /// <param name="build">Callback used to populate the created table.</param>
+    public void OpenLibrary(ReadOnlySpan<char> name, OpenLibraryFunc build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        this.ThrowIfDisposed();
+        if (Globals.ContainsKey(name))
+            throw new InvalidOperationException($"Global '{name}' already exists.");
+
+        using LuauTable table = CreateTable();
+        try
+        {
+            build(this, table);
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException($"Failed to register custom library '{name}'.", exception);
+        }
+
+        Globals.Set(name, table);
     }
 
     private int RegisterCallbackWrapper()
@@ -72,17 +155,7 @@ public sealed unsafe class LuauState : IDisposable
             """u8;
 
         var chunkName = "managed_callback_wrapper"u8;
-        fixed (byte* pSource = source)
-        fixed (byte* pChunkName = chunkName)
-        {
-            nuint resultSize = 0;
-            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &resultSize);
-            int loadStatus = luau_load(L, pChunkName, pByteCode, resultSize, 0);
-            LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
-
-            int callStatus = lua_pcall(L, 0, 1, 0);
-            LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
-        }
+        CompileLoadAndCall(L, source, chunkName, nResults: 1);
         if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TFUNCTION)
         {
             lua_pop(L, 1);
@@ -116,15 +189,16 @@ public sealed unsafe class LuauState : IDisposable
         return new LuauTable(this, refPtr);
     }
 
-    /// <summary> The delegate type that provides a save view to work with a function </summary>
-    public delegate void LuauFunctionBuilder(ref LuauFunctions builder);
+    /// <summary> The delegate type that maps Lua arguments to a single return or error </summary>
+    public delegate LuauReturn LuauFunctionBuilder(LuauArgs args);
 
     /// <summary> Create a new LuaFunction and get the reference to it </summary>
-    /// <param name="onCalled">The callback providing a </param>
+    /// <param name="onCalled">The callback returning either a value or an error</param>
     /// <returns> The LuaFunction with the reference to the lua memory </returns>
     public LuauFunction CreateFunctionBuilder(LuauFunctionBuilder onCalled)
     {
         this.ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(onCalled);
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
@@ -143,17 +217,27 @@ public sealed unsafe class LuauState : IDisposable
             ArgumentOutOfRangeException.ThrowIfNotEqual((nint)luaState, (nint)L);
             int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
-            using var guard = new StackGuard(L, expectedDelta: 0);
+            using var nestedGuard = new StackGuard(L, expectedDelta: 0);
 #endif
             int topBeforeInvoke = lua_gettop(luaState);
-            var builder = new LuauFunctions(this, numberOfParameters);
+            var args = new LuauArgs(this, numberOfParameters);
             try
             {
-                onCalled(ref builder);
-                int outputCount = Math.Max(0, lua_gettop(luaState) - topBeforeInvoke);
+                LuauReturn result = onCalled(args);
+                Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
+
+                if (!result.TryPushValues(this, out int outputCount, out string? error))
+                {
+                    int errorReturnCount = LuauStateMarshal.ReturnError(luaState, error);
+#if DEBUG
+                    nestedGuard.OverwriteExpectedDelta(errorReturnCount);
+#endif
+                    return errorReturnCount;
+                }
+
                 int returnCount = LuauStateMarshal.ReturnSuccess(luaState, outputCount);
 #if DEBUG
-                guard.OverwriteExpectedDelta(returnCount);
+                nestedGuard.OverwriteExpectedDelta(returnCount);
 #endif
                 return returnCount;
             }
@@ -162,7 +246,7 @@ public sealed unsafe class LuauState : IDisposable
                 lua_settop(luaState, topBeforeInvoke);
                 int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, "managed function", exception);
 #if DEBUG
-                guard.OverwriteExpectedDelta(returnCount);
+                nestedGuard.OverwriteExpectedDelta(returnCount);
 #endif
                 return returnCount;
             }
@@ -177,40 +261,18 @@ public sealed unsafe class LuauState : IDisposable
     public LuauFunction CreateFunction<T>(T value)
         where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");
 
-    /// <summary> Register userdata at lua </summary>
-    /// <typeparam name="T"> The type of the userdata to create and register </typeparam>
-    /// <returns> The lua object that references userdata </returns>
-    public LuauUserdata CreateUserdata<T>()
-        where T : class, ILuauUserData<T>, new() => CreateUserdata(new T());
-
-    /// <summary> Register userdata at lua </summary>
-    /// <param name="userdata"> The userdata to register </param>
-    /// <typeparam name="T"> The type of the userdata to register </typeparam>
-    /// <returns> The lua object that references userdata </returns>
-    public LuauUserdata CreateUserdata<T>(in T userdata)
+    /// <summary>
+    /// Gets an existing userdata for this managed instance or creates a new one.
+    /// </summary>
+    /// <param name="userdata">Managed userdata instance.</param>
+    /// <typeparam name="T">Managed userdata type.</typeparam>
+    /// <returns>A Lua userdata reference associated with <paramref name="userdata"/>.</returns>
+    public LuauUserdata GetOrCreateUserdata<T>(T userdata)
         where T : class, ILuauUserData<T>
     {
         this.ThrowIfDisposed();
-
-        GCHandle registrationHandle = _cache.Register<T>();
-        return CreateUserdataUnchecked(registrationHandle, userdata);
-    }
-
-    private LuauUserdata CreateUserdataUnchecked<T>(GCHandle registrationHandle, T userdata)
-        where T : class
-    {
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var ptr = (LuauUserdataNative*)lua_newuserdatataggedwithmetatable(
-            L,
-            (nuint)sizeof(LuauUserdataNative),
-            LuauUserdataNative.Tag
-        );
-        ptr->UserdataHandle = GCHandle.Alloc(userdata, GCHandleType.Normal);
-        ptr->RegistryValueHandle = registrationHandle;
-        int reference = luaL_ref(L, LUA_REGISTRYINDEX);
-        return new LuauUserdata(this, reference);
+        ArgumentNullException.ThrowIfNull(userdata);
+        return _cache.GetOrCreate(userdata);
     }
 
     /// <summary> Creates a new luau string </summary>
@@ -311,16 +373,7 @@ public sealed unsafe class LuauState : IDisposable
 #endif
         if (chunkName.IsEmpty)
             chunkName = "main"u8;
-        fixed (byte* pSource = source)
-        fixed (byte* pChunkName = chunkName)
-        {
-            nuint resultSize = 0;
-            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &resultSize);
-            int loadStatus = luau_load(L, pChunkName, pByteCode, resultSize, 0);
-            LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
-            int callStatus = lua_pcall(L, 0, 0, 0);
-            LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
-        }
+        CompileLoadAndCall(L, source, chunkName, nResults: 0);
     }
 
     /// <summary> Do the string </summary>

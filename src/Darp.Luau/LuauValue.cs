@@ -80,6 +80,12 @@ public readonly struct LuauValue
     public bool TryGet<T>([NotNullWhen(true)] out T? value, bool acceptNil = false)
         where T : allows ref struct
     {
+        if (typeof(T) == typeof(LuauValue))
+        {
+            LuauValue temp = this;
+            value = Unsafe.As<LuauValue, T>(ref temp)!;
+            return true;
+        }
         value = default;
         switch (Type)
         {
@@ -395,37 +401,37 @@ public readonly struct LuauValue
         }
     }
 
-    internal static unsafe LuauValue ToValue(LuauState state)
+    internal static unsafe LuauValue ToValue(LuauState state, int index = -1)
     {
         lua_State* L = state.L;
-        var type = (lua_Type)lua_type(L, -1);
+        var type = (lua_Type)lua_type(L, index);
         switch (type)
         {
             case lua_Type.LUA_TNIL:
                 return default;
             case lua_Type.LUA_TBOOLEAN:
-                bool valueBool = lua_toboolean(L, -1) == 1;
+                bool valueBool = lua_toboolean(L, index) == 1;
                 return new LuauValue(state, LuauValueType.Boolean, new LuauValueUnion(valueBool));
             case lua_Type.LUA_TNUMBER:
-                double valueNumber = lua_tonumber(L, -1);
+                double valueNumber = lua_tonumber(L, index);
                 return new LuauValue(state, LuauValueType.Number, new LuauValueUnion(valueNumber));
             case lua_Type.LUA_TSTRING:
-                int referenceString = lua_ref(L, -1);
+                int referenceString = lua_ref(L, index);
                 return new LuauValue(state, LuauValueType.String, new LuauValueUnion(referenceString));
             case lua_Type.LUA_TTABLE:
-                int referenceTable = lua_ref(L, -1);
+                int referenceTable = lua_ref(L, index);
                 return new LuauValue(state, LuauValueType.Table, new LuauValueUnion(referenceTable));
             case lua_Type.LUA_TFUNCTION:
-                int referenceFunction = lua_ref(L, -1);
+                int referenceFunction = lua_ref(L, index);
                 return new LuauValue(state, LuauValueType.Function, new LuauValueUnion(referenceFunction));
             case lua_Type.LUA_TUSERDATA:
-                int referenceUserdata = lua_ref(L, -1);
+                int referenceUserdata = lua_ref(L, index);
                 return new LuauValue(state, LuauValueType.Userdata, new LuauValueUnion(referenceUserdata));
             case lua_Type.LUA_TBUFFER:
-                int referenceBuffer = lua_ref(L, -1);
+                int referenceBuffer = lua_ref(L, index);
                 return new LuauValue(state, LuauValueType.Buffer, new LuauValueUnion(referenceBuffer));
             default:
-                throw new ArgumentOutOfRangeException();
+                throw new NotSupportedException($"The lua type {type} is not supported!");
         }
     }
 

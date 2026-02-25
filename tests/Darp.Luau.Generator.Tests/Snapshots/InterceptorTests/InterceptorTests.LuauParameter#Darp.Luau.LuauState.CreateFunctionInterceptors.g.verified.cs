@@ -13,11 +13,14 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(ref LuauFunctions x)
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 1);
-            global::Darp.Luau.LuauValue v1 = x.CheckLuauValue(parameterIndex: 1);
-            onLuaCall(v1);
+            if (!args.TryValidateArgumentCount(1, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadLuauValue(parameterIndex: 1, out global::Darp.Luau.LuauValue a1, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            onLuaCall(a1);
+            return global::Darp.Luau.LuauReturn.Ok();
         }
     }
     [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "FPJ6qx5kWZJzrxjGkG4BLqcAAAA=")]
@@ -27,13 +30,18 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(ref LuauFunctions x)
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 3);
-            global::Darp.Luau.LuauTable v1 = x.CheckLuauTable(parameterIndex: 1);
-            global::Darp.Luau.LuauString v2 = x.CheckLuauString(parameterIndex: 2);
-            global::Darp.Luau.LuauFunction v3 = x.CheckLuauFunction(parameterIndex: 3);
-            onLuaCall(v1, v2, v3);
+            if (!args.TryValidateArgumentCount(3, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadLuauTable(parameterIndex: 1, out global::Darp.Luau.LuauTable a1, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadLuauString(parameterIndex: 2, out global::Darp.Luau.LuauString a2, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadLuauFunction(parameterIndex: 3, out global::Darp.Luau.LuauFunction a3, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            onLuaCall(a1, a2, a3);
+            return global::Darp.Luau.LuauReturn.Ok();
         }
     }
 }

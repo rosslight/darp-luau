@@ -13,13 +13,15 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(ref LuauFunctions x)
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 1);
-            double v1Lua = x.CheckNumber(parameterIndex: 1);
-            global::MyEnum v1 = (global::MyEnum)v1Lua;
-            var returns = onLuaCall(v1);
-            x.ReturnParameter((double)returns);
+            if (!args.TryValidateArgumentCount(1, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadNumber(parameterIndex: 1, out double a1Raw, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            global::MyEnum a1 = (global::MyEnum)a1Raw;
+            var returns = onLuaCall(a1);
+            return global::Darp.Luau.LuauReturn.Ok((double)returns);
         }
     }
     [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "ug+W/e8jS/vg5AUQXlREwrkAAAA=")]
@@ -29,13 +31,15 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(ref LuauFunctions x)
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 1);
-            double? v1Lua = x.CheckNumberOrNil(parameterIndex: 1);
-            global::MyEnum? v1 = v1Lua.HasValue ? (global::MyEnum)v1Lua.Value : null;
-            var returns = onLuaCall(v1);
-            x.ReturnParameter((double?)returns);
+            if (!args.TryValidateArgumentCount(1, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadNumberOrNil(parameterIndex: 1, out double? a1Raw, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            global::MyEnum? a1 = a1Raw.HasValue ? (global::MyEnum)a1Raw.Value : null;
+            var returns = onLuaCall(a1);
+            return global::Darp.Luau.LuauReturn.Ok((double?)returns);
         }
     }
 }

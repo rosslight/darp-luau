@@ -13,12 +13,15 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(ref LuauFunctions x)
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 1);
-            global::System.ReadOnlySpan<byte> v1Lua = x.CheckString(parameterIndex: 1);
-            string v1 = global::System.Text.Encoding.UTF8.GetString(v1Lua);
-            onLuaCall(v1);
+            if (!args.TryValidateArgumentCount(1, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
+            onLuaCall(a1);
+            return global::Darp.Luau.LuauReturn.Ok();
         }
     }
     [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "6TNgYwlHwcOmN8AoDRIclqQAAAA=")]
@@ -29,14 +32,18 @@ file static class CreateFunctionInterceptors
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
         return state.CreateFunctionBuilder(F);
 
-        void F(ref LuauFunctions x)
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
         {
-            global::System.ArgumentOutOfRangeException.ThrowIfNotEqual(x.NumberOfParameters, 2);
-            global::System.ReadOnlySpan<byte> v1Lua = x.CheckString(parameterIndex: 1);
-            string v1 = global::System.Text.Encoding.UTF8.GetString(v1Lua);
-            global::System.ReadOnlySpan<byte> v2Lua = x.CheckString(parameterIndex: 2);
-            string v2 = global::System.Text.Encoding.UTF8.GetString(v2Lua);
-            onLuaCall(v1, v2);
+            if (!args.TryValidateArgumentCount(2, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
+            if (!args.TryReadUtf8String(parameterIndex: 2, out global::System.ReadOnlySpan<byte> a2Raw, out error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+            string a2 = global::System.Text.Encoding.UTF8.GetString(a2Raw);
+            onLuaCall(a1, a2);
+            return global::Darp.Luau.LuauReturn.Ok();
         }
     }
 }

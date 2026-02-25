@@ -64,7 +64,7 @@ public sealed class UserdataTests
         using var state = new LuauState();
         var counter = new CounterUserdata();
 
-        using LuauUserdata userdata = state.CreateUserdata(counter);
+        using LuauUserdata userdata = state.GetOrCreateUserdata(counter);
         state.Globals.Set("userdata", userdata);
 
         state.Globals.TryGet("userdata", out LuauValue value).ShouldBeTrue();
@@ -78,6 +78,62 @@ public sealed class UserdataTests
             state.Globals.TryGet("isUserdataPresent", out bool isUserdataPresent).ShouldBeTrue();
             isUserdataPresent.ShouldBeTrue();
         }
+    }
+
+    [Fact]
+    public void Userdata_GetOrCreate_WithSameManagedInstance_ShouldReuseLuaIdentity()
+    {
+        using var state = new LuauState();
+        var counter = new CounterUserdata();
+
+        using LuauUserdata first = state.GetOrCreateUserdata(counter);
+        using LuauUserdata second = state.GetOrCreateUserdata(counter);
+
+        state.Globals.Set("first", first);
+        state.Globals.Set("second", second);
+        state.DoString("sameIdentity = first == second");
+
+        state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
+        sameIdentity.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Userdata_LuauUserdata_TryGetManaged_ShouldResolveManagedInstance()
+    {
+        using var state = new LuauState();
+        var counter = new CounterUserdata();
+
+        using LuauUserdata userdata = state.GetOrCreateUserdata(counter);
+        userdata.TryGetManaged(out CounterUserdata? resolved, out string? error).ShouldBeTrue(error);
+
+        ReferenceEquals(counter, resolved).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Userdata_TableGetUserdata_ShouldResolveManagedInstance()
+    {
+        using var state = new LuauState();
+        var counter = new CounterUserdata();
+        LuauTable table = state.CreateTable();
+
+        table.Set("counter", counter);
+
+        CounterUserdata resolved = table.GetUserdata<CounterUserdata>("counter");
+        ReferenceEquals(counter, resolved).ShouldBeTrue();
+
+        using LuauUserdata reference = table.GetLuauUserdata("counter");
+        reference.TryGetManaged(out CounterUserdata? resolvedFromReference, out string? error).ShouldBeTrue(error);
+        ReferenceEquals(counter, resolvedFromReference).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Userdata_TableTryGetUserdata_WithWrongManagedType_ReturnsFalse()
+    {
+        using var state = new LuauState();
+        LuauTable table = state.CreateTable();
+        table.Set("failing", new FailingUserdata());
+
+        table.TryGetUserdata<CounterUserdata>("failing", out _).ShouldBeFalse();
     }
 
     [Fact]
@@ -238,6 +294,28 @@ public sealed class UserdataTests
     }
 
     [Fact]
+    public void Userdata_IndexErrorResult_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              return failing.errorIndex
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("error from OnIndex");
+        err.ShouldNotContain("__index callback failed");
+    }
+
+    [Fact]
     public void Userdata_SetterCallbackException_ShouldTranslateToLuaException()
     {
         using var state = new LuauState();
@@ -269,6 +347,28 @@ public sealed class UserdataTests
         state.Globals.TryGet("err", out string? err).ShouldBeTrue();
         err.ShouldContain("__newindex callback failed");
         err.ShouldContain("Boom from OnSetIndex");
+    }
+
+    [Fact]
+    public void Userdata_SetterErrorResult_ShouldBeCatchableByPCall()
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        state.DoString(
+            """
+            ok, err = pcall(function()
+              failing.errorSet = 1
+            end)
+            """
+        );
+
+        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        ok.ShouldBeFalse();
+
+        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        err.ShouldContain("error from OnSetIndex");
+        err.ShouldNotContain("__newindex callback failed");
     }
 
     [Fact]
@@ -404,71 +504,75 @@ public sealed class UserdataTests
 
         public int Value { get; private set; }
 
-        public static bool OnIndex(
+        public static LuauReturnSingle OnIndex(
             CounterUserdata self,
             in LuauState state,
-            in ReadOnlySpan<char> fieldName,
-            out IntoLuau value
+            in ReadOnlySpan<char> fieldName
         )
         {
-            if (fieldName is "value")
+            return fieldName switch
             {
-                value = self.Value;
-                return true;
-            }
-            value = default;
-            return false;
+                "value" => LuauReturnSingle.Ok(self.Value),
+                _ => LuauReturnSingle.NotHandled,
+            };
         }
 
-        public static bool OnSetIndex(CounterUserdata self, in LuauView valueView, in ReadOnlySpan<char> fieldName)
+        public static LuauOutcome OnSetIndex(CounterUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName)
         {
-            if (fieldName is "value")
+            switch (fieldName)
             {
-                self.Value = (int)valueView.CheckNumber();
-                return true;
+                case "value":
+                {
+                    if (!args.TryReadNumber(out int value, out string? error))
+                        return LuauOutcome.Error(error);
+                    self.Value = value;
+                    return LuauOutcome.Ok();
+                }
+                default:
+                    return LuauOutcome.NotHandledError;
             }
-            return false;
         }
 
-        public static bool OnMethodCall(
+        public static LuauReturn OnMethodCall(
             CounterUserdata self,
-            LuauFunctions functionArgs,
+            LuauArgs functionArgs,
             in ReadOnlySpan<char> methodName
         )
         {
             LastMethodName = methodName.ToString();
-            LastParameterCount = functionArgs.NumberOfParameters;
+            LastParameterCount = functionArgs.ArgumentCount;
 
-            if (methodName is "add")
+            switch (methodName)
             {
-                ArgumentOutOfRangeException.ThrowIfNotEqual(functionArgs.NumberOfParameters, 1);
-                int offset = (int)functionArgs.CheckNumber(1);
-                functionArgs.ReturnParameter(self.Value + offset);
-                return true;
-            }
+                case "add":
+                {
+                    if (functionArgs.ArgumentCount != 1)
+                        return LuauReturn.Error($"expected 1 arguments, got {functionArgs.ArgumentCount}");
+                    if (!functionArgs.TryReadNumber(1, out int offset, out string? error))
+                        return LuauReturn.Error(error);
 
-            if (methodName is "pair")
-            {
-                ArgumentOutOfRangeException.ThrowIfNotEqual(functionArgs.NumberOfParameters, 0);
-                functionArgs.ReturnParameter(self.Value);
-                functionArgs.ReturnParameter(self.Value + 1);
-                return true;
-            }
+                    return LuauReturn.Ok(self.Value + offset);
+                }
+                case "pair":
+                {
+                    if (functionArgs.ArgumentCount != 0)
+                        return LuauReturn.Error($"expected 0 arguments, got {functionArgs.ArgumentCount}");
 
-            if (methodName is "touch")
-            {
-                ArgumentOutOfRangeException.ThrowIfNotEqual(functionArgs.NumberOfParameters, 0);
-                self.Value++;
-                return true;
-            }
+                    return LuauReturn.Ok(self.Value, self.Value + 1);
+                }
+                case "touch":
+                {
+                    if (functionArgs.ArgumentCount != 0)
+                        return LuauReturn.Error($"expected 0 arguments, got {functionArgs.ArgumentCount}");
 
-            if (methodName is "badUnknown")
-            {
-                functionArgs.ReturnParameter(999);
-                return false;
+                    self.Value++;
+                    return LuauReturn.Ok();
+                }
+                case "badUnknown":
+                    return LuauReturn.NotHandledError;
+                default:
+                    return LuauReturn.NotHandledError;
             }
-
-            return false;
         }
 
         public static implicit operator IntoLuau(CounterUserdata value) => IntoLuau.FromUserdata(value);
@@ -476,38 +580,41 @@ public sealed class UserdataTests
 
     private sealed class FailingUserdata : ILuauUserData<FailingUserdata>
     {
-        public static bool OnIndex(
+        public static LuauReturnSingle OnIndex(
             FailingUserdata self,
             in LuauState state,
-            in ReadOnlySpan<char> fieldName,
-            out IntoLuau value
+            in ReadOnlySpan<char> fieldName
         )
         {
-            if (fieldName is "explode")
-                throw new InvalidOperationException("Boom from OnIndex");
-
-            value = default;
-            return false;
+            return fieldName switch
+            {
+                "explode" => throw new InvalidOperationException("Boom from OnIndex"),
+                "errorIndex" => LuauReturnSingle.Error("error from OnIndex"),
+                _ => LuauReturnSingle.NotHandled,
+            };
         }
 
-        public static bool OnSetIndex(FailingUserdata self, in LuauView valueView, in ReadOnlySpan<char> fieldName)
+        public static LuauOutcome OnSetIndex(FailingUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName)
         {
-            if (fieldName is "explodeSet")
-                throw new InvalidOperationException("Boom from OnSetIndex");
-
-            return false;
+            return fieldName switch
+            {
+                "explodeSet" => throw new InvalidOperationException("Boom from OnSetIndex"),
+                "errorSet" => LuauOutcome.Error("error from OnSetIndex"),
+                _ => LuauOutcome.NotHandledError,
+            };
         }
 
-        public static bool OnMethodCall(
+        public static LuauReturn OnMethodCall(
             FailingUserdata self,
-            LuauFunctions functionArgs,
+            LuauArgs functionArgs,
             in ReadOnlySpan<char> methodName
         )
         {
-            if (methodName is "explodeMethod")
-                throw new InvalidOperationException("Boom from OnMethodCall");
-
-            return false;
+            return methodName switch
+            {
+                "explodeMethod" => throw new InvalidOperationException("Boom from OnMethodCall"),
+                _ => LuauReturn.NotHandledError,
+            };
         }
 
         public static implicit operator IntoLuau(FailingUserdata value) => IntoLuau.FromUserdata(value);
