@@ -453,7 +453,7 @@ public partial struct LuauTable
     /// <summary> Attempts to get a non-nil value for <paramref name="key"/> as <see cref="LuauValue"/>. </summary>
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved value when successful.</param>
-    /// <returns><c>true</c> when the value exists and is not <c>nil</c>; otherwise <c>false</c>.</returns>
+    /// <returns><c>true</c></returns>
     public readonly bool TryGetLuauValue(IntoLuau key, out LuauValue value) => TryGetLuauValue(key, out value, out _);
 
     /// <summary>Gets the value for <paramref name="key"/> as <see cref="LuauTable"/>.</summary>

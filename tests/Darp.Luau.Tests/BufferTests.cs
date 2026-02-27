@@ -24,7 +24,7 @@ public sealed class BufferTests
         using var state = new LuauState();
         using LuauBuffer buffer = state.CreateBuffer(expected);
 
-        LuauValue value = buffer;
+        LuauValue value = (LuauValue)buffer;
         value.Type.ShouldBe(LuauValueType.Buffer);
 
         value.TryGet(out byte[]? found).ShouldBeTrue();
@@ -39,7 +39,7 @@ public sealed class BufferTests
         using var state = new LuauState();
         using LuauBuffer buffer = state.CreateBuffer(expected);
 
-        LuauValue value = buffer;
+        LuauValue value = (LuauValue)buffer;
         value.Type.ShouldBe(LuauValueType.Buffer);
 
         value.TryGet(out ReadOnlySpan<byte> found).ShouldBeTrue();
@@ -52,11 +52,15 @@ public sealed class BufferTests
         using var state = new LuauState();
         using LuauBuffer expected = state.CreateBuffer(new([0x01, 0x02, 0x03]));
 
-        LuauValue value = expected;
+        LuauValue value = (LuauValue)expected;
         value.Type.ShouldBe(LuauValueType.Buffer);
 
         value.TryGet(out LuauBuffer found).ShouldBeTrue();
-        found.Reference.ShouldBeEquivalentTo(expected.Reference);
+        using (found)
+        {
+            found.TryGet(out byte[] bytes).ShouldBeTrue();
+            bytes.ShouldBe<byte>([0x01, 0x02, 0x03]);
+        }
     }
 
     [Fact]

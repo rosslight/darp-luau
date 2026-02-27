@@ -113,7 +113,11 @@ public readonly ref struct IntoLuau
             case Kind.UserdataFactory:
                 Debug.Assert(_factory is not null);
                 LuauUserdata userdata = _factory.Invoke(state);
-                if (userdata.State is null || userdata.Reference is 0)
+                if (
+                    userdata.State is null
+                    || userdata.Reference is 0
+                    || !userdata.State.ReferenceTracker.HasRegistryReference(userdata.Reference)
+                )
                 {
                     lua_pushnil(L);
                     break;
@@ -234,8 +238,15 @@ public readonly ref struct IntoLuau
     /// <returns> A temporary representation of the value </returns>
     public static implicit operator IntoLuau(byte[] value) => new(value);
 
-    public static IntoLuau FromUserdata<T>(T t)
-        where T : class, ILuauUserData<T> => new(state => state.GetOrCreateUserdata(t));
+    /// <summary> Converts to a userdata </summary>
+    /// <param name="userdata"> The userdata </param>
+    /// <typeparam name="T"> The type of the userdata </typeparam>
+    /// <returns> A temporary representation of the value </returns>
+    public static IntoLuau FromUserdata<T>(T userdata)
+        where T : class, ILuauUserData<T> => new(state => state.GetOrCreateUserdata(userdata));
 
+    /// <summary> Converts to a userdata </summary>
+    /// <param name="factory"> The userdata factory </param>
+    /// <returns> A temporary representation of the value </returns>
     public static IntoLuau FromUserdata(Func<LuauState, LuauUserdata> factory) => new(factory);
 }

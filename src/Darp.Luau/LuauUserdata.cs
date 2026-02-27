@@ -14,35 +14,32 @@ internal struct LuauUserdataNative
     public GCHandle RegistryValueHandle { get; internal set; }
 }
 
-public struct LuauUserdata : ILuauReference
+public readonly ref struct LuauUserdata : ILuauReference
 {
     /// <inheritdoc />
     public LuauState? State { get; }
 
     /// <inheritdoc />
-    public int Reference { get; private set; }
+    public int Reference { get; }
 
     [Obsolete("Do not initialize the LuauTable. Create using the LuauState instead", true)]
     public LuauUserdata() { }
 
     internal LuauUserdata(LuauState? state, int reference) => (State, Reference) = (state, reference);
 
-    public unsafe void Dispose()
-    {
-        if (State is null || Reference is 0)
-            return;
-        lua_unref(State.L, Reference);
-        Reference = 0;
-    }
+    public void Dispose() => State?.ReferenceTracker.ReleaseRef(Reference);
 
     [MemberNotNull(nameof(State))]
-    private readonly void ThrowIfDisposed()
+    private void ThrowIfDisposed()
     {
         State.ThrowIfDisposed();
-        if (Reference is 0)
-            throw new ObjectDisposedException(nameof(LuauTable), "The reference to the LuauTable is invalid");
+        if (Reference is 0 || !State.ReferenceTracker.HasRegistryReference(Reference))
+            throw new ObjectDisposedException(nameof(LuauUserdata), "The reference to the LuauUserdata is invalid");
     }
 
+    /// <summary> Ability for <see cref="LuauUserdata"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
+    /// <param name="value"> The userdata </param>
+    /// <returns> The converted value </returns>
     public static implicit operator IntoLuau(LuauUserdata value) => (LuauValue)value;
 
     /// <summary>
@@ -61,10 +58,11 @@ public struct LuauUserdata : ILuauReference
         value = null;
         ThrowIfDisposed();
         lua_State* L = State.L;
+        int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauUserdata));
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        lua_getref(L, Reference);
+        lua_getref(L, reference);
         if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)
         {
             lua_pop(L, 1);
@@ -78,5 +76,10 @@ public struct LuauUserdata : ILuauReference
     }
 
     /// <inheritdoc />
-    public override readonly string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);
+    public override string ToString()
+    {
+        if (State?.ReferenceTracker.TryResolveLuaRef(Reference, out int reference) is not true)
+            return "<nil>";
+        return Helpers.RefToString(State, reference);
+    }
 }

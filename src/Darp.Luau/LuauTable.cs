@@ -8,13 +8,13 @@ namespace Darp.Luau;
 
 /// <summary> A reference to a luau table </summary>
 /// <remarks> A view of the table  </remarks>
-public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
+public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
 {
     /// <inheritdoc />
     public LuauState? State { get; }
 
     /// <inheritdoc />
-    public int Reference { get; private set; }
+    public int Reference { get; }
 
     /// <summary> Do (not) initialize a new LuauTable </summary>
     [Obsolete("Do not initialize the LuauTable. Create using the LuauState instead", true)]
@@ -27,16 +27,17 @@ public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePai
     /// <param name="value"> The value to set </param>
     /// <exception cref="ObjectDisposedException"> Thrown if the state is disposed </exception>
     /// <exception cref="ArgumentNullException"> Thrown if a <c>Nil</c> <paramref name="key"/> is provided </exception>
-    public readonly void Set(IntoLuau key, IntoLuau value)
+    public void Set(IntoLuau key, IntoLuau value)
     {
         ThrowIfDisposed();
         if (key.Type is IntoLuau.Kind.Nil)
             throw new ArgumentNullException(nameof(key), "Cannot set a table value with nil key");
         lua_State* L = State.L;
+        int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauTable));
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        lua_getref(L, Reference);
+        lua_getref(L, reference);
         key.Push(State);
         value.Push(State);
         lua_settable(L, -3);
@@ -46,14 +47,15 @@ public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePai
     /// <summary> Determines whether <paramref name="key"/> resolves to a non-<c>nil</c> value. </summary>
     /// <param name="key">The key to resolve.</param>
     /// <remarks>Uses regular table lookup and therefore honors table metamethods such as <c>__index</c>.</remarks>
-    public readonly bool ContainsKey(IntoLuau key)
+    public bool ContainsKey(IntoLuau key)
     {
         ThrowIfDisposed();
         lua_State* L = State.L;
+        int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauTable));
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        lua_getref(L, Reference);
+        lua_getref(L, reference);
         key.Push(State);
         _ = lua_gettable(L, -2);
         bool hasValue = !lua_isnil(L, -1);
@@ -68,16 +70,17 @@ public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePai
 
     /// <summary> Gets the count of the table if viewed as a list </summary>
     /// <remarks> If a lua table has holes, this property is unreliable! </remarks>
-    public readonly int ListCount
+    public int ListCount
     {
         get
         {
             ThrowIfDisposed();
             lua_State* L = State.L;
+            int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauTable));
 #if DEBUG
             using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-            lua_getref(L, Reference);
+            lua_getref(L, reference);
             int count = lua_objlen(L, 1);
             lua_pop(L, 1);
             return count;
@@ -85,10 +88,15 @@ public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePai
     }
 
     /// <inheritdoc />
-    public override readonly string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);
+    public override string ToString()
+    {
+        if (State?.ReferenceTracker.TryResolveLuaRef(Reference, out int reference) is not true)
+            return "<nil>";
+        return Helpers.RefToString(State, reference);
+    }
 
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
-    public readonly Enumerator GetEnumerator()
+    public Enumerator GetEnumerator()
     {
         ThrowIfDisposed();
         return new Enumerator(this, State);
@@ -101,31 +109,25 @@ public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePai
 
     /// <summary> Gets the value associated with this key (or <see cref="LuauValueType.Nil"/>) </summary>
     /// <param name="key"> The key to look for </param>
-    public readonly LuauValue this[IntoLuau key] => TryGetLuauValue(key, out LuauValue value) ? value : default;
+    public LuauValue this[IntoLuau key] => TryGetLuauValue(key, out LuauValue value) ? value : default;
 
     /// <summary> Get the values as a list in paris of index and value </summary>
     /// <returns> An enumerable of values </returns>
     /// <remarks> Starts at index 1 and goes as long as there is no nil value </remarks>
-    public readonly TableIPairsEnumerable IPairs()
+    public TableIPairsEnumerable IPairs()
     {
         ThrowIfDisposed();
         return new TableIPairsEnumerable(this, State);
     }
 
     /// <summary> Remove the reference from the lua state </summary>
-    public void Dispose()
-    {
-        if (State is null || Reference is 0)
-            return;
-        lua_unref(State.L, Reference);
-        Reference = 0;
-    }
+    public void Dispose() => State?.ReferenceTracker.ReleaseRef(Reference);
 
     [MemberNotNull(nameof(State))]
-    private readonly void ThrowIfDisposed()
+    private void ThrowIfDisposed()
     {
         State.ThrowIfDisposed();
-        if (Reference is 0)
+        if (Reference is 0 || !State.ReferenceTracker.HasRegistryReference(Reference))
             throw new ObjectDisposedException(nameof(LuauTable), "The reference to the LuauTable is invalid");
     }
 
@@ -159,10 +161,11 @@ public unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePai
         {
             _table.ThrowIfDisposed();
             lua_State* L = _state.L;
+            int tableReference = _state.ReferenceTracker.ResolveLuaRef(_table.Reference, nameof(LuauTable));
 #if DEBUG
             using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-            lua_getref(L, _table.Reference);
+            lua_getref(L, tableReference);
             int t = lua_gettop(L); // table index
 
             if (_lastKeyRef == 0)

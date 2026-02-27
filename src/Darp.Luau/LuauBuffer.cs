@@ -1,34 +1,39 @@
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-public struct LuauBuffer : ILuauReference
+public readonly ref struct LuauBuffer : ILuauReference
 {
     /// <inheritdoc />
     public LuauState? State { get; }
 
     /// <inheritdoc />
-    public int Reference { get; private set; }
+    public int Reference { get; }
 
     [Obsolete("Do not initialize the LuauBuffer. Create using the LuauState instead", true)]
     public LuauBuffer() => State = null;
 
     internal LuauBuffer(LuauState? state, int reference) => (State, Reference) = (state, reference);
 
+    /// <summary> Ability for <see cref="LuauBuffer"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
+    /// <param name="value"> The buffer </param>
+    /// <returns> The converted value </returns>
     public static implicit operator IntoLuau(LuauBuffer value) => (LuauValue)value;
 
     public unsafe bool TryGet(out ReadOnlySpan<byte> span)
     {
-        State.ThrowIfDisposed();
+        ThrowIfDisposed();
         span = ReadOnlySpan<byte>.Empty;
 
         lua_State* L = State.L;
+        int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauBuffer));
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        _ = lua_getref(L, Reference);
+        _ = lua_getref(L, reference);
         try
         {
             nuint nLength = 0;
@@ -67,12 +72,13 @@ public struct LuauBuffer : ILuauReference
     }
 
     /// <summary> Remove the reference from the lua state </summary>
-    public unsafe void Dispose()
-    {
-        if (State is null || Reference is 0)
-            return;
+    public void Dispose() => State?.ReferenceTracker.ReleaseRef(Reference);
 
-        lua_unref(State.L, Reference);
-        Reference = 0;
+    [MemberNotNull(nameof(State))]
+    private void ThrowIfDisposed()
+    {
+        State.ThrowIfDisposed();
+        if (Reference is 0 || !State.ReferenceTracker.HasRegistryReference(Reference))
+            throw new ObjectDisposedException(nameof(LuauBuffer), "The reference to the LuauBuffer is invalid");
     }
 }

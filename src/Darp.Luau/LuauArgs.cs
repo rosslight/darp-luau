@@ -334,12 +334,13 @@ public readonly unsafe ref partial struct LuauArgs
     public bool TryReadLuauTable(int parameterIndex, out LuauTable value, [NotNullWhen(false)] out string? error)
     {
         value = default;
+        _state.ThrowIfDisposed();
         if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TTABLE, out error))
             return false;
 
-        int reference = lua_ref(L, stackIndex);
+        int reference = _state.ReferenceTracker.TrackRef(L, stackIndex);
         value = new LuauTable(_state, reference);
         return true;
     }
@@ -356,12 +357,13 @@ public readonly unsafe ref partial struct LuauArgs
     public bool TryReadLuauFunction(int parameterIndex, out LuauFunction value, [NotNullWhen(false)] out string? error)
     {
         value = default;
+        _state.ThrowIfDisposed();
         if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TFUNCTION, out error))
             return false;
 
-        int reference = lua_ref(L, stackIndex);
+        int reference = _state.ReferenceTracker.TrackRef(L, stackIndex);
         value = new LuauFunction(_state, reference);
         return true;
     }
@@ -378,12 +380,13 @@ public readonly unsafe ref partial struct LuauArgs
     public bool TryReadLuauString(int parameterIndex, out LuauString value, [NotNullWhen(false)] out string? error)
     {
         value = default;
+        _state.ThrowIfDisposed();
         if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TSTRING, out error))
             return false;
 
-        int reference = lua_ref(L, stackIndex);
+        int reference = _state.ReferenceTracker.TrackRef(L, stackIndex);
         value = new LuauString(_state, reference);
         return true;
     }
@@ -400,13 +403,14 @@ public readonly unsafe ref partial struct LuauArgs
     public bool TryReadLuauBuffer(int parameterIndex, out LuauBuffer value, [NotNullWhen(false)] out string? error)
     {
         value = default;
+        _state.ThrowIfDisposed();
         if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TBUFFER, out error))
             return false;
 
-        int reference = lua_ref(L, stackIndex);
-        value = new LuauBuffer(_state!, reference);
+        int reference = _state.ReferenceTracker.TrackRef(L, stackIndex);
+        value = new LuauBuffer(_state, reference);
         return true;
     }
 
@@ -422,13 +426,14 @@ public readonly unsafe ref partial struct LuauArgs
     public bool TryReadLuauUserdata(int parameterIndex, out LuauUserdata value, [NotNullWhen(false)] out string? error)
     {
         value = default;
+        _state.ThrowIfDisposed();
         if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TUSERDATA, out error))
             return false;
 
-        int reference = lua_ref(L, stackIndex);
-        value = new LuauUserdata(_state!, reference);
+        int reference = _state.ReferenceTracker.TrackRef(L, stackIndex);
+        value = new LuauUserdata(_state, reference);
         return true;
     }
 
@@ -480,7 +485,7 @@ public readonly unsafe ref partial struct LuauArgs
     public bool TryReadUserdataOrNil<T>(int parameterIndex, out T? value, [NotNullWhen(false)] out string? error)
         where T : class, ILuauUserData<T>
     {
-        value = default;
+        value = null;
         if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireTypeOrNil(parameterIndex, type, lua_Type.LUA_TUSERDATA, out bool isNil, out error))

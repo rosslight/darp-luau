@@ -7,7 +7,7 @@ namespace Darp.Luau;
 
 public unsafe partial struct LuauTable
 {
-    private readonly bool TryGetNumber(IntoLuau key, out double value, [NotNullWhen(false)] out string? error)
+    private bool TryGetNumber(IntoLuau key, out double value, [NotNullWhen(false)] out string? error)
     {
 #if DEBUG
         using var guard = new StackGuard(State!.L, expectedDelta: 0);
@@ -20,7 +20,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private readonly bool TryGetNumberOrNil(IntoLuau key, out double? value, [NotNullWhen(false)] out string? error)
+    private bool TryGetNumberOrNil(IntoLuau key, out double? value, [NotNullWhen(false)] out string? error)
     {
 #if DEBUG
         using var guard = new StackGuard(State!.L, expectedDelta: 0);
@@ -36,7 +36,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private readonly bool TryGetBoolean(IntoLuau key, out bool value, [NotNullWhen(false)] out string? error)
+    private bool TryGetBoolean(IntoLuau key, out bool value, [NotNullWhen(false)] out string? error)
     {
         value = false;
         if (!TryGetRequired(key, lua_Type.LUA_TBOOLEAN, out lua_State* L, out error))
@@ -46,7 +46,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private readonly bool TryGetBooleanOrNil(IntoLuau key, out bool? value, [NotNullWhen(false)] out string? error)
+    private bool TryGetBooleanOrNil(IntoLuau key, out bool? value, [NotNullWhen(false)] out string? error)
     {
 #if DEBUG
         using var guard = new StackGuard(State!.L, expectedDelta: 0);
@@ -62,11 +62,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private readonly bool TryGetUtf8String(
-        IntoLuau key,
-        out ReadOnlySpan<byte> value,
-        [NotNullWhen(false)] out string? error
-    )
+    private bool TryGetUtf8String(IntoLuau key, out ReadOnlySpan<byte> value, [NotNullWhen(false)] out string? error)
     {
 #if DEBUG
         using var guard = new StackGuard(State!.L, expectedDelta: 0);
@@ -87,7 +83,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private readonly bool TryGetUtf8StringOrNil(
+    private bool TryGetUtf8StringOrNil(
         IntoLuau key,
         out ReadOnlySpan<byte> value,
         out bool isNil,
@@ -117,11 +113,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private readonly bool TryGetBuffer(
-        IntoLuau key,
-        out ReadOnlySpan<byte> value,
-        [NotNullWhen(false)] out string? error
-    )
+    private bool TryGetBuffer(IntoLuau key, out ReadOnlySpan<byte> value, [NotNullWhen(false)] out string? error)
     {
 #if DEBUG
         using var guard = new StackGuard(State!.L, expectedDelta: 0);
@@ -144,7 +136,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private readonly bool TryGetBufferOrNil(
+    private bool TryGetBufferOrNil(
         IntoLuau key,
         out ReadOnlySpan<byte> value,
         out bool isNil,
@@ -174,7 +166,7 @@ public unsafe partial struct LuauTable
         return true;
     }
 
-    private readonly bool TryGetUserdata<T>(
+    private bool TryGetUserdata<T>(
         IntoLuau key,
         [NotNullWhen(true)] out T? value,
         [NotNullWhen(false)] out string? error
@@ -193,7 +185,7 @@ public unsafe partial struct LuauTable
         return ok;
     }
 
-    private readonly bool TryGetUserdataOrNil<T>(IntoLuau key, out T? value, [NotNullWhen(false)] out string? error)
+    private bool TryGetUserdataOrNil<T>(IntoLuau key, out T? value, [NotNullWhen(false)] out string? error)
         where T : class, ILuauUserData<T>
     {
 #if DEBUG
@@ -210,110 +202,114 @@ public unsafe partial struct LuauTable
         return ok;
     }
 
-    private readonly bool TryGetLuauValue(IntoLuau key, out LuauValue value, [NotNullWhen(false)] out string? error)
+    private bool TryGetLuauValue(IntoLuau key, out LuauValue value, [NotNullWhen(false)] out string? error)
     {
+        State.ThrowIfDisposed();
 #if DEBUG
-        using var guard = new StackGuard(State!.L, expectedDelta: 0);
+        using var guard = new StackGuard(State.L, expectedDelta: 0);
 #endif
         value = default;
         TryGet(key, out lua_State* L, out error);
+        if (L is null)
+        {
+            error ??= "Could not access Lua state.";
+            return false;
+        }
 
         value = LuauValue.ToValue(State);
         lua_pop(L, 2);
         return true;
     }
 
-    private readonly bool TryGetLuauTable(IntoLuau key, out LuauTable value, [NotNullWhen(false)] out string? error)
+    private bool TryGetLuauTable(IntoLuau key, out LuauTable value, [NotNullWhen(false)] out string? error)
     {
+        State.ThrowIfDisposed();
 #if DEBUG
-        using var guard = new StackGuard(State!.L, expectedDelta: 0);
+        using var guard = new StackGuard(State.L, expectedDelta: 0);
 #endif
         value = default;
         if (!TryGetRequired(key, lua_Type.LUA_TTABLE, out lua_State* L, out error))
             return false;
 
-        value = new LuauTable(State, lua_ref(L, -1));
+        value = new LuauTable(State, State.ReferenceTracker.TrackRef(L, -1));
         lua_pop(L, 2);
         return true;
     }
 
-    private readonly bool TryGetLuauFunction(
-        IntoLuau key,
-        out LuauFunction value,
-        [NotNullWhen(false)] out string? error
-    )
+    private bool TryGetLuauFunction(IntoLuau key, out LuauFunction value, [NotNullWhen(false)] out string? error)
     {
+        State.ThrowIfDisposed();
 #if DEBUG
-        using var guard = new StackGuard(State!.L, expectedDelta: 0);
+        using var guard = new StackGuard(State.L, expectedDelta: 0);
 #endif
         value = default;
         if (!TryGetRequired(key, lua_Type.LUA_TFUNCTION, out lua_State* L, out error))
             return false;
 
-        value = new LuauFunction(State, lua_ref(L, -1));
+        value = new LuauFunction(State, State.ReferenceTracker.TrackRef(L, -1));
         lua_pop(L, 2);
         return true;
     }
 
-    private readonly bool TryGetLuauString(IntoLuau key, out LuauString value, [NotNullWhen(false)] out string? error)
+    private bool TryGetLuauString(IntoLuau key, out LuauString value, [NotNullWhen(false)] out string? error)
     {
+        State.ThrowIfDisposed();
 #if DEBUG
-        using var guard = new StackGuard(State!.L, expectedDelta: 0);
+        using var guard = new StackGuard(State.L, expectedDelta: 0);
 #endif
         value = default;
         if (!TryGetRequired(key, lua_Type.LUA_TSTRING, out lua_State* L, out error))
             return false;
 
-        value = new LuauString(State, lua_ref(L, -1));
+        value = new LuauString(State, State.ReferenceTracker.TrackRef(L, -1));
         lua_pop(L, 2);
         return true;
     }
 
-    private readonly bool TryGetLuauBuffer(IntoLuau key, out LuauBuffer value, [NotNullWhen(false)] out string? error)
+    private bool TryGetLuauBuffer(IntoLuau key, out LuauBuffer value, [NotNullWhen(false)] out string? error)
     {
+        State.ThrowIfDisposed();
 #if DEBUG
-        using var guard = new StackGuard(State!.L, expectedDelta: 0);
+        using var guard = new StackGuard(State.L, expectedDelta: 0);
 #endif
         value = default;
         if (!TryGetRequired(key, lua_Type.LUA_TBUFFER, out lua_State* L, out error))
             return false;
 
-        value = new LuauBuffer(State, lua_ref(L, -1));
+        value = new LuauBuffer(State, State.ReferenceTracker.TrackRef(L, -1));
         lua_pop(L, 2);
         return true;
     }
 
-    private readonly bool TryGetLuauUserdata(
-        IntoLuau key,
-        out LuauUserdata value,
-        [NotNullWhen(false)] out string? error
-    )
+    private bool TryGetLuauUserdata(IntoLuau key, out LuauUserdata value, [NotNullWhen(false)] out string? error)
     {
+        State.ThrowIfDisposed();
 #if DEBUG
-        using var guard = new StackGuard(State!.L, expectedDelta: 0);
+        using var guard = new StackGuard(State.L, expectedDelta: 0);
 #endif
         value = default;
         if (!TryGetRequired(key, lua_Type.LUA_TUSERDATA, out lua_State* L, out error))
             return false;
 
-        value = new LuauUserdata(State, lua_ref(L, -1));
+        value = new LuauUserdata(State, State.ReferenceTracker.TrackRef(L, -1));
         lua_pop(L, 2);
         return true;
     }
 
-    private readonly void TryGet(IntoLuau key, out lua_State* L, [NotNullWhen(false)] out string? error)
+    private void TryGet(IntoLuau key, out lua_State* L, [NotNullWhen(false)] out string? error)
     {
         L = null;
         error = null;
 
         State.ThrowIfDisposed();
         L = State.L;
-        lua_getref(L, Reference);
+        int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauTable));
+        lua_getref(L, reference);
         key.Push(State);
         _ = (lua_Type)lua_gettable(L, -2);
     }
 
-    private readonly bool TryGetRequired(
+    private bool TryGetRequired(
         IntoLuau key,
         lua_Type expectedType,
         out lua_State* L,
@@ -325,7 +321,8 @@ public unsafe partial struct LuauTable
 
         State.ThrowIfDisposed();
         L = State.L;
-        lua_getref(L, Reference);
+        int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauTable));
+        lua_getref(L, reference);
         key.Push(State);
 
         var actualType = (lua_Type)lua_gettable(L, -2);
@@ -342,7 +339,7 @@ public unsafe partial struct LuauTable
         return false;
     }
 
-    private readonly bool TryGetOptional(
+    private bool TryGetOptional(
         IntoLuau key,
         lua_Type expectedType,
         out lua_State* L,
@@ -356,7 +353,8 @@ public unsafe partial struct LuauTable
 
         ThrowIfDisposed();
         L = State.L;
-        lua_getref(L, Reference);
+        int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauTable));
+        lua_getref(L, reference);
         key.Push(State);
 
         var actualType = (lua_Type)lua_gettable(L, -2);

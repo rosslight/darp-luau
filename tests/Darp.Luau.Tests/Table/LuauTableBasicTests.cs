@@ -225,7 +225,7 @@ public sealed class LuauTableBasicTests
         LuauTable table = lua.CreateTable();
 
         var key = "spanByteKey"u8;
-        LuauValue keyValue = lua.CreateString(key);
+        LuauValue keyValue = (LuauValue)lua.CreateString(key);
         table.Set(keyValue, 42.0);
 
         LuauValue value = table.GetLuauValue(keyValue);

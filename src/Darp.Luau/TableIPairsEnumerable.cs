@@ -57,11 +57,13 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
         public unsafe bool MoveNext()
         {
             _i++;
+            _state.ThrowIfDisposed();
             lua_State* L = _state.L;
+            int tableReference = _state.ReferenceTracker.ResolveLuaRef(_table.Reference, nameof(LuauTable));
 #if DEBUG
             using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-            lua_getref(L, _table.Reference);
+            lua_getref(L, tableReference);
             int t = lua_gettop(L);
             _ = lua_rawgeti(L, t, _i);
             if (lua_isnil(L, -1))

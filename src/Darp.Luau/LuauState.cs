@@ -21,6 +21,8 @@ public sealed unsafe class LuauState : IDisposable
     private readonly int _callbackWrapperReference;
     private readonly UserdataRegistrationCache _cache;
 
+    internal RegistryReferenceTracker ReferenceTracker { get; }
+
     [Obsolete("Used for saving delegates used in unmanaged memory to prevent them going out of scope")]
     // ReSharper disable once CollectionNeverQueried.Local
     private readonly List<Delegate> _delegateSave = [];
@@ -33,6 +35,16 @@ public sealed unsafe class LuauState : IDisposable
 
     /// <summary>The effective set of built-in libraries loaded into this state.</summary>
     public LuauLibraries EnabledLibraries { get; }
+
+    /// <summary>
+    /// Gets current memory-related tracking counters for this state.
+    /// </summary>
+    internal LuauMemoryStatistics MemoryStatistics =>
+        ReferenceTracker.GetStatistics(
+#pragma warning disable CS0618 // This tracks callback roots held by this state.
+            activeManagedCallbacks: _delegateSave.Count
+#pragma warning restore CS0618
+        );
 
     /// <summary> Initializes a new LuauState, and opens all default libs. </summary>
     /// <exception cref="InvalidOperationException"> Thrown if the luau state could not be created </exception>
@@ -49,15 +61,20 @@ public sealed unsafe class LuauState : IDisposable
         L = luaL_newstate();
         if (L is null)
             throw new InvalidOperationException("Could not create Lua state.");
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+
+        _cache = new UserdataRegistrationCache(this);
+        ReferenceTracker = new RegistryReferenceTracker(this);
 
         EnabledLibraries = builtinLibraries;
         OpenBuiltinLibraries(EnabledLibraries);
 
         lua_pushvalue(L, LUA_GLOBALSINDEX);
-        _globalsReference = luaL_ref(L, LUA_REGISTRYINDEX);
+        _globalsReference = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
 
         _callbackWrapperReference = RegisterCallbackWrapper();
-        _cache = new UserdataRegistrationCache(this);
     }
 
     private void OpenBuiltinLibraries(LuauLibraries libraries)
@@ -161,7 +178,7 @@ public sealed unsafe class LuauState : IDisposable
             lua_pop(L, 1);
             throw new InvalidOperationException("Managed callback wrapper chunk must return a function.");
         }
-        return luaL_ref(L, LUA_REGISTRYINDEX);
+        return ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
     }
 
     internal void PushWrappedCallback(delegate* unmanaged[Cdecl]<lua_State*, int> callback, byte* debugName = null)
@@ -170,7 +187,7 @@ public sealed unsafe class LuauState : IDisposable
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 1);
 #endif
-        lua_getref(L, _callbackWrapperReference);
+        lua_getref(L, ReferenceTracker.ResolveLuaRef(_callbackWrapperReference, nameof(LuauState)));
         lua_pushcfunction(L, callback, debugName);
         int callStatus = lua_pcall(L, 1, 1, 0);
         LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
@@ -185,8 +202,8 @@ public sealed unsafe class LuauState : IDisposable
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         lua_newtable(L);
-        int refPtr = luaL_ref(L, LUA_REGISTRYINDEX);
-        return new LuauTable(this, refPtr);
+        int reference = ReferenceTracker.TrackAndPopRef(L, -1);
+        return new LuauTable(this, reference);
     }
 
     /// <summary> The delegate type that maps Lua arguments to a single return or error </summary>
@@ -209,8 +226,8 @@ public sealed unsafe class LuauState : IDisposable
 #pragma warning restore CS0618 // Type or member is obsolete
 
         PushWrappedCallback((delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr);
-        int refs = luaL_ref(L, LUA_REGISTRYINDEX);
-        return new LuauFunction(this, refs);
+        int reference = ReferenceTracker.TrackAndPopRef(L, -1);
+        return new LuauFunction(this, reference);
 
         int F(lua_State* luaState)
         {
@@ -301,7 +318,7 @@ public sealed unsafe class LuauState : IDisposable
             lua_pushlstring(L, pValue, (nuint)utf8Value.Length);
         }
 
-        int reference = luaL_ref(L, LUA_REGISTRYINDEX);
+        int reference = ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauString(this, reference);
     }
 
@@ -324,8 +341,7 @@ public sealed unsafe class LuauState : IDisposable
             Unsafe.CopyBlock(pDest, pSrc, (uint)span.Length);
         }
 
-        int reference = lua_ref(L, -1);
-        lua_pop(L, 1);
+        int reference = ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauBuffer(this, reference);
     }
 
@@ -335,8 +351,7 @@ public sealed unsafe class LuauState : IDisposable
         if (Interlocked.Exchange(ref _disposing, 1) != 0)
             return;
         _cache.Dispose();
-        if (_callbackWrapperReference is not 0)
-            lua_unref(L, _callbackWrapperReference);
+        ReferenceTracker.ReleaseAll();
         lua_close(L);
 #pragma warning disable CS0618 // Type or member is obsolete -> This is the place we want to clear the delegates
         _delegateSave.Clear();

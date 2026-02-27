@@ -5,13 +5,13 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-public struct LuauFunction : ILuauReference
+public readonly struct LuauFunction : ILuauReference
 {
     /// <inheritdoc />
     public LuauState? State { get; }
 
     /// <inheritdoc />
-    public int Reference { get; private set; }
+    public int Reference { get; }
 
     /// <summary> Do (not) initialize a new LuauFunction </summary>
     [Obsolete("Do not initialize the LuauFunction. Create using the LuauState instead", false)]
@@ -19,15 +19,16 @@ public struct LuauFunction : ILuauReference
 
     internal LuauFunction(LuauState? state, int reference) => (State, Reference) = (state, reference);
 
-    public readonly unsafe TR Call<TR>()
+    public unsafe TR Call<TR>()
         where TR : allows ref struct
     {
         ThrowIfDisposed();
         lua_State* L = State.L;
+        int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauFunction));
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        lua_getref(L, Reference);
+        lua_getref(L, reference);
 
         int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
         int status = lua_pcall(L, nargs: 0, nresults, 0);
@@ -36,7 +37,7 @@ public struct LuauFunction : ILuauReference
         if (nresults == 0)
             return default!;
 
-        var luaReturn = LuauValue.ToValue(State);
+        using var luaReturn = LuauValue.ToValue(State);
         lua_pop(L, 1);
         if (luaReturn.TryGet(out TR? result, acceptNil: true))
             return result;
@@ -46,15 +47,16 @@ public struct LuauFunction : ILuauReference
         );
     }
 
-    public readonly unsafe TR Call<TR>(IntoLuau p1)
+    public unsafe TR Call<TR>(IntoLuau p1)
         where TR : allows ref struct
     {
         ThrowIfDisposed();
         lua_State* L = State.L;
+        int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauFunction));
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        lua_getref(L, Reference);
+        lua_getref(L, reference);
 
         p1.Push(State);
 
@@ -65,7 +67,7 @@ public struct LuauFunction : ILuauReference
         if (nresults == 0)
             return default!;
 
-        var luaReturn = LuauValue.ToValue(State);
+        using var luaReturn = LuauValue.ToValue(State);
         lua_pop(L, 1);
         if (luaReturn.TryGet(out TR? result, acceptNil: true))
             return result;
@@ -75,16 +77,17 @@ public struct LuauFunction : ILuauReference
         );
     }
 
-    public readonly unsafe TR Call<TR>(IntoLuau p1, IntoLuau p2)
+    public unsafe TR Call<TR>(IntoLuau p1, IntoLuau p2)
         where TR : allows ref struct
     {
         ThrowIfDisposed();
         lua_State* L = State.L;
+        int reference = State.ReferenceTracker.ResolveLuaRef(Reference, nameof(LuauFunction));
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
 
-        lua_getref(L, Reference);
+        lua_getref(L, reference);
         p1.Push(State);
         p2.Push(State);
 
@@ -95,7 +98,7 @@ public struct LuauFunction : ILuauReference
         if (nresults == 0)
             return default!;
 
-        var luaReturn = LuauValue.ToValue(State);
+        using var luaReturn = LuauValue.ToValue(State);
         lua_pop(L, 1);
         if (luaReturn.TryGet(out TR? result, acceptNil: true))
             return result;
@@ -108,22 +111,21 @@ public struct LuauFunction : ILuauReference
     public static implicit operator IntoLuau(LuauFunction value) => (LuauValue)value;
 
     /// <inheritdoc />
-    public override readonly string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);
-
-    /// <summary> Remove the reference from the lua state </summary>
-    public unsafe void Dispose()
+    public override string ToString()
     {
-        if (State is null || Reference is 0)
-            return;
-        lua_unref(State.L, Reference);
-        Reference = 0;
+        if (State?.ReferenceTracker.TryResolveLuaRef(Reference, out int reference) is not true)
+            return "<nil>";
+        return Helpers.RefToString(State, reference);
     }
 
+    /// <summary> Remove the reference from the lua state </summary>
+    public void Dispose() => State?.ReferenceTracker.ReleaseRef(Reference);
+
     [MemberNotNull(nameof(State))]
-    private readonly void ThrowIfDisposed()
+    private void ThrowIfDisposed()
     {
         State.ThrowIfDisposed();
-        if (Reference is 0)
-            throw new ObjectDisposedException(nameof(LuauTable), "The reference to the LuauTable is invalid");
+        if (Reference is 0 || !State.ReferenceTracker.HasRegistryReference(Reference))
+            throw new ObjectDisposedException(nameof(LuauFunction), "The reference to the LuauFunction is invalid");
     }
 }
