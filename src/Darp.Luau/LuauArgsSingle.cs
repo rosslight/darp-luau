@@ -143,20 +143,20 @@ public readonly ref struct LuauArgsSingle
     public bool TryReadLuauTable(out LuauTable value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadLuauTable(1, out value, out error);
 
-    /// <inheritdoc cref="LuauArgs.TryReadLuauFunction(int, out LuauFunction, out string)"/>
-    public bool TryReadLuauFunction(out LuauFunction value, [NotNullWhen(false)] out string? error) =>
+    /// <inheritdoc cref="LuauArgs.TryReadLuauFunction(int, out LuauFunctionView, out string)"/>
+    public bool TryReadLuauFunction(out LuauFunctionView value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadLuauFunction(1, out value, out error);
 
-    /// <inheritdoc cref="LuauArgs.TryReadLuauString(int, out LuauString, out string)"/>
-    public bool TryReadLuauString(out LuauString value, [NotNullWhen(false)] out string? error) =>
+    /// <inheritdoc cref="LuauArgs.TryReadLuauString"/>
+    public bool TryReadLuauString(out LuauStringView value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadLuauString(1, out value, out error);
 
-    /// <inheritdoc cref="LuauArgs.TryReadLuauBuffer(int, out LuauBuffer, out string)"/>
-    public bool TryReadLuauBuffer(out LuauBuffer value, [NotNullWhen(false)] out string? error) =>
+    /// <inheritdoc cref="LuauArgs.TryReadLuauBuffer(int, out LuauBufferView, out string)"/>
+    public bool TryReadLuauBuffer(out LuauBufferView value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadLuauBuffer(1, out value, out error);
 
-    /// <inheritdoc cref="LuauArgs.TryReadLuauUserdata(int, out LuauUserdata, out string)"/>
-    public bool TryReadLuauUserdata(out LuauUserdata value, [NotNullWhen(false)] out string? error) =>
+    /// <inheritdoc cref="LuauArgs.TryReadLuauUserdata(int, out LuauUserdataView, out string)"/>
+    public bool TryReadLuauUserdata(out LuauUserdataView value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadLuauUserdata(1, out value, out error);
 
     /// <inheritdoc cref="LuauArgs.TryReadUserdata{T}(int, out T, out string)"/>

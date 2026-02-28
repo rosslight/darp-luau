@@ -44,4 +44,30 @@ internal static class Helpers
         lua_pop(L, 2);
         return str;
     }
+
+    /// <summary> Return the string representation of a string </summary>
+    /// <param name="state"> The state the stackIndex is associated with </param>
+    /// <param name="stackIndex"> The stackIndex </param>
+    /// <returns> The resulting string </returns>
+    public static unsafe string StackString(LuauState state, int stackIndex)
+    {
+        lua_State* L = state.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        var toStringFunc = "tostring"u8;
+
+        fixed (byte* pToStrFunc = toStringFunc)
+        {
+            lua_getglobal(L, pToStrFunc); // [tostring]
+        }
+        lua_pushvalue(L, stackIndex < 0 ? stackIndex - 1 : stackIndex); // [tostring, value]
+        lua_call(L, 1, 1); // [value, result]
+
+        nuint length;
+        byte* pStr = lua_tolstring(L, -1, &length);
+        string str = pStr is null ? "<no_str>" : Encoding.UTF8.GetString(pStr, (int)length);
+        lua_pop(L, 1);
+        return str;
+    }
 }

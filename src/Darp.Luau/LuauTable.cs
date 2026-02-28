@@ -66,7 +66,7 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
     /// <summary> Ability for <see cref="LuauTable"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
     /// <param name="value"> The table </param>
     /// <returns> The converted value </returns>
-    public static implicit operator IntoLuau(LuauTable value) => (LuauValue)value;
+    public static implicit operator IntoLuau(LuauTable value) => IntoLuau.FromRefSource(value.State, value.Reference);
 
     /// <summary> Gets the count of the table if viewed as a list </summary>
     /// <remarks> If a lua table has holes, this property is unreliable! </remarks>

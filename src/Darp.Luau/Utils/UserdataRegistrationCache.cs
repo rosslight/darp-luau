@@ -75,18 +75,26 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
             ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
 
-            var args = new LuauArgs(lua, argumentCount: 1, firstParameterStackIndex: 3);
-            Debug.Assert(args.ArgumentCount == 1);
-            var argsSingle = new LuauArgsSingle(args);
-            LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
-            if (!result.TryGetError(out string? error))
+            int callbackFrameToken = lua.EnterCallbackFrame();
+            try
             {
-                // Success
-                return 0;
+                var args = new LuauArgs(lua, argumentCount: 1, firstParameterStackIndex: 3, callbackFrameToken);
+                Debug.Assert(args.ArgumentCount == 1);
+                var argsSingle = new LuauArgsSingle(args);
+                LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
+                if (!result.TryGetError(out string? error))
+                {
+                    // Success
+                    return 0;
+                }
+                if (error == LuauReturn.NotHandled)
+                    return (string)$"attempt to set unknown userdata member '{resolvedMemberName}'";
+                return error;
             }
-            if (error == LuauReturn.NotHandled)
-                return (string)$"attempt to set unknown userdata member '{resolvedMemberName}'";
-            return error;
+            finally
+            {
+                lua.ExitCallbackFrame(callbackFrameToken);
+            }
         }
 
         static LuaResult<int, string> MethodCallbackManaged(LuauState lua, object? userdata)
@@ -113,18 +121,31 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             }
 
             int topBeforeInvoke = lua_gettop(L);
-            var functionArgs = new LuauArgs(lua, numberOfParameters, firstParameterStackIndex);
+            int callbackFrameToken = lua.EnterCallbackFrame();
+            var functionArgs = new LuauArgs(lua, numberOfParameters, firstParameterStackIndex, callbackFrameToken);
             Span<char> methodName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MethodName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MethodName, methodName);
             ReadOnlySpan<char> resolvedMethodName = methodName[..memberNameLength];
-            LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
-            lua_settop(L, topBeforeInvoke);
+            try
+            {
+                LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
+                lua_settop(L, topBeforeInvoke);
 
-            if (result.TryPushValues(lua, out int outputCount, out string? error))
-                return outputCount;
-            if (error == LuauReturn.NotHandled)
-                return (string)$"attempt to call unknown userdata method '{resolvedMethodName}'";
-            return error;
+                if (result.TryPushValues(lua, out int outputCount, out string? error))
+                    return outputCount;
+                if (error == LuauReturn.NotHandled)
+                    return (string)$"attempt to call unknown userdata method '{resolvedMethodName}'";
+                return error;
+            }
+            catch
+            {
+                lua_settop(L, topBeforeInvoke);
+                throw;
+            }
+            finally
+            {
+                lua.ExitCallbackFrame(callbackFrameToken);
+            }
         }
     }
 

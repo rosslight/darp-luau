@@ -38,9 +38,10 @@ internal static class EmitterHelper
             LuauValueType.NumberDecimal => "decimal",
             LuauValueType.LuauValue => "global::Darp.Luau.LuauValue",
             LuauValueType.LuauTable => "global::Darp.Luau.LuauTable",
-            LuauValueType.LuauFunction => "global::Darp.Luau.LuauFunction",
-            LuauValueType.LuauString => "global::Darp.Luau.LuauString",
-            LuauValueType.LuauBuffer => "global::System.ReadOnlySpan<byte>",
+            LuauValueType.LuauFunctionView => "global::Darp.Luau.LuauFunctionView",
+            LuauValueType.LuauStringView => "global::Darp.Luau.LuauStringView",
+            LuauValueType.LuauBufferView => "global::Darp.Luau.LuauBufferView",
+            LuauValueType.LuauUserdataView => "global::Darp.Luau.LuauUserdataView",
             LuauValueType.Enum => throw new ArgumentOutOfRangeException(
                 nameof(type),
                 type,

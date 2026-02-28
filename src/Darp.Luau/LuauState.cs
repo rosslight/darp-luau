@@ -20,6 +20,8 @@ public sealed unsafe class LuauState : IDisposable
     private readonly int _globalsReference;
     private readonly int _callbackWrapperReference;
     private readonly UserdataRegistrationCache _cache;
+    private readonly Stack<int> _activeCallbackFrameTokens = [];
+    private int _nextCallbackFrameToken = 1;
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
@@ -71,6 +73,7 @@ public sealed unsafe class LuauState : IDisposable
         EnabledLibraries = builtinLibraries;
         OpenBuiltinLibraries(EnabledLibraries);
 
+        // Push table to stack, get the reference and pop
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         _globalsReference = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
 
@@ -193,6 +196,39 @@ public sealed unsafe class LuauState : IDisposable
         LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
     }
 
+    internal int EnterCallbackFrame()
+    {
+        this.ThrowIfDisposed();
+        if (_nextCallbackFrameToken == int.MaxValue)
+            throw new InvalidOperationException("Too many callback frames were created for this state.");
+
+        int callbackFrameToken = _nextCallbackFrameToken++;
+        _activeCallbackFrameTokens.Push(callbackFrameToken);
+        return callbackFrameToken;
+    }
+
+    internal void ExitCallbackFrame(int callbackFrameToken)
+    {
+        if (_activeCallbackFrameTokens.Count == 0 || _activeCallbackFrameTokens.Peek() != callbackFrameToken)
+            throw new InvalidOperationException("Callback frame stack was corrupted.");
+
+        _activeCallbackFrameTokens.Pop();
+    }
+
+    internal bool IsCallbackFrameActive(int callbackFrameToken)
+    {
+        if (callbackFrameToken == 0)
+            return false;
+
+        foreach (int activeToken in _activeCallbackFrameTokens)
+        {
+            if (activeToken == callbackFrameToken)
+                return true;
+        }
+
+        return false;
+    }
+
     /// <summary> Create a new table </summary>
     /// <returns> The resulting table </returns>
     public LuauTable CreateTable()
@@ -237,7 +273,8 @@ public sealed unsafe class LuauState : IDisposable
             using var nestedGuard = new StackGuard(L, expectedDelta: 0);
 #endif
             int topBeforeInvoke = lua_gettop(luaState);
-            var args = new LuauArgs(this, numberOfParameters);
+            int callbackFrameToken = EnterCallbackFrame();
+            var args = new LuauArgs(this, numberOfParameters, firstParameterStackIndex: 1, callbackFrameToken);
             try
             {
                 LuauReturn result = onCalled(args);
@@ -266,6 +303,10 @@ public sealed unsafe class LuauState : IDisposable
                 nestedGuard.OverwriteExpectedDelta(returnCount);
 #endif
                 return returnCount;
+            }
+            finally
+            {
+                ExitCallbackFrame(callbackFrameToken);
             }
         }
     }

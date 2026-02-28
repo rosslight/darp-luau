@@ -2,12 +2,14 @@ using Shouldly;
 
 namespace Darp.Luau.Tests;
 
-public sealed class LibraryLoadingTests
+public sealed class LibraryLoadingTests : IDisposable
 {
+    private readonly List<LuauState> _states = [];
+
     [Fact]
     public void BuiltinLibraries_None_ShouldKeepBaseAndTable()
     {
-        using var state = new LuauState(0);
+        LuauState state = CreateState(0);
 
         state.EnabledLibraries.ShouldBe(LuauLibraries.Base | LuauLibraries.Table);
         state.Globals.ContainsKey("pcall").ShouldBeTrue();
@@ -19,7 +21,7 @@ public sealed class LibraryLoadingTests
     [Fact]
     public void BuiltinLibraries_ShouldLoadOnlyRequestedOptionalLibraries()
     {
-        using var state = new LuauState(LuauLibraries.Math | LuauLibraries.Vector);
+        LuauState state = CreateState(LuauLibraries.Math | LuauLibraries.Vector);
 
         state.EnabledLibraries.ShouldBe(
             LuauLibraries.Base | LuauLibraries.Table | LuauLibraries.Math | LuauLibraries.Vector
@@ -32,7 +34,7 @@ public sealed class LibraryLoadingTests
     [Fact]
     public void CustomLibrary_ShouldBeAvailableAsGlobalTable()
     {
-        using var state = new LuauState();
+        LuauState state = CreateState();
         state.OpenLibrary(
             "game",
             static (state, in library) =>
@@ -66,7 +68,7 @@ public sealed class LibraryLoadingTests
     [Fact]
     public void CustomLibrary_Conflict_ShouldThrow()
     {
-        using var state = new LuauState();
+        LuauState state = CreateState();
         state.OpenLibrary("game", static (_, in _) => { });
 
         Should.Throw<InvalidOperationException>(() => state.OpenLibrary("game", static (_, in _) => { }));
@@ -75,12 +77,29 @@ public sealed class LibraryLoadingTests
     [Fact]
     public void RegisterLibrary_ShouldAllowRuntimeRegistration()
     {
-        using var state = new LuauState();
+        LuauState state = CreateState();
 
         state.OpenLibrary("game", static (_, in library) => library.Set("answer", 99));
         state.DoString("answer = game.answer");
 
         state.Globals.TryGet("answer", out int answer).ShouldBeTrue();
         answer.ShouldBe(99);
+    }
+
+    public void Dispose()
+    {
+        foreach (LuauState state in _states)
+        {
+            if (!state.IsDisposed)
+                state.Dispose();
+            state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(0);
+        }
+    }
+
+    private LuauState CreateState(LuauLibraries libraries = LuauLibraries.All)
+    {
+        LuauState state = new(libraries);
+        _states.Add(state);
+        return state;
     }
 }

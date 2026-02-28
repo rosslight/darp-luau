@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
@@ -21,6 +22,7 @@ public readonly ref struct IntoLuau
         Value,
         Buffer,
         UserdataFactory,
+        RefSource,
     }
 
     /// <summary> Describes of which kind the resulting <see cref="LuauValue"/> will be </summary>
@@ -32,6 +34,7 @@ public readonly ref struct IntoLuau
     private readonly ReadOnlySpan<byte> _readOnlyBuffer;
     private readonly LuauValue _luauValue;
     private readonly Func<LuauState, LuauUserdata>? _factory;
+    private readonly LuauRefSource _source;
 
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
@@ -64,6 +67,17 @@ public readonly ref struct IntoLuau
         Type = Kind.UserdataFactory;
         _factory = factory;
     }
+
+    private IntoLuau(LuauRefSource source)
+    {
+        Type = Kind.RefSource;
+        _source = source;
+    }
+
+    internal static IntoLuau FromRefSource(LuauRefSource source) => new(source);
+
+    internal static IntoLuau FromRefSource(LuauState? state, int reference) =>
+        new(LuauRefSource.FromReference(state, reference, lua_Type.LUA_TTABLE));
 
     internal unsafe void Push(LuauState state)
     {
@@ -131,6 +145,9 @@ public readonly ref struct IntoLuau
                 {
                     userdata.Dispose();
                 }
+                break;
+            case Kind.RefSource:
+                _source.Push(state.L, nameof(IntoLuau));
                 break;
             case Kind.Nil:
             default:

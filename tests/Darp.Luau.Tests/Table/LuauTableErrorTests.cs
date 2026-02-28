@@ -2,13 +2,14 @@ using Shouldly;
 
 namespace Darp.Luau.Tests.Table;
 
-public sealed class LuauTableErrorTests
+public sealed class LuauTableErrorTests : IDisposable
 {
+    private readonly LuauState _lua = new();
+
     [Fact]
     public void Set_null_key_throws()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         string? nullKey = null;
 
         Should.Throw<ArgumentNullException>(() => table.Set(nullKey!, 42));
@@ -17,10 +18,9 @@ public sealed class LuauTableErrorTests
     [Fact]
     public void Table_after_state_disposal_throws()
     {
-        var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        LuauTable table = _lua.CreateTable();
         table.Set("key", 42);
-        lua.Dispose();
+        _lua.Dispose();
 
         Should.Throw<ObjectDisposedException>(() => table.Set("key2", 43));
     }
@@ -28,11 +28,17 @@ public sealed class LuauTableErrorTests
     [Fact]
     public void Table_after_table_dispose_throws()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        LuauTable table = _lua.CreateTable();
         table.Set("key", 42);
         table.Dispose();
 
         Should.Throw<ObjectDisposedException>(() => table.Set("key2", 43));
+    }
+
+    public void Dispose()
+    {
+        if (!_lua.IsDisposed)
+            _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2);
+        _lua.Dispose();
     }
 }

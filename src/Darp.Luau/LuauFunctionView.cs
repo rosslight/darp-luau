@@ -3,17 +3,21 @@ using Darp.Luau.Native;
 
 namespace Darp.Luau;
 
-public readonly struct LuauFunction : IDisposable
+/// <summary>
+/// Represents a borrowed, stack-bound Luau function value read from callback arguments.
+/// </summary>
+/// <remarks>
+/// This view does not own a registry reference.
+/// It is valid only while the originating callback frame is active on the same <see cref="LuauState"/>.
+/// Using it after the callback frame ends throws <see cref="ObjectDisposedException"/>.
+/// </remarks>
+public readonly ref struct LuauFunctionView
 {
     private readonly LuauRefSource _source;
 
-    /// <summary> Do (not) initialize a new LuauFunction </summary>
-    [Obsolete("Do not initialize the LuauFunction. Create using the LuauState instead", false)]
-    public LuauFunction() { }
-
-    internal LuauFunction(LuauState? state, int reference)
+    internal LuauFunctionView(LuauState? state, int stackIndex, int callbackFrameToken)
     {
-        _source = LuauRefSource.FromReference(state, reference, lua_Type.LUA_TFUNCTION);
+        _source = LuauRefSource.FromCallbackStack(state, stackIndex, callbackFrameToken, lua_Type.LUA_TFUNCTION);
     }
 
     /// <summary> Invokes the borrowed function with no arguments and converts the result. </summary>
@@ -25,7 +29,7 @@ public readonly struct LuauFunction : IDisposable
     /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
     public TR Invoke<TR>()
-        where TR : allows ref struct => LuauFunctionInvokeCore.Invoke0<TR>(_source, nameof(LuauFunction));
+        where TR : allows ref struct => LuauFunctionInvokeCore.Invoke0<TR>(_source, nameof(LuauFunctionView));
 
     /// <summary> Invokes the borrowed function with one argument and converts the result. </summary>
     /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
@@ -37,7 +41,7 @@ public readonly struct LuauFunction : IDisposable
     /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
     public TR Invoke<TR>(in IntoLuau p1)
-        where TR : allows ref struct => LuauFunctionInvokeCore.Invoke1<TR>(_source, p1, nameof(LuauFunction));
+        where TR : allows ref struct => LuauFunctionInvokeCore.Invoke1<TR>(_source, p1, nameof(LuauFunctionView));
 
     /// <summary> Invokes the borrowed function with two arguments and converts the result. </summary>
     /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
@@ -50,21 +54,15 @@ public readonly struct LuauFunction : IDisposable
     /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
     public TR Invoke<TR>(in IntoLuau p1, in IntoLuau p2)
-        where TR : allows ref struct => LuauFunctionInvokeCore.Invoke2<TR>(_source, p1, p2, nameof(LuauFunction));
+        where TR : allows ref struct => LuauFunctionInvokeCore.Invoke2<TR>(_source, p1, p2, nameof(LuauFunctionView));
 
     /// <summary>
-    /// Converts this function to an <see cref="IntoLuau"/> value without creating an owned reference.
+    /// Converts this borrowed function view to an <see cref="IntoLuau"/> value without creating an owned reference.
     /// </summary>
     /// <param name="value">The borrowed function view.</param>
     /// <returns>A temporary representation with the same callback-frame lifetime constraints.</returns>
-    public static implicit operator IntoLuau(LuauFunction value) => IntoLuau.FromRefSource(value._source);
-
-    public static explicit operator LuauValue(LuauFunction value) =>
-        LuauValue.FromSource(value._source, LuauValueType.Function);
+    public static implicit operator IntoLuau(LuauFunctionView value) => IntoLuau.FromRefSource(value._source);
 
     /// <inheritdoc />
     public override string ToString() => _source.ToString();
-
-    /// <summary> Remove the reference from the lua state </summary>
-    public void Dispose() => _source.Dispose();
 }

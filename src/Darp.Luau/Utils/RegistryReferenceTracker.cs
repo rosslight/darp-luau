@@ -38,10 +38,11 @@ internal sealed class RegistryReferenceTracker(LuauState state)
     public unsafe int TrackRef(lua_State* L, int stackIndex, bool pinned = false)
     {
         ArgumentNullException.ThrowIfNull(L);
+        if ((nint)L != (nint)_state.L)
+            throw new InvalidOperationException("Cross-state reference tracking is not allowed.");
         if (_nextTrackedReferenceHandle == int.MaxValue)
             throw new InvalidOperationException("Too many tracked registry references were created for this state.");
 #if DEBUG
-        ArgumentOutOfRangeException.ThrowIfNotEqual((nint)L, (nint)_state.L);
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         int luaReference = lua_ref(L, stackIndex);
@@ -86,6 +87,9 @@ internal sealed class RegistryReferenceTracker(LuauState state)
 
     public unsafe int CloneTrackedReference(lua_State* L, int handle, string ownerTypeName)
     {
+        ArgumentNullException.ThrowIfNull(L);
+        if ((nint)L != (nint)_state.L)
+            throw new InvalidOperationException("Cross-state reference cloning is not allowed.");
         int oldRef = ResolveLuaRef(handle, ownerTypeName);
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
@@ -95,6 +99,9 @@ internal sealed class RegistryReferenceTracker(LuauState state)
         lua_pop(L, 1);
         return newHandle;
     }
+
+    public unsafe int CloneTrackedReference(int handle, string ownerTypeName) =>
+        CloneTrackedReference(_state.L, handle, ownerTypeName);
 
     public unsafe void ReleaseRef(int handle)
     {
@@ -120,6 +127,6 @@ internal sealed class RegistryReferenceTracker(LuauState state)
         _releasedRegistryReferenceCount += _trackedReferences.Count;
         _trackedReferences.Clear();
     }
-
-    private readonly record struct TrackedReference(int LuaReference, bool IsPinned);
 }
+
+internal readonly record struct TrackedReference(int LuaReference, bool IsPinned);

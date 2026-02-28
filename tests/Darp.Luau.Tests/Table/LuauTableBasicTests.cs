@@ -2,13 +2,14 @@ using Shouldly;
 
 namespace Darp.Luau.Tests.Table;
 
-public sealed class LuauTableBasicTests
+public sealed class LuauTableBasicTests : IDisposable
 {
+    private readonly LuauState _lua = new();
+
     [Fact]
     public void Set_Then_GetNumber_Double_RoundTrips()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set("myKey", 1);
 
         double value = table.GetNumber("myKey");
@@ -19,8 +20,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Set_Then_GetNumber_RoundTrips()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set("myKey", 1);
 
         table.GetNumber("myKey").ShouldBe(1);
@@ -29,8 +29,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Set_Then_GetBoolean_RoundTrips()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set("boolKey", true);
 
         bool value = table.GetBoolean("boolKey");
@@ -41,9 +40,9 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Set_Then_GetUtf8String_RoundTrips()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
-        table.Set("stringKey", lua.CreateString("test string"));
+        using LuauTable table = _lua.CreateTable();
+        using LuauString str = _lua.CreateString("test string");
+        table.Set("stringKey", str);
 
         table.GetUtf8String("stringKey").ShouldBe("test string");
     }
@@ -51,8 +50,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Set_Overwrites_ExistingKey()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set("key", 1);
         table.Set("key", 42);
 
@@ -62,8 +60,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Set_MultipleEntries_AllRetrievable()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set("key1", 1);
         table.Set("key2", 2);
         table.Set("key3", 3);
@@ -76,8 +73,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void ContainsKey_PresentKey_ReturnsTrue()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set("present", 1);
 
         table.ContainsKey("present").ShouldBeTrue();
@@ -86,8 +82,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void ContainsKey_MissingKey_ReturnsFalse()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
 
         table.ContainsKey("missing").ShouldBeFalse();
     }
@@ -95,8 +90,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void ContainsKey_KeySetToNil_ReturnsFalse()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set("key", 1);
         table.Set("key", (string?)null);
 
@@ -106,11 +100,10 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void ContainsKey_UsesIndexMetamethod_ReturnsTrue()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
-        lua.Globals.Set("tableUnderTest", table);
+        using LuauTable table = _lua.CreateTable();
+        _lua.Globals.Set("tableUnderTest", table);
 
-        lua.DoString(
+        _lua.DoString(
             "setmetatable(tableUnderTest, { __index = function(_, key) if key == 'virtualKey' then return 123 end end })"
         );
 
@@ -120,9 +113,8 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Set_NestedTable_RoundTrips()
     {
-        using var lua = new LuauState();
-        LuauTable parent = lua.CreateTable();
-        LuauTable nested = lua.CreateTable();
+        using LuauTable parent = _lua.CreateTable();
+        using LuauTable nested = _lua.CreateTable();
         nested.Set("nestedKey", 123);
         parent.Set("tableKey", nested);
 
@@ -133,8 +125,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void TryGet_MissingKey_ReturnsFalseAndDefault_ForTypedOverload()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
 
         table.TryGet("missing", out double value).ShouldBeFalse();
 
@@ -144,8 +135,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void GetNumber_MissingKey_ThrowsException()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
 
         Should.Throw<Exception>(() => table.GetNumber("missing"));
     }
@@ -153,8 +143,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void TryGetNumberOrNil_MissingKey_ReturnsTrueAndNull()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
 
         table.TryGetNumberOrNil("missing", out double? value).ShouldBeTrue();
         value.ShouldBeNull();
@@ -163,8 +152,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void GetNumberOrNil_MissingKey_ReturnsNull()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
 
         table.GetNumberOrNil("missing").ShouldBeNull();
     }
@@ -172,8 +160,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void TryGet_MissingKey_ReturnsNil_ForRawValueOverload()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
 
         table.TryGet("missing", out LuauValue value).ShouldBeTrue();
 
@@ -184,8 +171,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Indexer_MissingKey_ReturnsNilValue()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
 
         LuauValue value = table["missing"];
 
@@ -196,8 +182,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Set_Then_GetNumber_NumericKey_RoundTrips()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set(1.0, 42);
 
         table.GetNumber(1.0).ShouldBe(42);
@@ -206,10 +191,9 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Set_Then_GetLuauValue_SpanCharKey_RoundTrips()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        const string keyStr = "spanCharKey";
+        using LuauTable table = _lua.CreateTable();
 
-        string keyStr = "spanCharKey";
         ReadOnlySpan<char> key = keyStr.AsSpan();
         table.Set(key, 42.0);
 
@@ -221,11 +205,10 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Set_Then_GetLuauValue_SpanByteKey_RoundTrips()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
 
         var key = "spanByteKey"u8;
-        LuauValue keyValue = (LuauValue)lua.CreateString(key);
+        using var keyValue = (LuauValue)_lua.CreateString(key);
         table.Set(keyValue, 42.0);
 
         LuauValue value = table.GetLuauValue(keyValue);
@@ -236,8 +219,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void TryGet_WrongType_StringAsNumber_ReturnsFalse()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set("stringKey", "not a number");
 
         table.TryGet("stringKey", out double value).ShouldBeFalse();
@@ -248,8 +230,7 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void TryGet_WrongType_NumberAsString_ReturnsFalse()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set("numKey", 42.0);
 
         table.TryGet("numKey", out string? value).ShouldBeFalse();
@@ -260,9 +241,8 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void MultipleTables_AreIndependent()
     {
-        using var lua = new LuauState();
-        LuauTable table1 = lua.CreateTable();
-        LuauTable table2 = lua.CreateTable();
+        using LuauTable table1 = _lua.CreateTable();
+        using LuauTable table2 = _lua.CreateTable();
 
         table1.Set("key", 1);
         table2.Set("key", 2);
@@ -274,10 +254,9 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void NestedTables_MultipleLevels_RoundTrip()
     {
-        using var lua = new LuauState();
-        LuauTable level1 = lua.CreateTable();
-        LuauTable level2 = lua.CreateTable();
-        LuauTable level3 = lua.CreateTable();
+        using LuauTable level1 = _lua.CreateTable();
+        using LuauTable level2 = _lua.CreateTable();
+        using LuauTable level3 = _lua.CreateTable();
 
         level3.Set("deep", 999);
         level2.Set("level3", level3);
@@ -291,13 +270,13 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Table_WithMixedValueTypes_RoundTrips()
     {
-        using var lua = new LuauState();
-        LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
 
         table.Set("bool", true);
         table.Set("number", 42.0);
-        table.Set("string", lua.CreateString("text"));
-        LuauTable nested = lua.CreateTable();
+        using LuauString str = _lua.CreateString("text");
+        table.Set("string", str);
+        using LuauTable nested = _lua.CreateTable();
         nested.Set("nested", 123);
         table.Set("table", nested);
 
@@ -312,7 +291,13 @@ public sealed class LuauTableBasicTests
     [Fact]
     public void Table_DefaultShouldBeNil()
     {
-        LuauTable table = default;
+        using LuauTable table = default;
         table.ToString().ShouldBe("<nil>");
+    }
+
+    public void Dispose()
+    {
+        _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2);
+        _lua.Dispose();
     }
 }

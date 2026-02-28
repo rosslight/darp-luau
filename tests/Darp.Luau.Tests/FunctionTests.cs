@@ -2,33 +2,36 @@ using Shouldly;
 
 namespace Darp.Luau.Tests;
 
-public sealed class FunctionTests
+public sealed class FunctionTests : IDisposable
 {
+    private readonly LuauState _state = new();
+
     [Fact]
     public void Simple()
     {
-        using var state = new LuauState();
-        state.DoString(
+        _state.DoString(
             """
             function get_value(message: string)
               return message;
             end
             """
         );
-        _ = state.Globals.TryGet("get_value", out LuauFunction func);
-        string r = func.Call<string>("Message");
-        r.ShouldBe("Message");
+        _ = _state.Globals.TryGet("get_value", out LuauFunction func);
+        using (func)
+        {
+            string r = func.Invoke<string>("Message");
+            r.ShouldBe("Message");
+        }
     }
 
     [Fact]
     public void CSharpFunction_Adder_ShouldBeCalled()
     {
-        using var state = new LuauState();
-        LuauFunction func = state.CreateFunction(Add);
-        state.Globals.Set("add", func);
+        using LuauFunction func = _state.CreateFunction(Add);
+        _state.Globals.Set("add", func);
 
-        state.DoString("result = add(1, 2)");
-        state.Globals.TryGet("result", out int result).ShouldBeTrue();
+        _state.DoString("result = add(1, 2)");
+        _state.Globals.TryGet("result", out int result).ShouldBeTrue();
 
         result.ShouldBe(3);
         return;
@@ -39,18 +42,17 @@ public sealed class FunctionTests
     [Fact]
     public void CSharpFunction_Exception_ShouldBeCatchableByPCall()
     {
-        using var state = new LuauState();
-        state.Globals.Set(
-            "explode",
-            state.CreateFunctionBuilder(static _ => throw new InvalidOperationException("Boom from managed function"))
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ =>
+            throw new InvalidOperationException("Boom from managed function")
         );
+        _state.Globals.Set("explode", func);
 
-        state.DoString("ok, err = pcall(explode)");
+        _state.DoString("ok, err = pcall(explode)");
 
-        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
 
-        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        _state.Globals.TryGet("err", out string? err).ShouldBeTrue();
         err.ShouldContain("managed function callback failed");
         err.ShouldContain("Boom from managed function");
     }
@@ -58,13 +60,12 @@ public sealed class FunctionTests
     [Fact]
     public void CSharpFunction_Exception_ShouldBeCatchable()
     {
-        using var state = new LuauState();
-        state.Globals.Set(
-            "explode",
-            state.CreateFunctionBuilder(static _ => throw new InvalidOperationException("Boom from managed function"))
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ =>
+            throw new InvalidOperationException("Boom from managed function")
         );
+        _state.Globals.Set("explode", func);
 
-        LuaException exception = Should.Throw<LuaException>(() => state.DoString("explode();"));
+        LuaException exception = Should.Throw<LuaException>(() => _state.DoString("explode();"));
         exception.Message.ShouldContain("managed function callback failed");
         exception.Message.ShouldContain("Boom from managed function");
     }
@@ -72,232 +73,220 @@ public sealed class FunctionTests
     [Fact]
     public void CSharpFunction_ResultObject_ShouldReturnValue()
     {
-        using var state = new LuauState();
-        state.Globals.Set(
-            "add",
-            state.CreateFunctionBuilder(static args =>
-            {
-                if (
-                    !args.TryReadNumber(1, out int a, out string? error) || !args.TryReadNumber(2, out int b, out error)
-                )
-                    return LuauReturn.Error(error);
+        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadNumber(1, out int a, out string? error) || !args.TryReadNumber(2, out int b, out error))
+                return LuauReturn.Error(error);
 
-                return LuauReturn.Ok(a + b);
-            })
-        );
+            return LuauReturn.Ok(a + b);
+        });
+        _state.Globals.Set("add", func);
 
-        state.DoString("result = add(1, 2)");
-        state.Globals.TryGet("result", out int result).ShouldBeTrue();
+        _state.DoString("result = add(1, 2)");
+        _state.Globals.TryGet("result", out int result).ShouldBeTrue();
         result.ShouldBe(3);
     }
 
     [Fact]
     public void CSharpFunction_ResultObject_ShouldReturnErrorString()
     {
-        using var state = new LuauState();
-        state.Globals.Set("fail", state.CreateFunctionBuilder(static _ => LuauReturn.Error("user facing error")));
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Error("user facing error"));
+        _state.Globals.Set("fail", func);
 
-        state.DoString("ok, err = pcall(fail)");
+        _state.DoString("ok, err = pcall(fail)");
 
-        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
 
-        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        _state.Globals.TryGet("err", out string? err).ShouldBeTrue();
         err.ShouldContain("user facing error");
     }
 
     [Fact]
     public void CSharpFunction_ResultObject_ShouldReturnStringValueViaOk()
     {
-        using var state = new LuauState();
-        state.Globals.Set("greet", state.CreateFunctionBuilder(static _ => LuauReturn.Ok("hello from csharp")));
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok("hello from csharp"));
+        _state.Globals.Set("greet", func);
 
-        state.DoString("result = greet()");
+        _state.DoString("result = greet()");
 
-        state.Globals.TryGet("result", out string? result).ShouldBeTrue();
+        _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
         result.ShouldBe("hello from csharp");
     }
 
     [Fact]
     public void CSharpFunction_ResultObject_ImplicitString_ShouldBeAnError()
     {
-        using var state = new LuauState();
-        state.Globals.Set("fail", state.CreateFunctionBuilder(static _ => LuauReturn.Error("error from callback")));
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Error("error from callback"));
+        _state.Globals.Set("fail", func);
 
-        state.DoString("ok, err = pcall(fail)");
+        _state.DoString("ok, err = pcall(fail)");
 
-        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
 
-        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        _state.Globals.TryGet("err", out string? err).ShouldBeTrue();
         err.ShouldContain("error from callback");
     }
 
     [Fact]
     public void CSharpFunction_ResultObject_ShouldSupportNoReturnValues()
     {
-        using var state = new LuauState();
-        state.Globals.Set("touch", state.CreateFunctionBuilder(static _ => LuauReturn.Ok()));
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok());
+        _state.Globals.Set("touch", func);
 
-        state.DoString("returnCount = select('#', touch())");
+        _state.DoString("returnCount = select('#', touch())");
 
-        state.Globals.TryGet("returnCount", out int returnCount).ShouldBeTrue();
+        _state.Globals.TryGet("returnCount", out int returnCount).ShouldBeTrue();
         returnCount.ShouldBe(0);
     }
 
     [Fact]
     public void CSharpFunction_ResultObject_ShouldSupportMultipleReturnValues()
     {
-        using var state = new LuauState();
-        state.Globals.Set("pair", state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, 11)));
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, 11));
+        _state.Globals.Set("pair", func);
 
-        state.DoString(
+        _state.DoString(
             """
             first, second = pair()
             returnCount = select('#', pair())
             """
         );
 
-        state.Globals.TryGet("first", out int first).ShouldBeTrue();
+        _state.Globals.TryGet("first", out int first).ShouldBeTrue();
         first.ShouldBe(10);
 
-        state.Globals.TryGet("second", out int second).ShouldBeTrue();
+        _state.Globals.TryGet("second", out int second).ShouldBeTrue();
         second.ShouldBe(11);
 
-        state.Globals.TryGet("returnCount", out int returnCount).ShouldBeTrue();
+        _state.Globals.TryGet("returnCount", out int returnCount).ShouldBeTrue();
         returnCount.ShouldBe(2);
     }
 
     [Fact]
     public void Func_NoArgs_Returns()
     {
-        using var lua = new LuauState();
+        using LuauFunction f1 = _state.CreateFunction(() => true);
+        using LuauFunction f2 = _state.CreateFunction(() => (sbyte)1);
+        using LuauFunction f3 = _state.CreateFunction(() => (byte)1);
+        using LuauFunction f4 = _state.CreateFunction(() => (short)1);
+        using LuauFunction f5 = _state.CreateFunction(() => (ushort)1);
+        using LuauFunction f6 = _state.CreateFunction(() => 1);
+        using LuauFunction f7 = _state.CreateFunction(() => (uint)1);
+        using LuauFunction f8 = _state.CreateFunction(() => (long)1);
+        using LuauFunction f9 = _state.CreateFunction(() => (ulong)1);
+        using LuauFunction f10 = _state.CreateFunction(() => (Int128)1);
+        using LuauFunction f11 = _state.CreateFunction(() => (UInt128)1);
+        using LuauFunction f12 = _state.CreateFunction(() => "1");
+        using LuauFunction f13 = _state.CreateFunction(() => (Half)1);
+        using LuauFunction f14 = _state.CreateFunction(() => (float)1);
+        using LuauFunction f15 = _state.CreateFunction(() => (double)1);
+        using LuauFunction f16 = _state.CreateFunction(() => (decimal)1);
 
-        LuauFunction f1 = lua.CreateFunction(() => true);
-        LuauFunction f2 = lua.CreateFunction(() => (sbyte)1);
-        LuauFunction f3 = lua.CreateFunction(() => (byte)1);
-        LuauFunction f4 = lua.CreateFunction(() => (short)1);
-        LuauFunction f5 = lua.CreateFunction(() => (ushort)1);
-        LuauFunction f6 = lua.CreateFunction(() => 1);
-        LuauFunction f7 = lua.CreateFunction(() => (uint)1);
-        LuauFunction f8 = lua.CreateFunction(() => (long)1);
-        LuauFunction f9 = lua.CreateFunction(() => (ulong)1);
-        LuauFunction f10 = lua.CreateFunction(() => (Int128)1);
-        LuauFunction f11 = lua.CreateFunction(() => (UInt128)1);
-        LuauFunction f12 = lua.CreateFunction(() => "1");
-        LuauFunction f13 = lua.CreateFunction(() => (Half)1);
-        LuauFunction f14 = lua.CreateFunction(() => (float)1);
-        LuauFunction f15 = lua.CreateFunction(() => (double)1);
-        LuauFunction f16 = lua.CreateFunction(() => (decimal)1);
-
-        f1.Call<bool>().ShouldBe(true);
-        f2.Call<sbyte>().ShouldBe((sbyte)1);
-        f3.Call<byte>().ShouldBe((byte)1);
-        f4.Call<short>().ShouldBe((short)1);
-        f5.Call<ushort>().ShouldBe((ushort)1);
-        f6.Call<int>().ShouldBe(1);
-        f7.Call<uint>().ShouldBe((uint)1);
-        f8.Call<long>().ShouldBe(1);
-        f9.Call<ulong>().ShouldBe((ulong)1);
-        f10.Call<Int128>().ShouldBe(1);
-        f11.Call<UInt128>().ShouldBe((UInt128)1);
-        f12.Call<string>().ShouldBe("1");
-        f13.Call<Half>().ShouldBe((Half)1);
-        f14.Call<float>().ShouldBe(1);
-        f15.Call<double>().ShouldBe(1);
-        f16.Call<decimal>().ShouldBe(1);
+        f1.Invoke<bool>().ShouldBe(true);
+        f2.Invoke<sbyte>().ShouldBe((sbyte)1);
+        f3.Invoke<byte>().ShouldBe((byte)1);
+        f4.Invoke<short>().ShouldBe((short)1);
+        f5.Invoke<ushort>().ShouldBe((ushort)1);
+        f6.Invoke<int>().ShouldBe(1);
+        f7.Invoke<uint>().ShouldBe((uint)1);
+        f8.Invoke<long>().ShouldBe(1);
+        f9.Invoke<ulong>().ShouldBe((ulong)1);
+        f10.Invoke<Int128>().ShouldBe(1);
+        f11.Invoke<UInt128>().ShouldBe((UInt128)1);
+        f12.Invoke<string>().ShouldBe("1");
+        f13.Invoke<Half>().ShouldBe((Half)1);
+        f14.Invoke<float>().ShouldBe(1);
+        f15.Invoke<double>().ShouldBe(1);
+        f16.Invoke<decimal>().ShouldBe(1);
     }
 
     [Fact]
     public void Func_OneArg_Returns()
     {
-        using var lua = new LuauState();
+        using LuauFunction f1 = _state.CreateFunction((bool x) => x);
+        using LuauFunction f2 = _state.CreateFunction((sbyte x) => x);
+        using LuauFunction f3 = _state.CreateFunction((byte x) => x);
+        using LuauFunction f4 = _state.CreateFunction((short x) => x);
+        using LuauFunction f5 = _state.CreateFunction((ushort x) => x);
+        using LuauFunction f6 = _state.CreateFunction((int x) => x);
+        using LuauFunction f7 = _state.CreateFunction((uint x) => x);
+        using LuauFunction f8 = _state.CreateFunction((long x) => x);
+        using LuauFunction f9 = _state.CreateFunction((ulong x) => x);
+        using LuauFunction f10 = _state.CreateFunction((Int128 x) => x);
+        using LuauFunction f11 = _state.CreateFunction((UInt128 x) => x);
+        using LuauFunction f12 = _state.CreateFunction((string x) => x);
+        using LuauFunction f13 = _state.CreateFunction((Half x) => x);
+        using LuauFunction f14 = _state.CreateFunction((float x) => x);
+        using LuauFunction f15 = _state.CreateFunction((double x) => x);
+        using LuauFunction f16 = _state.CreateFunction((decimal x) => x);
 
-        LuauFunction f1 = lua.CreateFunction((bool x) => x);
-        LuauFunction f2 = lua.CreateFunction((sbyte x) => x);
-        LuauFunction f3 = lua.CreateFunction((byte x) => x);
-        LuauFunction f4 = lua.CreateFunction((short x) => x);
-        LuauFunction f5 = lua.CreateFunction((ushort x) => x);
-        LuauFunction f6 = lua.CreateFunction((int x) => x);
-        LuauFunction f7 = lua.CreateFunction((uint x) => x);
-        LuauFunction f8 = lua.CreateFunction((long x) => x);
-        LuauFunction f9 = lua.CreateFunction((ulong x) => x);
-        LuauFunction f10 = lua.CreateFunction((Int128 x) => x);
-        LuauFunction f11 = lua.CreateFunction((UInt128 x) => x);
-        LuauFunction f12 = lua.CreateFunction((string x) => x);
-        LuauFunction f13 = lua.CreateFunction((Half x) => x);
-        LuauFunction f14 = lua.CreateFunction((float x) => x);
-        LuauFunction f15 = lua.CreateFunction((double x) => x);
-        LuauFunction f16 = lua.CreateFunction((decimal x) => x);
-
-        f1.Call<bool>(true).ShouldBe(true);
-        f2.Call<sbyte>(1).ShouldBe((sbyte)1);
-        f3.Call<byte>(1).ShouldBe((byte)1);
-        f4.Call<short>(1).ShouldBe((short)1);
-        f5.Call<ushort>(1).ShouldBe((ushort)1);
-        f6.Call<int>(1).ShouldBe(1);
-        f7.Call<uint>(1).ShouldBe((uint)1);
-        f8.Call<long>(1).ShouldBe(1);
-        f9.Call<ulong>(1).ShouldBe((ulong)1);
-        f10.Call<Int128>(1).ShouldBe(1);
-        f11.Call<UInt128>(1).ShouldBe((UInt128)1);
-        f12.Call<string>("1").ShouldBe("1");
-        f13.Call<Half>(1).ShouldBe((Half)1);
-        f14.Call<float>(1).ShouldBe(1);
-        f15.Call<double>(1).ShouldBe(1);
-        f16.Call<decimal>(1).ShouldBe(1);
+        f1.Invoke<bool>(true).ShouldBe(true);
+        f2.Invoke<sbyte>(1).ShouldBe((sbyte)1);
+        f3.Invoke<byte>(1).ShouldBe((byte)1);
+        f4.Invoke<short>(1).ShouldBe((short)1);
+        f5.Invoke<ushort>(1).ShouldBe((ushort)1);
+        f6.Invoke<int>(1).ShouldBe(1);
+        f7.Invoke<uint>(1).ShouldBe((uint)1);
+        f8.Invoke<long>(1).ShouldBe(1);
+        f9.Invoke<ulong>(1).ShouldBe((ulong)1);
+        f10.Invoke<Int128>(1).ShouldBe(1);
+        f11.Invoke<UInt128>(1).ShouldBe((UInt128)1);
+        f12.Invoke<string>("1").ShouldBe("1");
+        f13.Invoke<Half>(1).ShouldBe((Half)1);
+        f14.Invoke<float>(1).ShouldBe(1);
+        f15.Invoke<double>(1).ShouldBe(1);
+        f16.Invoke<decimal>(1).ShouldBe(1);
     }
 
     [Fact]
     public void Func_OneArgNullable_Returns()
     {
-        using var lua = new LuauState();
+        using LuauFunction f1 = _state.CreateFunction((bool? x) => x);
+        using LuauFunction f2 = _state.CreateFunction((sbyte? x) => x);
+        using LuauFunction f3 = _state.CreateFunction((byte? x) => x);
+        using LuauFunction f4 = _state.CreateFunction((short? x) => x);
+        using LuauFunction f5 = _state.CreateFunction((ushort? x) => x);
+        using LuauFunction f6 = _state.CreateFunction((int? x) => x);
+        using LuauFunction f7 = _state.CreateFunction((uint? x) => x);
+        using LuauFunction f8 = _state.CreateFunction((long? x) => x);
+        using LuauFunction f9 = _state.CreateFunction((ulong? x) => x);
+        using LuauFunction f10 = _state.CreateFunction((Int128? x) => x);
+        using LuauFunction f11 = _state.CreateFunction((UInt128? x) => x);
+        using LuauFunction f12 = _state.CreateFunction((string? x) => x);
+        using LuauFunction f13 = _state.CreateFunction((Half? x) => x);
+        using LuauFunction f14 = _state.CreateFunction((float? x) => x);
+        using LuauFunction f15 = _state.CreateFunction((double? x) => x);
+        using LuauFunction f16 = _state.CreateFunction((decimal? x) => x);
 
-        LuauFunction f1 = lua.CreateFunction((bool? x) => x);
-        LuauFunction f2 = lua.CreateFunction((sbyte? x) => x);
-        LuauFunction f3 = lua.CreateFunction((byte? x) => x);
-        LuauFunction f4 = lua.CreateFunction((short? x) => x);
-        LuauFunction f5 = lua.CreateFunction((ushort? x) => x);
-        LuauFunction f6 = lua.CreateFunction((int? x) => x);
-        LuauFunction f7 = lua.CreateFunction((uint? x) => x);
-        LuauFunction f8 = lua.CreateFunction((long? x) => x);
-        LuauFunction f9 = lua.CreateFunction((ulong? x) => x);
-        LuauFunction f10 = lua.CreateFunction((Int128? x) => x);
-        LuauFunction f11 = lua.CreateFunction((UInt128? x) => x);
-        LuauFunction f12 = lua.CreateFunction((string? x) => x);
-        LuauFunction f13 = lua.CreateFunction((Half? x) => x);
-        LuauFunction f14 = lua.CreateFunction((float? x) => x);
-        LuauFunction f15 = lua.CreateFunction((double? x) => x);
-        LuauFunction f16 = lua.CreateFunction((decimal? x) => x);
-
-        f1.Call<bool?>((bool?)null).ShouldBe(null);
-        f2.Call<sbyte?>((sbyte?)null).ShouldBe(null);
-        f3.Call<byte?>((byte?)null).ShouldBe(null);
-        f4.Call<short?>((short?)null).ShouldBe(null);
-        f5.Call<ushort?>((ushort?)null).ShouldBe(null);
-        f6.Call<int?>((int?)null).ShouldBe(null);
-        f7.Call<uint?>((uint?)null).ShouldBe(null);
-        f8.Call<long?>((long?)null).ShouldBe(null);
-        f9.Call<ulong?>((ulong?)null).ShouldBe(null);
-        f10.Call<Int128?>((long?)null).ShouldBe(null);
-        f11.Call<UInt128?>((ulong?)null).ShouldBe(null);
-        f12.Call<string?>((string?)null).ShouldBe(null);
-        f13.Call<Half?>((Half?)null).ShouldBe(null);
-        f14.Call<float?>((float?)null).ShouldBe(null);
-        f15.Call<double?>((double?)null).ShouldBe(null);
-        f16.Call<decimal?>((double?)null).ShouldBe(null);
+        f1.Invoke<bool?>((bool?)null).ShouldBe(null);
+        f2.Invoke<sbyte?>((sbyte?)null).ShouldBe(null);
+        f3.Invoke<byte?>((byte?)null).ShouldBe(null);
+        f4.Invoke<short?>((short?)null).ShouldBe(null);
+        f5.Invoke<ushort?>((ushort?)null).ShouldBe(null);
+        f6.Invoke<int?>((int?)null).ShouldBe(null);
+        f7.Invoke<uint?>((uint?)null).ShouldBe(null);
+        f8.Invoke<long?>((long?)null).ShouldBe(null);
+        f9.Invoke<ulong?>((ulong?)null).ShouldBe(null);
+        f10.Invoke<Int128?>((long?)null).ShouldBe(null);
+        f11.Invoke<UInt128?>((ulong?)null).ShouldBe(null);
+        f12.Invoke<string?>((string?)null).ShouldBe(null);
+        f13.Invoke<Half?>((Half?)null).ShouldBe(null);
+        f14.Invoke<float?>((float?)null).ShouldBe(null);
+        f15.Invoke<double?>((double?)null).ShouldBe(null);
+        f16.Invoke<decimal?>((double?)null).ShouldBe(null);
     }
 
     [Fact]
     public void Func_NoArgs_Returns_ULong()
     {
         const ulong expectedValue = 1;
-        using var lua = new LuauState();
 
-        LuauFunction func = lua.CreateFunction(() => expectedValue);
-        lua.Globals.Set("f", func);
-        lua.DoString("result = f()");
-        lua.Globals.TryGet("result", out ulong result).ShouldBeTrue();
+        using LuauFunction func = _state.CreateFunction(() => expectedValue);
+        _state.Globals.Set("f", func);
+        _state.DoString("result = f()");
+        _state.Globals.TryGet("result", out ulong result).ShouldBeTrue();
 
         result.ShouldBe(expectedValue);
     }
@@ -306,12 +295,11 @@ public sealed class FunctionTests
     public void Func_NoArgs_Returns_Nil_Bool()
     {
         bool? expectedValue = null;
-        using var lua = new LuauState();
 
-        LuauFunction func = lua.CreateFunction(() => expectedValue);
-        lua.Globals.Set("f", func);
-        lua.DoString("result = f()");
-        lua.Globals.TryGet("result", out bool? result).ShouldBeFalse();
+        using LuauFunction func = _state.CreateFunction(() => expectedValue);
+        _state.Globals.Set("f", func);
+        _state.DoString("result = f()");
+        _state.Globals.TryGet("result", out bool? result).ShouldBeFalse();
 
         result.ShouldBe(expectedValue);
     }
@@ -320,12 +308,11 @@ public sealed class FunctionTests
     public void Func_NoArgs_Returns_Int()
     {
         const int expectedValue = 1;
-        using var lua = new LuauState();
 
-        LuauFunction func = lua.CreateFunction(() => expectedValue);
-        lua.Globals.Set("f", func);
-        lua.DoString("result = f()");
-        lua.Globals.TryGet("result", out int result).ShouldBeTrue();
+        using LuauFunction func = _state.CreateFunction(() => expectedValue);
+        _state.Globals.Set("f", func);
+        _state.DoString("result = f()");
+        _state.Globals.TryGet("result", out int result).ShouldBeTrue();
 
         result.ShouldBe(expectedValue);
     }
@@ -333,94 +320,101 @@ public sealed class FunctionTests
     [Fact]
     public void Func_BufferArg_ReturnsBuffer()
     {
-        using var state = new LuauState();
-
         const string expectedValue = "010203";
 
-        using LuauBuffer buffer = state.CreateBuffer(Convert.FromHexString(expectedValue));
+        using LuauBuffer buffer = _state.CreateBuffer(Convert.FromHexString(expectedValue));
+        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadLuauBuffer(1, out LuauBufferView b, out string? error))
+                return LuauReturn.Error(error);
 
-        state.Globals.Set("input", buffer);
-        state.Globals.Set(
-            "f",
-            state.CreateFunctionBuilder(static args =>
-            {
-                if (!args.TryReadLuauBuffer(1, out LuauBuffer b, out string? error))
-                    return LuauReturn.Error(error);
+            return LuauReturn.Ok(b);
+        });
 
-                return LuauReturn.Ok(b);
-            })
-        );
-        state.DoString("result = f(input)");
-        state.Globals.TryGet("result", out LuauBuffer bufferResult).ShouldBeTrue();
+        _state.Globals.Set("input", buffer);
+        _state.Globals.Set("f", func);
+        _state.DoString("result = f(input)");
+        _state.Globals.TryGet("result", out LuauBuffer bufferResult).ShouldBeTrue();
 
-        bufferResult.TryGet(out byte[] bufferBytes);
-        Convert.ToHexString(bufferBytes).ShouldBe(expectedValue);
+        using (bufferResult)
+        {
+            bufferResult.TryGet(out byte[] bufferBytes);
+            Convert.ToHexString(bufferBytes).ShouldBe(expectedValue);
+        }
     }
 
     [Fact]
     public void Func_StringArg_ReturnsBuffer()
     {
-        using var state = new LuauState();
-
         byte[] expected = [0x01, 0x02, 0x03];
+        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadUtf8String(1, out string? hex, out string? error))
+                return LuauReturn.Error(error);
 
-        state.Globals.Set("input", Convert.ToHexString(expected));
-        state.Globals.Set(
-            "f",
-            state.CreateFunctionBuilder(static args =>
-            {
-                if (!args.TryReadUtf8String(1, out string? hex, out string? error))
-                    return LuauReturn.Error(error);
+            return LuauReturn.Ok(Convert.FromHexString(hex));
+        });
 
-                return LuauReturn.Ok(Convert.FromHexString(hex));
-            })
-        );
-        state.DoString("result = f(input)");
-        state.Globals.TryGet("result", out ReadOnlySpan<byte> result).ShouldBeTrue();
+        _state.Globals.Set("input", Convert.ToHexString(expected));
+        _state.Globals.Set("f", func);
+        _state.DoString("result = f(input)");
+        _state.Globals.TryGet("result", out ReadOnlySpan<byte> result).ShouldBeTrue();
         result.ToArray().ShouldBe<byte>(expected);
+    }
+
+    [Fact]
+    public void Func_StringArg_ShouldReadLuauStringViewAndReturnSameValue()
+    {
+        const string expectedValue = "hello from luau";
+
+        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadLuauString(1, out LuauStringView value, out string? error))
+                return LuauReturn.Error(error);
+
+            return LuauReturn.Ok(value);
+        });
+        _state.Globals.Set("input", expectedValue);
+        _state.Globals.Set("f", func);
+
+        _state.DoString("result = f(input)");
+        _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
+        result.ShouldBe(expectedValue);
     }
 
     [Fact]
     public void Func_UserdataArg_ShouldReadManagedUserdata()
     {
-        using var state = new LuauState();
-
         var input = new ArgsUserdataA { Value = 42 };
-        state.Globals.Set("input", input);
-        state.Globals.Set(
-            "f",
-            state.CreateFunctionBuilder(static args =>
-            {
-                if (!args.TryReadUserdata(1, out ArgsUserdataA? value, out string? error))
-                    return LuauReturn.Error(error);
+        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadUserdata(1, out ArgsUserdataA? value, out string? error))
+                return LuauReturn.Error(error);
 
-                return LuauReturn.Ok(value.Value);
-            })
-        );
+            return LuauReturn.Ok(value.Value);
+        });
+        _state.Globals.Set("input", input);
+        _state.Globals.Set("f", func);
 
-        state.DoString("result = f(input)");
-        state.Globals.TryGet("result", out int result).ShouldBeTrue();
+        _state.DoString("result = f(input)");
+        _state.Globals.TryGet("result", out int result).ShouldBeTrue();
         result.ShouldBe(42);
     }
 
     [Fact]
     public void Func_UserdataArg_WrongType_ShouldReturnError()
     {
-        using var state = new LuauState();
+        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadUserdata<ArgsUserdataA>(1, out _, out string? error))
+                return LuauReturn.Error(error);
 
-        state.Globals.Set("input", new ArgsUserdataB());
-        state.Globals.Set(
-            "f",
-            state.CreateFunctionBuilder(static args =>
-            {
-                if (!args.TryReadUserdata<ArgsUserdataA>(1, out _, out string? error))
-                    return LuauReturn.Error(error);
+            return LuauReturn.Ok();
+        });
+        _state.Globals.Set("input", new ArgsUserdataB());
+        _state.Globals.Set("f", func);
 
-                return LuauReturn.Ok();
-            })
-        );
-
-        state.DoString(
+        _state.DoString(
             """
             ok, err = pcall(function()
               f(input)
@@ -428,63 +422,132 @@ public sealed class FunctionTests
             """
         );
 
-        state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
+        _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
-        state.Globals.TryGet("err", out string? err).ShouldBeTrue();
+        _state.Globals.TryGet("err", out string? err).ShouldBeTrue();
         err.ShouldContain("must be userdata of type");
     }
 
     [Fact]
     public void Func_UserdataArgOrNil_ShouldHandleNil()
     {
-        using var state = new LuauState();
+        using var func = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadUserdataOrNil(1, out ArgsUserdataA? value, out string? error))
+                return LuauReturn.Error(error);
 
-        state.Globals.Set(
-            "f",
-            state.CreateFunctionBuilder(static args =>
-            {
-                if (!args.TryReadUserdataOrNil(1, out ArgsUserdataA? value, out string? error))
-                    return LuauReturn.Error(error);
+            return LuauReturn.Ok(value is null ? "nil" : "value");
+        });
+        _state.Globals.Set("f", func);
 
-                return LuauReturn.Ok(value is null ? "nil" : "value");
-            })
-        );
+        _state.DoString("fromNil = f(nil)");
 
-        state.DoString(
-            """
-            fromNil = f(nil)
-            """
-        );
+        _state.Globals.Set("input", new ArgsUserdataA());
+        _state.DoString("fromUserdata = f(input)");
 
-        state.Globals.Set("input", new ArgsUserdataA());
-        state.DoString("fromUserdata = f(input)");
-
-        state.Globals.TryGet("fromNil", out string? fromNil).ShouldBeTrue();
+        _state.Globals.TryGet("fromNil", out string? fromNil).ShouldBeTrue();
         fromNil.ShouldBe("nil");
-        state.Globals.TryGet("fromUserdata", out string? fromUserdata).ShouldBeTrue();
+        _state.Globals.TryGet("fromUserdata", out string? fromUserdata).ShouldBeTrue();
         fromUserdata.ShouldBe("value");
     }
 
     [Fact]
     public void Func_UserdataArg_ShouldReadLuauUserdataReference()
     {
-        using var state = new LuauState();
+        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadLuauUserdata(1, out LuauUserdataView value, out string? error))
+                return LuauReturn.Error(error);
 
-        state.Globals.Set("input", new ArgsUserdataA());
-        state.Globals.Set(
-            "f",
-            state.CreateFunctionBuilder(static args =>
-            {
-                if (!args.TryReadLuauUserdata(1, out LuauUserdata value, out string? error))
-                    return LuauReturn.Error(error);
+            return LuauReturn.Ok(value);
+        });
+        _state.Globals.Set("input", new ArgsUserdataA());
+        _state.Globals.Set("f", func);
 
-                return LuauReturn.Ok(value);
-            })
+        _state.DoString("isSame = f(input) == input");
+        _state.Globals.TryGet("isSame", out bool isSame).ShouldBeTrue();
+        isSame.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void LuauFunction_Invoke_ReturningTable_ShouldReturnUsableTable()
+    {
+        _state.DoString(
+            """
+            function mk_table()
+              return { value = 7 }
+            end
+            """
         );
 
-        state.DoString("isSame = f(input) == input");
-        state.Globals.TryGet("isSame", out bool isSame).ShouldBeTrue();
-        isSame.ShouldBeTrue();
+        _state.Globals.TryGet("mk_table", out LuauFunction mkTable).ShouldBeTrue();
+        using (mkTable)
+        {
+            using LuauTable table = mkTable.Invoke<LuauTable>();
+            table.GetNumber("value").ShouldBe(7);
+        }
+    }
+
+    [Fact]
+    public void LuauFunction_Invoke_ReturningTable_ShouldKeepReferenceTrackedUntilCallerDisposes()
+    {
+        _state.DoString(
+            """
+            function mk_table()
+              return { value = 11 }
+            end
+            """
+        );
+
+        _state.Globals.TryGet("mk_table", out LuauFunction mkTable).ShouldBeTrue();
+        using (mkTable)
+        {
+            int baselineActiveReferences = _state.MemoryStatistics.ActiveRegistryReferences;
+
+            using (LuauTable table = mkTable.Invoke<LuauTable>())
+            {
+                _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences + 1);
+                table.GetNumber("value").ShouldBe(11);
+            }
+
+            _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences);
+        }
+    }
+
+    [Fact]
+    public void LuauFunctionView_Invoke_ReturningTable_ShouldWorkInsideManagedCallback()
+    {
+        _state.DoString(
+            """
+            function make_table()
+              return { value = 99 }
+            end
+            """
+        );
+
+        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
+                return LuauReturn.Error(error);
+
+            using LuauTable table = function.Invoke<LuauTable>();
+            if (!table.TryGet("value", out int value))
+                return LuauReturn.Error("Expected returned table to contain number key 'value'.");
+
+            return LuauReturn.Ok(value);
+        });
+
+        _state.Globals.Set("call_and_read", callAndRead);
+        _state.DoString("result = call_and_read(make_table)");
+
+        _state.Globals.TryGet("result", out int result).ShouldBeTrue();
+        result.ShouldBe(99);
+    }
+
+    public void Dispose()
+    {
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2);
+        _state.Dispose();
     }
 }
 

@@ -2,13 +2,14 @@ using Shouldly;
 
 namespace Darp.Luau.Tests.Table;
 
-public sealed class LuauTableListTests
+public sealed class LuauTableListTests : IDisposable
 {
+    private readonly LuauState _lua = new();
+
     [Fact]
     public void CreateTable_span_values_creates_1_based_array()
     {
-        using var lua = new LuauState();
-        using LuauTable table = lua.CreateTable([1, 2, 3]);
+        using LuauTable table = _lua.CreateTable([1, 2, 3]);
 
         table[1].TryGet(out double v1).ShouldBeTrue();
         table[2].TryGet(out double v2).ShouldBeTrue();
@@ -22,8 +23,7 @@ public sealed class LuauTableListTests
     [Fact]
     public void ListCount_matches_dense_array_length()
     {
-        using var lua = new LuauState();
-        using LuauTable table = lua.CreateTable([1, 2, 3]);
+        using LuauTable table = _lua.CreateTable([1, 2, 3]);
 
         table.ListCount.ShouldBe(3);
     }
@@ -31,8 +31,7 @@ public sealed class LuauTableListTests
     [Fact]
     public void IPairs_Count_matches_ListCount()
     {
-        using var lua = new LuauState();
-        using LuauTable table = lua.CreateTable([1, 2, 3]);
+        using LuauTable table = _lua.CreateTable([1, 2, 3]);
 
         table.ListCount.ShouldBe(3);
         table.IPairs().Count.ShouldBe(table.ListCount);
@@ -41,8 +40,7 @@ public sealed class LuauTableListTests
     [Fact]
     public void IPairs_enumerates_dense_array_in_order()
     {
-        using var lua = new LuauState();
-        using LuauTable table = lua.CreateTable([1, 4, 9]);
+        using LuauTable table = _lua.CreateTable([1, 4, 9]);
 
         KeyValuePair<int, LuauValue>[] content = table.IPairs().ToArray();
         content[0].Key.ShouldBe(1);
@@ -56,8 +54,7 @@ public sealed class LuauTableListTests
     [Fact]
     public void Table_enumerator_enumerates_all_dense_array_keys_without_order_guarantee()
     {
-        using var lua = new LuauState();
-        using LuauTable table = lua.CreateTable([1, 4, 9]);
+        using LuauTable table = _lua.CreateTable([1, 4, 9]);
 
         KeyValuePair<LuauValue, LuauValue>[] content = table.ToArray();
         content[0].Key.As<double>().ShouldBe(1);
@@ -71,8 +68,7 @@ public sealed class LuauTableListTests
     [Fact]
     public void Table_enumerator_enumerates_non_integer_keys()
     {
-        using var lua = new LuauState();
-        using LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set("a", 1);
         table.Set(2, 3);
 
@@ -86,8 +82,7 @@ public sealed class LuauTableListTests
     [Fact]
     public void IPairs_T_typed_enumerates_dense_array_in_order()
     {
-        using var lua = new LuauState();
-        using LuauTable table = lua.CreateTable([1, 4, 9]);
+        using LuauTable table = _lua.CreateTable([1, 4, 9]);
 
         KeyValuePair<int, double>[] content = table.IPairs<double>().ToArray();
         content.Length.ShouldBe(3);
@@ -102,15 +97,20 @@ public sealed class LuauTableListTests
     [Fact]
     public void IPairs_T_typed_enumerates_until_first_type_mismatch()
     {
-        using var lua = new LuauState();
-        using LuauTable table = lua.CreateTable();
+        using LuauTable table = _lua.CreateTable();
         table.Set(1, 1);
-        table.Set(2, lua.CreateString("not a number"));
+        table.Set(2, "not a number");
         table.Set(3, 3);
 
         KeyValuePair<int, double>[] content = table.IPairs<double>().ToArray();
         content.Length.ShouldBe(1);
         content[0].Key.ShouldBe(1);
         content[0].Value.ShouldBe(1);
+    }
+
+    public void Dispose()
+    {
+        _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2);
+        _lua.Dispose();
     }
 }

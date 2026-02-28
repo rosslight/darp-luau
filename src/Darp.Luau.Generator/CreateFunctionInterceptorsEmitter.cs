@@ -268,14 +268,17 @@ internal static class CreateFunctionInterceptorsEmitter
             case "global::Darp.Luau.LuauTable":
                 luauType = LuauValueType.LuauTable;
                 return true;
-            case "global::Darp.Luau.LuauFunction":
-                luauType = LuauValueType.LuauFunction;
+            case "global::Darp.Luau.LuauFunctionView":
+                luauType = LuauValueType.LuauFunctionView;
                 return true;
-            case "global::Darp.Luau.LuauString":
-                luauType = LuauValueType.LuauString;
+            case "global::Darp.Luau.LuauStringView":
+                luauType = LuauValueType.LuauStringView;
                 return true;
-            case "global::Darp.Luau.LuauBuffer":
-                luauType = LuauValueType.LuauBuffer;
+            case "global::Darp.Luau.LuauBufferView":
+                luauType = LuauValueType.LuauBufferView;
+                return true;
+            case "global::Darp.Luau.LuauUserdataView":
+                luauType = LuauValueType.LuauUserdataView;
                 return true;
         }
 
@@ -377,10 +380,11 @@ internal static class CreateFunctionInterceptorsEmitter
             or LuauValueType.NumberDecimal
             or LuauValueType.Enum => "TryReadNumber",
             LuauValueType.LuauValue => "TryReadLuauValue",
-            LuauValueType.LuauString => "TryReadLuauString",
+            LuauValueType.LuauStringView => "TryReadLuauString",
             LuauValueType.LuauTable => "TryReadLuauTable",
-            LuauValueType.LuauFunction => "TryReadLuauFunction",
-            LuauValueType.LuauBuffer => "TryReadLuauBuffer",
+            LuauValueType.LuauFunctionView => "TryReadLuauFunction",
+            LuauValueType.LuauBufferView => "TryReadLuauBuffer",
+            LuauValueType.LuauUserdataView => "TryReadLuauUserdata",
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not get the TryRead function"),
         };
     }
@@ -472,9 +476,10 @@ internal static class CreateFunctionInterceptorsEmitter
                     """,
             LuauValueType.LuauValue
             or LuauValueType.LuauTable
-            or LuauValueType.LuauString
-            or LuauValueType.LuauFunction
-            or LuauValueType.LuauBuffer => $"""
+            or LuauValueType.LuauStringView
+            or LuauValueType.LuauFunctionView
+            or LuauValueType.LuauBufferView
+            or LuauValueType.LuauUserdataView => $"""
                 if (!args.{tryFunctionName}(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 """,

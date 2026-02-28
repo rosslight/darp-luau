@@ -27,8 +27,8 @@ internal enum LuauValueType
 
     LuauValue,
     LuauTable,
-    LuauFunction,
-    LuauString,
-
-    LuauBuffer, // -> ReadOnlySpan<byte>
+    LuauFunctionView,
+    LuauStringView,
+    LuauBufferView,
+    LuauUserdataView,
 }

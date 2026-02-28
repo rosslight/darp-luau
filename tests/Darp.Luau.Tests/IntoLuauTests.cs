@@ -37,7 +37,7 @@ public sealed class IntoLuauTests
     {
         IntoLuau intoValue = default(LuauTable);
 
-        intoValue.Type.ShouldBe(IntoLuau.Kind.Value);
+        intoValue.Type.ShouldBe(IntoLuau.Kind.RefSource);
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public sealed class IntoLuauTests
     {
         IntoLuau intoValue = default(LuauFunction);
 
-        intoValue.Type.ShouldBe(IntoLuau.Kind.Value);
+        intoValue.Type.ShouldBe(IntoLuau.Kind.RefSource);
     }
 
     [Fact]
@@ -126,13 +126,13 @@ public sealed class IntoLuauTests
     {
         IntoLuau intoValue = default(LuauBuffer);
 
-        intoValue.Type.ShouldBe(IntoLuau.Kind.Value);
+        intoValue.Type.ShouldBe(IntoLuau.Kind.RefSource);
     }
 
     [Fact]
     internal void Into_UserdataFactory()
     {
-        IntoLuau intoValue = IntoLuau.FromUserdata(new SimpleUserdataType());
+        var intoValue = IntoLuau.FromUserdata(new SimpleUserdataType());
 
         intoValue.Type.ShouldBe(IntoLuau.Kind.UserdataFactory);
     }
