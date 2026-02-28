@@ -38,4 +38,11 @@ public sealed class RequireTests
         nDifference.ShouldBe(5);
     }
 
+    [Fact]
+    public void Require_by_string()
+    {
+        using var state = new LuauState();
+        state.EnableRequireByString();
+        state.DoString(File.ReadAllBytes(Path.Combine(ScriptPath, "main.luau")));
+    }
 }
