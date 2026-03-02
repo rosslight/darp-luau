@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
+// [assembly: DisableRuntimeMarshalling]
+
 namespace Darp.Luau;
 
 public static unsafe class LuauRequireByString

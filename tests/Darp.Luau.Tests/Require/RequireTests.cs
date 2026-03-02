@@ -39,10 +39,21 @@ public sealed class RequireTests
     }
 
     [Fact]
-    public void Require_by_string()
+    public void Enable_require_by_string()
     {
         using var state = new LuauState();
         state.EnableRequireByString();
+
+        state.Globals.TryGet("require", out LuauValue value).ShouldBeTrue();        
+        value.Type.ShouldBe(LuauValueType.Function);
+    }
+
+    [Fact]
+    public void Use_require_by_string()
+    {
+        using var state = new LuauState();
+        state.EnableRequireByString();
+
         state.DoString(File.ReadAllBytes(Path.Combine(ScriptPath, "main.luau")));
     }
 }
