@@ -1,3 +1,4 @@
+using System.Text;
 using Shouldly;
 
 namespace Darp.Luau.Tests.Require;
@@ -54,6 +55,6 @@ public sealed class RequireTests
         using var state = new LuauState();
         state.EnableRequireByString();
 
-        state.DoString(File.ReadAllBytes(Path.Combine(ScriptPath, "main.luau")));
+        state.DoString(File.ReadAllBytes(Path.Combine(ScriptPath, "main.luau")), Encoding.UTF8.GetBytes("@main"));
     }
 }
