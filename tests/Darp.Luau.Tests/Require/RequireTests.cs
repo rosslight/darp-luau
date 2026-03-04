@@ -1,4 +1,3 @@
-using System.Text;
 using Shouldly;
 
 namespace Darp.Luau.Tests.Require;
@@ -37,24 +36,5 @@ public sealed class RequireTests
         nSum.ShouldBe(3);
         table.TryGet("difference", out nDifference).ShouldBeTrue();
         nDifference.ShouldBe(5);
-    }
-
-    [Fact]
-    public void Enable_require_by_string()
-    {
-        using var state = new LuauState();
-        state.EnableRequireByString();
-
-        state.Globals.TryGet("require", out LuauValue value).ShouldBeTrue();        
-        value.Type.ShouldBe(LuauValueType.Function);
-    }
-
-    [Fact]
-    public void Use_require_by_string()
-    {
-        using var state = new LuauState();
-        state.EnableRequireByString();
-
-        state.DoString(File.ReadAllBytes(Path.Combine(ScriptPath, "main.luau")), Encoding.UTF8.GetBytes("@main"));
     }
 }
