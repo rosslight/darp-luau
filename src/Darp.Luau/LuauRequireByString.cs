@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -65,7 +64,7 @@ public static unsafe class LuauRequireByString
     private static luarequire_NavigateResult JumpToAlias(lua_State* L, void* ctx, byte* path)
     {
         string strPath = new((sbyte*)path);
-        if (!Path.IsPathRooted(strPath))
+        if (!IsAbsolutePath(strPath))
             return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
 
         return s_navigator.ResetToPath(strPath);
@@ -151,17 +150,17 @@ public static unsafe class LuauRequireByString
         return luarequire_WriteResult.WRITE_SUCCESS;
     }
 
-    private static bool IsAbsolutePath([NotNull] string strPath)
+    private static bool IsAbsolutePath(string strPath)
     {
         if (OperatingSystem.IsWindows())
         {
             // Must either begin with "X:/", "X:\", "/", or "\", where X is a drive letter
             return (strPath.Length > 2
-                        && char.IsLetter(strPath[0])
-                        && strPath[1] == ':'
-                        && (strPath[2] == '/' || strPath[2] == '\\'))
-                    || (strPath.Length > 0
-                        && (strPath[0] == '/' || strPath[0] == '\\'));
+                    && char.IsLetter(strPath[0])
+                    && strPath[1] == ':'
+                    && (strPath[2] == '/' || strPath[2] == '\\'))
+                || (strPath.Length > 0
+                    && (strPath[0] == '/' || strPath[0] == '\\'));
         }
         else
         {
@@ -170,7 +169,7 @@ public static unsafe class LuauRequireByString
         }
     }
 
-    public static string NormalizePath([NotNull] string strPath)
+    internal static string NormalizePath(string strPath)
     {
         string[] parts = strPath.Split('/', '\\');
         bool bIsAbsolute = IsAbsolutePath(strPath);
@@ -232,13 +231,12 @@ public static unsafe class LuauRequireByString
         }
 
         string strNormalized = sbNormalized.ToString();
-        if (strNormalized.EndsWith("..", StringComparison.InvariantCultureIgnoreCase))
+        if (strNormalized.EndsWith("..", StringComparison.InvariantCulture))
             strNormalized += "/";
-
         return strNormalized;
     }
 
-    private class Navigator
+    private class Navigator()
     {
         private string _strModulePath = ""; // modulePath
         private string _strAbsoluteModulePath = ""; // absoluteModulePath
@@ -250,11 +248,11 @@ public static unsafe class LuauRequireByString
         public luarequire_NavigateResult ResetToStdIn()
         {
             FilePath = "./stdin";
-            AbsoluteFilePath = NormalizePath(Directory.GetCurrentDirectory() + "/stdin");
+            AbsoluteFilePath = NormalizePath(GetCurrentWorkingDirectory() + "/stdin");
             _strModulePath = "./stdin";
             _strAbsoluteModulePath = GetModulePath(AbsoluteFilePath);
 
-            int nPosFirstSlash = RequiredIndexOfFirstSlash(AbsoluteFilePath);
+            int nPosFirstSlash = GetRequiredIndexOfFirstSlash(AbsoluteFilePath);
             _strAbsolutePathPrefix = AbsoluteFilePath.Substring(0, nPosFirstSlash);
 
             return luarequire_NavigateResult.NAVIGATE_SUCCESS;
@@ -266,19 +264,18 @@ public static unsafe class LuauRequireByString
 
             if (IsAbsolutePath(strPath))
             {
-                _strModulePath = GetModulePath(strPath);
-                _strAbsoluteModulePath = _strModulePath;
+                _strAbsoluteModulePath = _strModulePath = GetModulePath(strPath);
 
-                int nPosFirstSlash = RequiredIndexOfFirstSlash(strPath);
+                int nPosFirstSlash = GetRequiredIndexOfFirstSlash(strPath);
                 _strAbsolutePathPrefix = strPath.Substring(0, nPosFirstSlash);
             }
             else
             {
                 _strModulePath = GetModulePath(strPath);
-                string strJoinedPath = NormalizePath(Directory.GetCurrentDirectory() + "/" + strPath);
+                string strJoinedPath = NormalizePath(GetCurrentWorkingDirectory() + "/" + strPath);
                 _strAbsoluteModulePath = GetModulePath(strJoinedPath);
 
-                int nPosFirstSlash = RequiredIndexOfFirstSlash(strJoinedPath);
+                int nPosFirstSlash = GetRequiredIndexOfFirstSlash(strJoinedPath);
                 _strAbsolutePathPrefix = strJoinedPath.Substring(0, nPosFirstSlash);
             }
 
@@ -309,10 +306,25 @@ public static unsafe class LuauRequireByString
             return null;
         }
 
+        private string GetCurrentWorkingDirectory()
+        {
+            // return Path.Combine(Directory.GetCurrentDirectory(), ScriptPath).TrimEnd('/', '\\');
+            return Directory.GetCurrentDirectory();
+        }
+
         private luarequire_NavigateResult UpdateRealPaths()
         {
-            //TODO
-            return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+            ResolvedRealPath resolved = GetRealPath(_strModulePath);
+            if (resolved.Result != luarequire_NavigateResult.NAVIGATE_SUCCESS)
+                return resolved.Result;
+
+            ResolvedRealPath absoluteResolved = GetRealPath(_strAbsoluteModulePath);
+            if (absoluteResolved.Result != luarequire_NavigateResult.NAVIGATE_SUCCESS)
+                return absoluteResolved.Result;
+
+            FilePath = IsAbsolutePath(resolved.RealPath) ? _strAbsolutePathPrefix + resolved.RealPath : resolved.RealPath;
+            AbsoluteFilePath = _strAbsolutePathPrefix + absoluteResolved.RealPath;
+            return luarequire_NavigateResult.NAVIGATE_SUCCESS;
         }
 
         private static readonly string[] s_suffixes = [".luau", ".lua"];
@@ -324,7 +336,7 @@ public static unsafe class LuauRequireByString
 
             if (IsAbsolutePath(strFilePath))
             {
-                int nPosFirstSlash = RequiredIndexOfFirstSlash(strFilePath);
+                int nPosFirstSlash = GetRequiredIndexOfFirstSlash(strFilePath);
                 strFilePath = strFilePath.Remove(0, nPosFirstSlash);
             }
 
@@ -343,12 +355,73 @@ public static unsafe class LuauRequireByString
             return strFilePath;
         }
 
-        private static int RequiredIndexOfFirstSlash(string strPath)
+        private static int GetRequiredIndexOfFirstSlash(string strPath)
         {
-            int nPosFirstSlash = strPath.IndexOf('/', StringComparison.InvariantCultureIgnoreCase);
-            if (nPosFirstSlash < 0)
-                throw new LuaException("No slash found");
-            return nPosFirstSlash;
+            int nPos = strPath.IndexOf('/', StringComparison.InvariantCulture);
+            if (nPos < 0)
+                throw new LuaException("No first slash found");
+            return nPos;
+        }
+
+        private static int GetRequiredIndexOfLastSlash(string strPath)
+        {
+            int nPos = strPath.LastIndexOf('/');
+            if (nPos < 0)
+                throw new LuaException("No last slash found");
+            return nPos;
+        }
+
+        private record ResolvedRealPath(luarequire_NavigateResult Result, string RealPath)
+        {
+            public ResolvedRealPath(luarequire_NavigateResult eResult) : this(eResult, "") { }
+        }
+
+        private static ResolvedRealPath GetRealPath(string strModulePath)
+        {
+            int nPosLastSlash = GetRequiredIndexOfLastSlash(strModulePath);
+            string strLastPart = strModulePath.Substring(nPosLastSlash + 1);
+            string strSuffix = "";
+            bool bFound = false;
+
+            if (!Equals(strLastPart, "init"))
+            {
+                foreach (string strPotentialSuffix in s_suffixes)
+                {
+                    if (File.Exists(strModulePath + strPotentialSuffix))
+                    {
+                        if (bFound)
+                            return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
+
+                        strSuffix = strPotentialSuffix;
+                        bFound = true;
+                    }
+                }
+            }
+
+            if (Directory.Exists(strModulePath))
+            {
+                if (bFound)
+                    return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
+
+                foreach (string strPotentialSuffix in s_initSuffixes)
+                {
+                    if (File.Exists(strModulePath + strPotentialSuffix))
+                    {
+                        if (bFound)
+                            return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
+
+                        strSuffix = strPotentialSuffix;
+                        bFound = true;
+                    }
+                }
+
+                bFound = true;
+            }
+
+            if (!bFound)
+                return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_NOT_FOUND);
+
+            return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_SUCCESS, strModulePath + strSuffix);
         }
     }
 }

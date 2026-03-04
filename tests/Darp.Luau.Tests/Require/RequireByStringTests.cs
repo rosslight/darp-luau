@@ -75,12 +75,14 @@ public sealed class RequireByStringTests
         value.Type.ShouldBe(LuauValueType.Function);
     }
 
-    // [Fact]
-    // public void Use_require_by_string()
-    // {
-    //     using var state = new LuauState();
-    //     state.EnableRequireByString();
+    [Fact]
+    public void Use_require_by_string()
+    {
+        using var state = new LuauState();
+        state.EnableRequireByString();
 
-    //     state.DoString(File.ReadAllBytes(Path.Combine(ScriptPath, "main.luau")), Encoding.UTF8.GetBytes("@main"));
-    // }
+        string strScriptPath = Path.Combine(ScriptPath, "main.luau");
+        string strChunkName = '@' + strScriptPath;
+        state.DoString(File.ReadAllBytes(strScriptPath), Encoding.UTF8.GetBytes(strChunkName));
+    }
 }
