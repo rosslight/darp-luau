@@ -143,7 +143,7 @@ public static unsafe class LuauRequireByString
         string? strContent = ReadFile(strLoadName);
         if (strContent is null)
         {
-            PushError(L, $"could not read file '{strChunkName}'");
+            ReportError(L, $"could not read file '{strChunkName}'");
             bOk = false;
         }
         else
@@ -168,24 +168,24 @@ public static unsafe class LuauRequireByString
             {
                 if (lua_gettop(ML) != 1)
                 {
-                    PushError(L, "module must return a single value");
+                    ReportError(L, "module must return a single value");
                     bOk = false;
                 }
             }
             else if (nStatus == 1) // Yield
             {
-                PushError(L, "module can not yield");
+                ReportError(L, "module can not yield");
                 bOk = false;
             }
             else if (lua_isstring(ML, -1) == 0)
             {
-                PushError(L, "unknown error while running module");
+                ReportError(L, "unknown error while running module");
                 bOk = false;
             }
             else
             {
                 string strMsg = new((sbyte*)lua_tostring(ML, -1));
-                PushError(L, $"error while running module: {strMsg}");
+                ReportError(L, $"error while running module: {strMsg}");
                 bOk = false;
             }
         }
@@ -200,7 +200,7 @@ public static unsafe class LuauRequireByString
         return 1;
     }
 
-    private static void PushError(lua_State* L, string strMsg)
+    private static void ReportError(lua_State* L, string strMsg)
     {
         fixed(byte* pMsg = Encoding.UTF8.GetBytes(strMsg))
         {
