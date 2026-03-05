@@ -61,7 +61,7 @@ public sealed class RequireByStringTests
 
         foreach((string Input, string Expected) in cases)
         {
-            LuauRequireByString.NormalizePath(Input).ShouldBe(Expected);
+            LuauRequireByString.Navigator.NormalizePath(Input).ShouldBe(Expected);
         }
     }
 
@@ -84,6 +84,7 @@ public sealed class RequireByStringTests
         string strFileName = Path.Combine(ScriptPath, "main.luau");
         string strChunkName = '@' + strFileName;
         state.DoString(File.ReadAllBytes(strFileName), Encoding.UTF8.GetBytes(strChunkName));
+        
         state.Globals.TryGet("result", out int nResult).ShouldBeTrue();
         nResult.ShouldBe(15);
     }

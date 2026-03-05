@@ -9,10 +9,16 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
+/// <summary>
+/// Implements require-by-string
+/// See https://github.com/luau-lang/luau
+/// </summary>
 public static unsafe class LuauRequireByString
 {
     private static readonly Navigator s_navigator = new();
 
+    /// <summary>Enables require-by-string for LuauState</summary>
+    /// <param name="state"></param>
     public static void EnableRequireByString(this LuauState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -44,7 +50,7 @@ public static unsafe class LuauRequireByString
     private static bool IsRequireAllowed(lua_State* L, void* ctx, byte* requirerChunkname)
     {
         string strChunkName = new((sbyte*)requirerChunkname);
-        return Equals(strChunkName, ChunkNameStdIn) || (strChunkName.Length > 0 && strChunkName[0] == ChunkNamePrefix);
+        return Equals(strChunkName, ChunkNameStdIn) || strChunkName.StartsWith(ChunkNamePrefix);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -54,7 +60,7 @@ public static unsafe class LuauRequireByString
         if (Equals(strChunkName, ChunkNameStdIn))
             return s_navigator.ResetToStdIn();
 
-        if (strChunkName.Length > 0 && strChunkName[0] == ChunkNamePrefix)
+        if (strChunkName.StartsWith(ChunkNamePrefix))
             return s_navigator.ResetToPath(strChunkName[1..]);
 
         return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
@@ -202,7 +208,7 @@ public static unsafe class LuauRequireByString
 
     private static void ReportError(lua_State* L, string strMsg)
     {
-        fixed(byte* pMsg = Encoding.UTF8.GetBytes(strMsg))
+        fixed (byte* pMsg = Encoding.UTF8.GetBytes(strMsg))
         {
             lua_pushstring(L, pMsg);
             //TODO What else can be used?
@@ -232,88 +238,60 @@ public static unsafe class LuauRequireByString
         if (OperatingSystem.IsWindows())
         {
             // Must either begin with "X:/", "X:\", "/", or "\", where X is a drive letter
-            return (strPath.Length > 2
+            return strPath.Length > 2
                     && char.IsLetter(strPath[0])
                     && strPath[1] == ':'
-                    && (strPath[2] == '/' || strPath[2] == '\\'))
-                || (strPath.Length > 0
-                    && (strPath[0] == '/' || strPath[0] == '\\'));
+                    && (strPath[2] == '/' || strPath[2] == '\\')
+                || strPath.StartsWith('/') || strPath.StartsWith('\\');
         }
         else
         {
             // Must begin with '/'
-            return strPath.Length > 0 && strPath[0] == '/';
+            return strPath.StartsWith('/');
         }
     }
 
-    internal static string NormalizePath(string strPath)
+    private static int RequiredIndexOfFirstSlash(this string str)
     {
-        string[] parts = strPath.Split('/', '\\');
-        bool bIsAbsolute = IsAbsolutePath(strPath);
-
-        //
-        // 1. Normalize path components
-        //
-
-        List<string> partsNormalized = [];
-        for (int i = bIsAbsolute ? 1 : 0; i < parts.Length; ++i)
-        {
-            string strPart = parts[i];
-            if (Equals(strPart, ".."))
-            {
-                if (partsNormalized.Count == 0)
-                {
-                    if (!bIsAbsolute)
-                        partsNormalized.Add("..");
-                }
-                else if (Equals(partsNormalized.Last(), ".."))
-                {
-                    partsNormalized.Add("..");
-                }
-                else
-                {
-                    partsNormalized.RemoveAt(partsNormalized.Count - 1);
-                }
-            }
-            else if (strPart.Length > 0 && !Equals(strPart, "."))
-            {
-                partsNormalized.Add(strPart);
-            }
-        }
-
-        var sbNormalized = new StringBuilder();
-
-        //
-        // 2. Add correct prefix to formatted path
-        //
-
-        if (bIsAbsolute)
-        {
-            sbNormalized.Append(parts[0]).Append('/');
-        }
-        else if (partsNormalized.Count == 0 || !Equals(partsNormalized[0], ".."))
-        {
-            sbNormalized.Append("./");
-        }
-
-        //
-        // 3. Join path components to form the normalized path
-        //
-
-        for (int i = 0; i < partsNormalized.Count; ++i)
-        {
-            if (i > 0)
-                sbNormalized.Append('/');
-            sbNormalized.Append(partsNormalized[i]);
-        }
-
-        string strNormalized = sbNormalized.ToString();
-        if (strNormalized.HasSuffix(".."))
-            strNormalized += "/";
-        return strNormalized;
+        int nPos = str.IndexOf('/', StringComparison.InvariantCulture);
+        if (nPos < 0)
+            throw new LuaException("No first slash found");
+        return nPos;
     }
 
-    private class Navigator()
+    private static int RequiredIndexOfLastSlash(this string str)
+    {
+        int nPos = str.LastIndexOf('/');
+        if (nPos < 0)
+            throw new LuaException("No last slash found");
+        return nPos;
+    }
+
+    private static bool HasSuffix(this string str, string strSuffix)
+    {
+        return str.EndsWith(strSuffix, StringComparison.InvariantCulture);
+    }
+
+    private static string RemoveSuffix(this string str, string strSuffix)
+    {
+        return str.Remove(str.Length - strSuffix.Length);
+    }
+
+    private static string? ReadFile(string strFileName)
+    {
+        try
+        {
+            if (File.Exists(strFileName))
+                return File.ReadAllText(strFileName);
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    internal class Navigator()
     {
         private static readonly string[] s_suffixes = [".luau", ".lua"];
         private static readonly string[] s_initSuffixes = ["/init.luau", "/init.lua"];
@@ -436,6 +414,72 @@ public static unsafe class LuauRequireByString
             return luarequire_NavigateResult.NAVIGATE_SUCCESS;
         }
 
+        internal static string NormalizePath(string strPath)
+        {
+            string[] parts = strPath.Split('/', '\\');
+            bool bIsAbsolute = IsAbsolutePath(strPath);
+
+            //
+            // 1. Normalize path components
+            //
+
+            List<string> partsNormalized = [];
+            for (int i = bIsAbsolute ? 1 : 0; i < parts.Length; ++i)
+            {
+                string strPart = parts[i];
+                if (Equals(strPart, ".."))
+                {
+                    if (partsNormalized.Count == 0)
+                    {
+                        if (!bIsAbsolute)
+                            partsNormalized.Add("..");
+                    }
+                    else if (Equals(partsNormalized.Last(), ".."))
+                    {
+                        partsNormalized.Add("..");
+                    }
+                    else
+                    {
+                        partsNormalized.RemoveAt(partsNormalized.Count - 1);
+                    }
+                }
+                else if (strPart.Length > 0 && !Equals(strPart, "."))
+                {
+                    partsNormalized.Add(strPart);
+                }
+            }
+
+            var sbNormalized = new StringBuilder();
+
+            //
+            // 2. Add correct prefix to formatted path
+            //
+
+            if (bIsAbsolute)
+            {
+                sbNormalized.Append(parts[0]).Append('/');
+            }
+            else if (partsNormalized.Count == 0 || !Equals(partsNormalized[0], ".."))
+            {
+                sbNormalized.Append("./");
+            }
+
+            //
+            // 3. Join path components to form the normalized path
+            //
+
+            for (int i = 0; i < partsNormalized.Count; ++i)
+            {
+                if (i > 0)
+                    sbNormalized.Append('/');
+                sbNormalized.Append(partsNormalized[i]);
+            }
+
+            string strNormalized = sbNormalized.ToString();
+            if (strNormalized.HasSuffix(".."))
+                strNormalized += "/";
+            return strNormalized;
+        }
         private string GetConfigPath(string strFileName)
         {
             string strDirectory = FilePath;
@@ -537,48 +581,6 @@ public static unsafe class LuauRequireByString
                 return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_NOT_FOUND);
 
             return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_SUCCESS, strModulePath + strSuffix);
-        }
-    }
-
-    private static int RequiredIndexOfFirstSlash(this string str)
-    {
-        int nPos = str.IndexOf('/', StringComparison.InvariantCulture);
-        if (nPos < 0)
-            throw new LuaException("No first slash found");
-        return nPos;
-    }
-
-    private static int RequiredIndexOfLastSlash(this string str)
-    {
-        int nPos = str.LastIndexOf('/');
-        if (nPos < 0)
-            throw new LuaException("No last slash found");
-        return nPos;
-    }
-
-    private static bool HasSuffix(this string str, string strSuffix)
-    {
-        return str.EndsWith(strSuffix, StringComparison.InvariantCulture);
-    }
-
-    private static string RemoveSuffix(this string str, string strSuffix)
-    {
-        return str.Remove(str.Length - strSuffix.Length);
-    }
-
-    private static string? ReadFile(string strFileName)
-    {
-        try
-        {
-            if (!File.Exists(strFileName))
-                return null;
-
-            return File.ReadAllText(strFileName);
-        }
-        catch //(Exception exc)
-        {
-            // throw new LuaException($"Failed to read file '{strFileName}'. Reason: {exc.Message}");
-            return null;
         }
     }
 }
