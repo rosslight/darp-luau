@@ -102,7 +102,7 @@ public sealed class MemoryManagementTests
     }
 
     [Fact]
-    public void LuauValue_TryGetLuauTable_ShouldBorrowReferenceOwnership()
+    public void LuauValue_TryGetLuauTable_ShouldCloneReferenceOwnership()
     {
         using var state = new LuauState();
         using (LuauTable table = state.CreateTable())
@@ -115,12 +115,15 @@ public sealed class MemoryManagementTests
         int referencesAfterValue = state.MemoryStatistics.ActiveRegistryReferences;
 
         value.TryGet(out LuauTable tableAlias).ShouldBeTrue();
-        state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(referencesAfterValue);
+        state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(referencesAfterValue + 1);
 
         tableAlias.Dispose();
-        state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(referencesAfterValue - 1);
+        state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(referencesAfterValue);
 
-        value.TryGet(out LuauTable _).ShouldBeFalse();
+        value.TryGet(out LuauTable secondAlias).ShouldBeTrue();
+        state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(referencesAfterValue + 1);
+        secondAlias.Dispose();
+        state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(referencesAfterValue);
 
         value.Dispose();
         state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(referencesAfterValue - 1);

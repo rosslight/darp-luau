@@ -540,8 +540,46 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("call_and_read", callAndRead);
         _state.DoString("result = call_and_read(make_table)");
 
-        _state.Globals.TryGet("result", out int result).ShouldBeTrue();
-        result.ShouldBe(99);
+        _state.Globals.GetNumber("result").ShouldBe(99);
+    }
+
+    [Fact]
+    public void ReturningTable_ShouldWorkInsideManagedCallback()
+    {
+        using LuauFunction func = _state.CreateFunctionBuilder(args =>
+        {
+            if (!args.TryValidateArgumentCount(0, out var error))
+                return LuauReturn.Error(error);
+            LuauTable x = _state.CreateTable();
+            x.Set("value", 99);
+            return LuauReturn.Ok(x);
+        });
+
+        _state.Globals.Set("make_table", func);
+        _state.DoString("result = make_table().value");
+
+        _state.Globals.GetNumber("result").ShouldBe(99);
+    }
+
+    [Fact]
+    public void ReturningTable_ShouldWorkInsideManagedCallback2()
+    {
+        LuauTable x = _state.CreateTable();
+        x.Set("value", 99);
+
+        using LuauFunction func = _state.CreateFunctionBuilder(args =>
+        {
+            if (!args.TryValidateArgumentCount(0, out var error))
+                return LuauReturn.Error(error);
+            return LuauReturn.Ok(x);
+        });
+
+        _state.Globals.Set("make_table", func);
+        _state.DoString("result = make_table().value");
+
+        _state.Globals.GetNumber("result").ShouldBe(99);
+        x.GetNumber("value").ShouldBe(99);
+        x.Dispose();
     }
 
     public void Dispose()

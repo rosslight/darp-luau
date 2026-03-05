@@ -15,6 +15,7 @@ internal sealed class RegistryReferenceTracker(LuauState state)
 {
     private readonly LuauState _state = state;
     private readonly Dictionary<int, TrackedReference> _trackedReferences = [];
+    private readonly Dictionary<int, List<int>> _callbackFrameOwnedHandles = [];
     private int _nextTrackedReferenceHandle = 1;
     private int _createdRegistryReferenceCount;
     private int _releasedRegistryReferenceCount;
@@ -49,7 +50,18 @@ internal sealed class RegistryReferenceTracker(LuauState state)
 
         int handle = _nextTrackedReferenceHandle;
         _nextTrackedReferenceHandle++;
-        _trackedReferences[handle] = new TrackedReference(luaReference, pinned);
+        int callbackFrameToken = pinned ? 0 : _state.GetCurrentCallbackFrameToken();
+        _trackedReferences[handle] = new TrackedReference(luaReference, pinned, callbackFrameToken);
+        if (callbackFrameToken != 0)
+        {
+            if (!_callbackFrameOwnedHandles.TryGetValue(callbackFrameToken, out List<int>? callbackOwnedHandles))
+            {
+                callbackOwnedHandles = [];
+                _callbackFrameOwnedHandles.Add(callbackFrameToken, callbackOwnedHandles);
+            }
+
+            callbackOwnedHandles.Add(handle);
+        }
         _createdRegistryReferenceCount++;
         return handle;
     }
@@ -113,10 +125,34 @@ internal sealed class RegistryReferenceTracker(LuauState state)
             return;
 
         _trackedReferences.Remove(handle);
+        if (
+            trackedReference.CallbackFrameToken != 0
+            && _callbackFrameOwnedHandles.TryGetValue(
+                trackedReference.CallbackFrameToken,
+                out List<int>? callbackOwnedHandles
+            )
+        )
+        {
+            callbackOwnedHandles.Remove(handle);
+            if (callbackOwnedHandles.Count == 0)
+                _callbackFrameOwnedHandles.Remove(trackedReference.CallbackFrameToken);
+        }
+
         _releasedRegistryReferenceCount++;
         int luaReference = trackedReference.LuaReference;
 
         lua_unref(_state.L, luaReference);
+    }
+
+    public void ReleaseCallbackFrameReferences(int callbackFrameToken)
+    {
+        if (callbackFrameToken == 0)
+            return;
+        if (!_callbackFrameOwnedHandles.Remove(callbackFrameToken, out List<int>? callbackOwnedHandles))
+            return;
+
+        foreach (int handle in callbackOwnedHandles)
+            ReleaseRef(handle);
     }
 
     public void ReleaseAll()
@@ -126,7 +162,8 @@ internal sealed class RegistryReferenceTracker(LuauState state)
 
         _releasedRegistryReferenceCount += _trackedReferences.Count;
         _trackedReferences.Clear();
+        _callbackFrameOwnedHandles.Clear();
     }
 }
 
-internal readonly record struct TrackedReference(int LuaReference, bool IsPinned);
+internal readonly record struct TrackedReference(int LuaReference, bool IsPinned, int CallbackFrameToken);

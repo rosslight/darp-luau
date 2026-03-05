@@ -53,13 +53,21 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
             ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
 
-            LuauReturnSingle result = T.OnIndex(target, state, resolvedMemberName);
+            int callbackFrameToken = state.EnterCallbackFrame();
+            try
+            {
+                LuauReturnSingle result = T.OnIndex(target, state, resolvedMemberName);
 
-            if (result.TryPushValue(state, out string? error))
-                return 1;
-            if (error == LuauReturn.NotHandled)
-                return 0;
-            return error;
+                if (result.TryPushValue(state, out string? error))
+                    return 1;
+                if (error == LuauReturn.NotHandled)
+                    return 0;
+                return error;
+            }
+            finally
+            {
+                state.ExitCallbackFrame(callbackFrameToken);
+            }
         }
 
         static LuaResult<int, string> NewIndexCallbackManaged(LuauState lua, object? userdata)

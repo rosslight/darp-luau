@@ -73,10 +73,21 @@ public sealed class LuauTableListTests : IDisposable
         table.Set(2, 3);
 
         KeyValuePair<LuauValue, LuauValue>[] content = table.ToArray();
-        content[0].Key.As<string>().ShouldBe("a");
-        content[0].Value.As<double>().ShouldBe(1);
-        content[1].Key.As<double>().ShouldBe(2);
-        content[1].Value.As<double>().ShouldBe(3);
+        try
+        {
+            content[0].Key.As<string>().ShouldBe("a");
+            content[0].Value.As<double>().ShouldBe(1);
+            content[1].Key.As<double>().ShouldBe(2);
+            content[1].Value.As<double>().ShouldBe(3);
+        }
+        finally
+        {
+            foreach (KeyValuePair<LuauValue, LuauValue> item in content)
+            {
+                item.Key.Dispose();
+                item.Value.Dispose();
+            }
+        }
     }
 
     [Fact]

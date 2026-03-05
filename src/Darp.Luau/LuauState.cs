@@ -207,10 +207,15 @@ public sealed unsafe class LuauState : IDisposable
         return callbackFrameToken;
     }
 
+    internal int GetCurrentCallbackFrameToken() =>
+        _activeCallbackFrameTokens.Count == 0 ? 0 : _activeCallbackFrameTokens.Peek();
+
     internal void ExitCallbackFrame(int callbackFrameToken)
     {
         if (_activeCallbackFrameTokens.Count == 0 || _activeCallbackFrameTokens.Peek() != callbackFrameToken)
             throw new InvalidOperationException("Callback frame stack was corrupted.");
+
+        ReferenceTracker.ReleaseCallbackFrameReferences(callbackFrameToken);
 
         _activeCallbackFrameTokens.Pop();
     }

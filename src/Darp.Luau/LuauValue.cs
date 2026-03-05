@@ -234,7 +234,12 @@ public readonly struct LuauValue : IDisposable
                     return false;
                 if (typeof(T) == typeof(string))
                 {
-                    using var luauString = new LuauString(_state, _union.ValueReference);
+                    int clonedReference = _state.ReferenceTracker.CloneTrackedReference(
+                        _state.L,
+                        _union.ValueReference,
+                        nameof(LuauValue)
+                    );
+                    using var luauString = new LuauString(_state, clonedReference);
                     string temp = luauString.ToString();
                     value = Unsafe.As<string, T>(ref temp)!;
                     return true;
@@ -356,7 +361,12 @@ public readonly struct LuauValue : IDisposable
                     return false;
                 if (typeof(T) == typeof(LuauTable))
                 {
-                    var temp = new LuauTable(_state, _union.ValueReference);
+                    int clonedReference = _state.ReferenceTracker.CloneTrackedReference(
+                        _state.L,
+                        _union.ValueReference,
+                        nameof(LuauValue)
+                    );
+                    var temp = new LuauTable(_state, clonedReference);
                     value = Unsafe.As<LuauTable, T>(ref temp)!;
                     return true;
                 }
@@ -396,7 +406,12 @@ public readonly struct LuauValue : IDisposable
                     return false;
                 if (typeof(T) == typeof(ReadOnlySpan<byte>))
                 {
-                    using var temp = new LuauBuffer(_state, _union.ValueReference);
+                    int clonedReference = _state.ReferenceTracker.CloneTrackedReference(
+                        _state.L,
+                        _union.ValueReference,
+                        nameof(LuauValue)
+                    );
+                    using var temp = new LuauBuffer(_state, clonedReference);
                     if (!temp.TryGet(out ReadOnlySpan<byte> span))
                         return false;
 
@@ -405,7 +420,12 @@ public readonly struct LuauValue : IDisposable
                 }
                 if (typeof(T) == typeof(byte[]))
                 {
-                    using var temp = new LuauBuffer(_state, _union.ValueReference);
+                    int clonedReference = _state.ReferenceTracker.CloneTrackedReference(
+                        _state.L,
+                        _union.ValueReference,
+                        nameof(LuauValue)
+                    );
+                    using var temp = new LuauBuffer(_state, clonedReference);
                     if (!temp.TryGet(out byte[] bytes))
                         return false;
 
@@ -534,7 +554,9 @@ public readonly struct LuauValue : IDisposable
                 return "nil";
             case LuauValueType.String:
             {
-                using var temp = new LuauString(_state, _union.ValueReference);
+                _state.ThrowIfDisposed();
+                int clonedReference = _state.ReferenceTracker.CloneTrackedReference(_union.ValueReference, nameof(LuauValue));
+                using var temp = new LuauString(_state, clonedReference);
                 return temp.ToString();
             }
             case LuauValueType.Number:
@@ -547,12 +569,16 @@ public readonly struct LuauValue : IDisposable
                 return new LuauFunction(_state, _union.ValueReference).ToString();
             case LuauValueType.Userdata:
             {
-                using var temp = new LuauUserdata(_state, _union.ValueReference);
+                _state.ThrowIfDisposed();
+                int clonedReference = _state.ReferenceTracker.CloneTrackedReference(_union.ValueReference, nameof(LuauValue));
+                using var temp = new LuauUserdata(_state, clonedReference);
                 return temp.ToString();
             }
             case LuauValueType.Buffer:
             {
-                using var temp = new LuauBuffer(_state, _union.ValueReference);
+                _state.ThrowIfDisposed();
+                int clonedReference = _state.ReferenceTracker.CloneTrackedReference(_union.ValueReference, nameof(LuauValue));
+                using var temp = new LuauBuffer(_state, clonedReference);
                 return temp.ToString();
             }
             default:
