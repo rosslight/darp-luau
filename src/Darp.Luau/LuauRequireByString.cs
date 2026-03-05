@@ -4,7 +4,7 @@ using System.Text;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
-//TODO Find a more central location within project!?
+//TODO Need to find a more central location within project!?
 [assembly: DisableRuntimeMarshalling]
 
 namespace Darp.Luau;
@@ -126,11 +126,88 @@ public static unsafe class LuauRequireByString
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int Load(lua_State* L, void* ctx, byte* path, byte* chunkname, byte* loadname)
     {
-        //TODO
         string strPath = new((sbyte*)path);
         string strChunkName = new((sbyte*)chunkname);
         string strLoadName = new((sbyte*)loadname);
-        return 0;
+
+        // module needs to run in a new thread, isolated from the rest
+        // note: we create ML on main thread so that it doesn't inherit environment of L
+        lua_State* GL = lua_mainthread(L);
+        lua_State* ML = lua_newthread(GL);
+        lua_xmove(GL, L, 1);
+
+        // new thread needs to have the globals sandboxed
+        luaL_sandboxthread(ML);
+
+        bool bOk = true;
+        string? strContent = ReadFile(strLoadName);
+        if (strContent is null)
+        {
+            PushError(L, $"could not read file '{strChunkName}'");
+            bOk = false;
+        }
+        else
+        {
+            ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes(strContent);
+            ReadOnlySpan<byte> spanChunkName = Encoding.UTF8.GetBytes(strChunkName);
+
+            fixed (byte* pSource = spanSource)
+            fixed (byte* pChunkName = spanChunkName)
+            {
+                nuint nResultSize = 0;
+                byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nResultSize);
+                int nStatus = luau_load(ML, pChunkName, pByteCode, nResultSize, 0);
+                bOk = nStatus == 0;
+            }
+        }
+
+        if (bOk)
+        {
+            int nStatus = lua_resume(ML, L, 0);
+            if (nStatus == 0)
+            {
+                if (lua_gettop(ML) != 1)
+                {
+                    PushError(L, "module must return a single value");
+                    bOk = false;
+                }
+            }
+            else if (nStatus == 1) // Yield
+            {
+                PushError(L, "module can not yield");
+                bOk = false;
+            }
+            else if (lua_isstring(ML, -1) == 0)
+            {
+                PushError(L, "unknown error while running module");
+                bOk = false;
+            }
+            else
+            {
+                string strMsg = new((sbyte*)lua_tostring(ML, -1));
+                PushError(L, $"error while running module: {strMsg}");
+                bOk = false;
+            }
+        }
+
+        // add ML result to L stack
+        lua_xmove(ML, L, 1);
+
+        // remove ML thread from L stack
+        lua_remove(L, -2);
+
+        // added one value to L stack: module result
+        return 1;
+    }
+
+    private static void PushError(lua_State* L, string strMsg)
+    {
+        fixed(byte* pMsg = Encoding.UTF8.GetBytes(strMsg))
+        {
+            lua_pushstring(L, pMsg);
+            //TODO What else can be used?
+            // lua_error(L);
+        }
     }
 
     private static luarequire_WriteResult Write(string? strSrc, byte* bufDest, nuint nSizeBufDest, nuint* nSizeBufDestOut)
@@ -231,13 +308,18 @@ public static unsafe class LuauRequireByString
         }
 
         string strNormalized = sbNormalized.ToString();
-        if (strNormalized.EndsWith("..", StringComparison.InvariantCulture))
+        if (strNormalized.HasSuffix(".."))
             strNormalized += "/";
         return strNormalized;
     }
 
     private class Navigator()
     {
+        private static readonly string[] s_suffixes = [".luau", ".lua"];
+        private static readonly string[] s_initSuffixes = ["/init.luau", "/init.lua"];
+        private const string ConfigName = ".luaurc";
+        private const string LuauConfigName = ".config.luau";
+
         private string _strModulePath = ""; // modulePath
         private string _strAbsoluteModulePath = ""; // absoluteModulePath
         private string _strAbsolutePathPrefix = ""; // absolutePathPrefix
@@ -248,11 +330,11 @@ public static unsafe class LuauRequireByString
         public luarequire_NavigateResult ResetToStdIn()
         {
             FilePath = "./stdin";
-            AbsoluteFilePath = NormalizePath(GetCurrentWorkingDirectory() + "/stdin");
+            AbsoluteFilePath = NormalizePath(Directory.GetCurrentDirectory() + "/stdin");
             _strModulePath = "./stdin";
             _strAbsoluteModulePath = GetModulePath(AbsoluteFilePath);
 
-            int nPosFirstSlash = GetRequiredIndexOfFirstSlash(AbsoluteFilePath);
+            int nPosFirstSlash = AbsoluteFilePath.RequiredIndexOfFirstSlash();
             _strAbsolutePathPrefix = AbsoluteFilePath.Substring(0, nPosFirstSlash);
 
             return luarequire_NavigateResult.NAVIGATE_SUCCESS;
@@ -266,16 +348,16 @@ public static unsafe class LuauRequireByString
             {
                 _strAbsoluteModulePath = _strModulePath = GetModulePath(strPath);
 
-                int nPosFirstSlash = GetRequiredIndexOfFirstSlash(strPath);
+                int nPosFirstSlash = strPath.RequiredIndexOfFirstSlash();
                 _strAbsolutePathPrefix = strPath.Substring(0, nPosFirstSlash);
             }
             else
             {
                 _strModulePath = GetModulePath(strPath);
-                string strJoinedPath = NormalizePath(GetCurrentWorkingDirectory() + "/" + strPath);
+                string strJoinedPath = NormalizePath(Directory.GetCurrentDirectory() + "/" + strPath);
                 _strAbsoluteModulePath = GetModulePath(strJoinedPath);
 
-                int nPosFirstSlash = GetRequiredIndexOfFirstSlash(strJoinedPath);
+                int nPosFirstSlash = strJoinedPath.RequiredIndexOfFirstSlash();
                 _strAbsolutePathPrefix = strJoinedPath.Substring(0, nPosFirstSlash);
             }
 
@@ -284,32 +366,59 @@ public static unsafe class LuauRequireByString
 
         public luarequire_NavigateResult ToParent()
         {
-            //TODO
-            return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+            if (Equals(_strAbsoluteModulePath, "/"))
+                return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+
+            int nNumSlashes = _strAbsoluteModulePath.Count(c => c == '/');
+            if (nNumSlashes <= 0)
+                throw new LuaException("No slashes found");
+            if (nNumSlashes == 1)
+                return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+
+            _strModulePath = NormalizePath(_strModulePath + "/..");
+            _strAbsoluteModulePath = NormalizePath(_strAbsoluteModulePath + "/..");
+
+            // There is no ambiguity when navigating up in a tree.
+            luarequire_NavigateResult eResult = UpdateRealPaths();
+            if (eResult == luarequire_NavigateResult.NAVIGATE_AMBIGUOUS)
+                eResult = luarequire_NavigateResult.NAVIGATE_SUCCESS;
+            return eResult;
         }
 
         public luarequire_NavigateResult ToChild(string strName)
         {
-            //TODO
-            return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+            if (Equals(strName, ".config"))
+                return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
+
+            _strModulePath = NormalizePath(_strModulePath + "/" + strName);
+            _strAbsoluteModulePath = NormalizePath(_strAbsoluteModulePath + "/" + strName);
+            return UpdateRealPaths();
         }
 
         public luarequire_ConfigStatus GetConfigStatus()
         {
-            //TODO
+            bool bConfig = File.Exists(GetConfigPath(ConfigName));
+            bool bLuauConfig = File.Exists(GetConfigPath(LuauConfigName));
+
+            if (bConfig && bLuauConfig)
+                return luarequire_ConfigStatus.CONFIG_AMBIGUOUS;
+            if (bLuauConfig)
+                return luarequire_ConfigStatus.CONFIG_PRESENT_LUAU;
+            if (bConfig)
+                return luarequire_ConfigStatus.CONFIG_PRESENT_JSON;
+
             return luarequire_ConfigStatus.CONFIG_ABSENT;
         }
 
         public string? GetConfig()
         {
-            //TODO
-            return null;
-        }
-
-        private string GetCurrentWorkingDirectory()
-        {
-            // return Path.Combine(Directory.GetCurrentDirectory(), ScriptPath).TrimEnd('/', '\\');
-            return Directory.GetCurrentDirectory();
+            luarequire_ConfigStatus eStatus = GetConfigStatus();
+            return eStatus switch
+            {
+                luarequire_ConfigStatus.CONFIG_PRESENT_JSON => ReadFile(ConfigName),
+                luarequire_ConfigStatus.CONFIG_PRESENT_LUAU => ReadFile(LuauConfigName),
+                _ => throw new LuaException("Invalid config state"),
+            };
         }
 
         private luarequire_NavigateResult UpdateRealPaths()
@@ -327,8 +436,30 @@ public static unsafe class LuauRequireByString
             return luarequire_NavigateResult.NAVIGATE_SUCCESS;
         }
 
-        private static readonly string[] s_suffixes = [".luau", ".lua"];
-        private static readonly string[] s_initSuffixes = ["/init.luau", "/init.lua"];
+        private string GetConfigPath(string strFileName)
+        {
+            string strDirectory = FilePath;
+
+            foreach (string strSuffix in s_initSuffixes)
+            {
+                if (strDirectory.HasSuffix(strSuffix))
+                {
+                    strDirectory = strDirectory.RemoveSuffix(strSuffix);
+                    return strDirectory + "/" + strFileName;
+                }
+            }
+
+            foreach (string strSuffix in s_suffixes)
+            {
+                if (strDirectory.HasSuffix(strSuffix))
+                {
+                    strDirectory = strDirectory.RemoveSuffix(strSuffix);
+                    return strDirectory + "/" + strFileName;
+                }
+            }
+
+            return strDirectory + "/" + strFileName;
+        }
 
         private static string GetModulePath(string strFilePath)
         {
@@ -336,39 +467,23 @@ public static unsafe class LuauRequireByString
 
             if (IsAbsolutePath(strFilePath))
             {
-                int nPosFirstSlash = GetRequiredIndexOfFirstSlash(strFilePath);
+                int nPosFirstSlash = strFilePath.RequiredIndexOfFirstSlash();
                 strFilePath = strFilePath.Remove(0, nPosFirstSlash);
             }
 
             foreach (string strSuffix in s_initSuffixes)
             {
-                if (strFilePath.EndsWith(strSuffix, StringComparison.InvariantCulture))
-                    return strFilePath.Remove(strFilePath.Length - strSuffix.Length);
+                if (strFilePath.HasSuffix(strSuffix))
+                    return strFilePath.RemoveSuffix(strSuffix);
             }
 
             foreach (string strSuffix in s_suffixes)
             {
-                if (strFilePath.EndsWith(strSuffix, StringComparison.InvariantCulture))
-                    return strFilePath.Remove(strFilePath.Length - strSuffix.Length);
+                if (strFilePath.HasSuffix(strSuffix))
+                    return strFilePath.RemoveSuffix(strSuffix);
             }
 
             return strFilePath;
-        }
-
-        private static int GetRequiredIndexOfFirstSlash(string strPath)
-        {
-            int nPos = strPath.IndexOf('/', StringComparison.InvariantCulture);
-            if (nPos < 0)
-                throw new LuaException("No first slash found");
-            return nPos;
-        }
-
-        private static int GetRequiredIndexOfLastSlash(string strPath)
-        {
-            int nPos = strPath.LastIndexOf('/');
-            if (nPos < 0)
-                throw new LuaException("No last slash found");
-            return nPos;
         }
 
         private record ResolvedRealPath(luarequire_NavigateResult Result, string RealPath)
@@ -378,7 +493,7 @@ public static unsafe class LuauRequireByString
 
         private static ResolvedRealPath GetRealPath(string strModulePath)
         {
-            int nPosLastSlash = GetRequiredIndexOfLastSlash(strModulePath);
+            int nPosLastSlash = strModulePath.RequiredIndexOfLastSlash();
             string strLastPart = strModulePath.Substring(nPosLastSlash + 1);
             string strSuffix = "";
             bool bFound = false;
@@ -422,6 +537,48 @@ public static unsafe class LuauRequireByString
                 return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_NOT_FOUND);
 
             return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_SUCCESS, strModulePath + strSuffix);
+        }
+    }
+
+    private static int RequiredIndexOfFirstSlash(this string str)
+    {
+        int nPos = str.IndexOf('/', StringComparison.InvariantCulture);
+        if (nPos < 0)
+            throw new LuaException("No first slash found");
+        return nPos;
+    }
+
+    private static int RequiredIndexOfLastSlash(this string str)
+    {
+        int nPos = str.LastIndexOf('/');
+        if (nPos < 0)
+            throw new LuaException("No last slash found");
+        return nPos;
+    }
+
+    private static bool HasSuffix(this string str, string strSuffix)
+    {
+        return str.EndsWith(strSuffix, StringComparison.InvariantCulture);
+    }
+
+    private static string RemoveSuffix(this string str, string strSuffix)
+    {
+        return str.Remove(str.Length - strSuffix.Length);
+    }
+
+    private static string? ReadFile(string strFileName)
+    {
+        try
+        {
+            if (!File.Exists(strFileName))
+                return null;
+
+            return File.ReadAllText(strFileName);
+        }
+        catch //(Exception exc)
+        {
+            // throw new LuaException($"Failed to read file '{strFileName}'. Reason: {exc.Message}");
+            return null;
         }
     }
 }

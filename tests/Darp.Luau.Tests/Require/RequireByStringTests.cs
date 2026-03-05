@@ -66,7 +66,7 @@ public sealed class RequireByStringTests
     }
 
     [Fact]
-    public void Enable_require_by_string()
+    public void Just_enable_require_by_string()
     {
         using var state = new LuauState();
         state.EnableRequireByString();
@@ -76,13 +76,38 @@ public sealed class RequireByStringTests
     }
 
     [Fact]
-    public void Use_require_by_string()
+    public void Result_in_globals()
     {
         using var state = new LuauState();
         state.EnableRequireByString();
 
-        string strScriptPath = Path.Combine(ScriptPath, "main.luau");
-        string strChunkName = '@' + strScriptPath;
-        state.DoString(File.ReadAllBytes(strScriptPath), Encoding.UTF8.GetBytes(strChunkName));
+        string strFileName = Path.Combine(ScriptPath, "main.luau");
+        string strChunkName = '@' + strFileName;
+        state.DoString(File.ReadAllBytes(strFileName), Encoding.UTF8.GetBytes(strChunkName));
+        state.Globals.TryGet("result", out int nResult).ShouldBeTrue();
+        nResult.ShouldBe(15);
+    }
+
+    [Fact]
+    public void Results_as_return_values()
+    {
+        using var state = new LuauState();
+        state.EnableRequireByString();
+
+        string strFileName = Path.Combine(ScriptPath, "main.luau");
+        string strChunkName = '@' + strFileName;
+        LuauValue[] results = state.DoString(File.ReadAllBytes(strFileName), nNumExpectedRetValues: 3, Encoding.UTF8.GetBytes(strChunkName));
+        
+        results[0].TryGet(out int nSum).ShouldBeTrue();
+        nSum.ShouldBe(3);
+        
+        results[1].TryGet(out int nDifference).ShouldBeTrue();
+        nDifference.ShouldBe(5);
+
+        results[2].TryGet(out LuauTable table).ShouldBeTrue();
+        table.TryGet("sum", out nSum).ShouldBeTrue();
+        nSum.ShouldBe(3);
+        table.TryGet("difference", out nDifference).ShouldBeTrue();
+        nDifference.ShouldBe(5);
     }
 }
