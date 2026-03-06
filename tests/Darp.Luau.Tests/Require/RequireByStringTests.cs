@@ -7,6 +7,7 @@ public sealed class RequireByStringTests
 {
     private const string ScriptPath = "./Require/scripts";
 
+    /// <summary>See https://github.com/luau-lang/luau</summary>
     [Fact]
     public void Path_normalization()
     {
