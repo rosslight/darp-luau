@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 //TODO Need to find a more central location within project!?
@@ -146,13 +147,11 @@ public static unsafe partial class LuauRequireByString
         // new thread needs to have the globals sandboxed
         luaL_sandboxthread(ML);
 
-        bool bOk = true;
+        bool bOk = false;
         string? strContent = ReadFile(strLoadName);
-        // strContent = null; //TEMP
         if (strContent is null)
         {
-            ReportError(L, $"could not read file '{strChunkName}'");
-            bOk = false;
+            TerminateOnError(L, $"could not read file '{strChunkName}'");
         }
         else
         {
@@ -169,35 +168,28 @@ public static unsafe partial class LuauRequireByString
         if (bOk)
         {
             int nStatus = lua_resume(ML, L, 0);
-            // nStatus = 5; //TEMP
-            if (nStatus == 0) // Ok
+            if (nStatus == (int)lua_Status.LUA_OK)
             {
                 if (lua_gettop(ML) != 1)
-                {
-                    ReportError(ML, "module must return a single value");
-                    bOk = false;
-                }
+                    TerminateOnError(L, $"module '{strPath}' must return a single value");
             }
-            else if (nStatus == 1) // Yield
+            else if (nStatus == (int)lua_Status.LUA_YIELD)
             {
-                ReportError(ML, "module can not yield");
-                bOk = false;
+                TerminateOnError(L, $"module '{strPath}' can not yield");
             }
             else if (lua_isstring(ML, -1) == 0)
             {
-                ReportError(ML, "unknown error while running module");
-                bOk = false;
+                TerminateOnError(L, $"unknown error while running module '{strPath}'");
             }
             else
             {
                 string strMsg = new((sbyte*)lua_tostring(ML, -1));
-                ReportError(ML, $"error while running module: {strMsg}");
-                bOk = false;
+                TerminateOnError(L, $"error while running module '{strPath}': {strMsg}");
             }
-
-            // add ML result to L stack
-            lua_xmove(ML, L, 1);
         }
+
+        // add ML result to L stack
+        lua_xmove(ML, L, 1);
 
         // remove ML thread from L stack
         lua_remove(L, -2);
@@ -206,18 +198,17 @@ public static unsafe partial class LuauRequireByString
         return 1;
     }
 
-    private static void ReportError(lua_State* L, string strMsg)
+    private static void TerminateOnError(lua_State* L, string strMsg)
     {
-        // throw new LuaException(strMsg);
+        // LuauStateMarshal.PushString(L, strMsg);
+        // // Should be ok to call here since this function is only called from Load
+        // // which allows unmanaged callers only!?
+        // lua_error(L);
 
-        LuauStateMarshal.PushString(L, strMsg);
-        lua_error(L); //TODO What else can be used?
-
-        // static void Func(lua_State* L, int n)
-        // {
-        // }
-        // IntPtr pFunc = Marshal.GetFunctionPointerForDelegate(Func);
-        // lua_pushcfunction(L, (delegate* unmanaged[Cdecl]<lua_State*, int>)pFunc, null);
+        // To avoid calling lua_error from here let a luau script do it
+        ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes($"error(\"{strMsg}\")");
+        ReadOnlySpan<byte> spanChunkName = "raise_error"u8;
+        LuauNativeMethods.CompileLoadAndCall(L, spanSource, spanChunkName, 0);
     }
 
     private static luarequire_WriteResult Write(string? strSrc, byte* bufDest, nuint nSizeBufDest, nuint* nSizeBufDestOut)
@@ -258,7 +249,7 @@ public static unsafe partial class LuauRequireByString
     {
         if (OperatingSystem.IsWindows() && strPath is not null)
             strPath = strPath.Replace('/', '\\');
-            
+
         return File.Exists(strPath);
     }
 
@@ -266,7 +257,7 @@ public static unsafe partial class LuauRequireByString
     {
         if (OperatingSystem.IsWindows() && strPath is not null)
             strPath = strPath.Replace('/', '\\');
-            
+
         return Directory.Exists(strPath);
     }
 
@@ -604,4 +595,3 @@ public static unsafe partial class LuauRequireByString
         }
     }
 }
-
