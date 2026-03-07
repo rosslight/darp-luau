@@ -3,7 +3,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Darp.Luau.Native;
-using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 //TODO Need to find a more central location within project!?
@@ -148,21 +147,14 @@ public static unsafe partial class LuauRequireByString
         luaL_sandboxthread(ML);
 
         bool bOk = false;
-        string? strContent = ReadFile(strLoadName);
-        if (strContent is null)
+        string strContent = ReadFile(strLoadName) ?? throw new LuaException($"could not read file '{strChunkName}'");
+        ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes(strContent);
+        fixed (byte* pSource = spanSource)
         {
-            TerminateOnError(L, $"could not read file '{strChunkName}'");
-        }
-        else
-        {
-            ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes(strContent);
-            fixed (byte* pSource = spanSource)
-            {
-                nuint nByteCodeSize = 0;
-                byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nByteCodeSize);
-                int nStatus = luau_load(ML, chunkname, pByteCode, nByteCodeSize, 0);
-                bOk = nStatus == 0;
-            }
+            nuint nByteCodeSize = 0;
+            byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nByteCodeSize);
+            int nStatus = luau_load(ML, chunkname, pByteCode, nByteCodeSize, 0);
+            bOk = nStatus == 0;
         }
 
         if (bOk)
@@ -171,20 +163,20 @@ public static unsafe partial class LuauRequireByString
             if (nStatus == (int)lua_Status.LUA_OK)
             {
                 if (lua_gettop(ML) != 1)
-                    TerminateOnError(L, $"module '{strPath}' must return a single value");
+                    throw new LuaException($"module '{strPath}' must return a single value");
             }
             else if (nStatus == (int)lua_Status.LUA_YIELD)
             {
-                TerminateOnError(L, $"module '{strPath}' can not yield");
+                throw new LuaException($"module '{strPath}' can not yield");
             }
             else if (lua_isstring(ML, -1) == 0)
             {
-                TerminateOnError(L, $"unknown error while running module '{strPath}'");
+                throw new LuaException($"unknown error while running module '{strPath}'");
             }
             else
             {
                 string strMsg = new((sbyte*)lua_tostring(ML, -1));
-                TerminateOnError(L, $"error while running module '{strPath}': {strMsg}");
+                throw new LuaException($"error while running module '{strPath}': {strMsg}");
             }
         }
 
@@ -196,19 +188,6 @@ public static unsafe partial class LuauRequireByString
 
         // added one value to L stack: module result
         return 1;
-    }
-
-    private static void TerminateOnError(lua_State* L, string strMsg)
-    {
-        // LuauStateMarshal.PushString(L, strMsg);
-        // // Should be ok to call here since this function is only called from Load
-        // // which allows unmanaged callers only!?
-        // lua_error(L);
-
-        // To avoid calling lua_error from here let a luau script do it
-        ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes($"error(\"{strMsg}\")");
-        ReadOnlySpan<byte> spanChunkName = "raise_error"u8;
-        LuauNativeMethods.CompileLoadAndCall(L, spanSource, spanChunkName, 0);
     }
 
     private static luarequire_WriteResult Write(string? strSrc, byte* bufDest, nuint nSizeBufDest, nuint* nSizeBufDestOut)
@@ -411,16 +390,16 @@ public static unsafe partial class LuauRequireByString
 
         private luarequire_NavigateResult UpdateRealPaths()
         {
-            ResolvedRealPath resolved = GetRealPath(_strModulePath);
+            var resolved = ResolvedRealPath.For(_strModulePath);
             if (resolved.Result != luarequire_NavigateResult.NAVIGATE_SUCCESS)
                 return resolved.Result;
 
-            ResolvedRealPath absoluteResolved = GetRealPath(_strAbsoluteModulePath);
+            var absoluteResolved = ResolvedRealPath.For(_strAbsoluteModulePath);
             if (absoluteResolved.Result != luarequire_NavigateResult.NAVIGATE_SUCCESS)
                 return absoluteResolved.Result;
 
-            FilePath = IsAbsolutePath(resolved.RealPath) ? _strAbsolutePathPrefix + resolved.RealPath : resolved.RealPath;
-            AbsoluteFilePath = _strAbsolutePathPrefix + absoluteResolved.RealPath;
+            FilePath = IsAbsolutePath(resolved.Path) ? _strAbsolutePathPrefix + resolved.Path : resolved.Path;
+            AbsoluteFilePath = _strAbsolutePathPrefix + absoluteResolved.Path;
             return luarequire_NavigateResult.NAVIGATE_SUCCESS;
         }
 
@@ -541,57 +520,63 @@ public static unsafe partial class LuauRequireByString
             return strFilePath;
         }
 
-        private record ResolvedRealPath(luarequire_NavigateResult Result, string RealPath)
+        private class ResolvedRealPath
         {
-            public ResolvedRealPath(luarequire_NavigateResult eResult) : this(eResult, "") { }
-        }
+            public luarequire_NavigateResult Result { get; }
+            public string Path { get; }
 
-        private static ResolvedRealPath GetRealPath(string strModulePath)
-        {
-            int nPosLastSlash = strModulePath.RequiredIndexOfLastSlash();
-            string strLastPart = strModulePath.Substring(nPosLastSlash + 1);
-            string strSuffix = "";
-            bool bFound = false;
-
-            if (!Equals(strLastPart, "init"))
+            private ResolvedRealPath(luarequire_NavigateResult eResult, string strPath)
             {
-                foreach (string strPotentialSuffix in s_suffixes)
-                {
-                    if (FileExists(strModulePath + strPotentialSuffix))
-                    {
-                        if (bFound)
-                            return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
-
-                        strSuffix = strPotentialSuffix;
-                        bFound = true;
-                    }
-                }
+                Result = eResult;
+                Path = strPath;
             }
 
-            if (DirectoryExists(strModulePath))
+            private ResolvedRealPath(luarequire_NavigateResult eResult) : this(eResult, "") { }
+
+            public static ResolvedRealPath For(string strModulePath)
             {
-                if (bFound)
-                    return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
+                int nPosLastSlash = strModulePath.RequiredIndexOfLastSlash();
+                string strLastPart = strModulePath.Substring(nPosLastSlash + 1);
+                string? strSuffix = null;
 
-                foreach (string strPotentialSuffix in s_initSuffixes)
+                if (!Equals(strLastPart, "init"))
                 {
-                    if (FileExists(strModulePath + strPotentialSuffix))
+                    foreach (string strPotentialSuffix in s_suffixes)
                     {
-                        if (bFound)
-                            return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
+                        if (FileExists(strModulePath + strPotentialSuffix))
+                        {
+                            if (strSuffix is not null)
+                                return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
 
-                        strSuffix = strPotentialSuffix;
-                        bFound = true;
+                            strSuffix = strPotentialSuffix;
+                        }
                     }
                 }
 
-                bFound = true;
+                if (DirectoryExists(strModulePath))
+                {
+                    if (strSuffix is not null)
+                        return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
+
+                    foreach (string strPotentialSuffix in s_initSuffixes)
+                    {
+                        if (FileExists(strModulePath + strPotentialSuffix))
+                        {
+                            if (strSuffix is not null)
+                                return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
+
+                            strSuffix = strPotentialSuffix;
+                        }
+                    }
+
+                    strSuffix ??= ""; // if no suffix was found yet strModulePath is the real path
+                }
+
+                if (strSuffix is null)
+                    return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_NOT_FOUND);
+
+                return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_SUCCESS, strModulePath + strSuffix);
             }
-
-            if (!bFound)
-                return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_NOT_FOUND);
-
-            return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_SUCCESS, strModulePath + strSuffix);
         }
     }
 }
