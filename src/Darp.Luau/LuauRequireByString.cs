@@ -525,13 +525,11 @@ public static unsafe partial class LuauRequireByString
             public luarequire_NavigateResult Result { get; }
             public string Path { get; }
 
-            private ResolvedRealPath(luarequire_NavigateResult eResult, string strPath)
+            private ResolvedRealPath(luarequire_NavigateResult eResult, string strPath = "")
             {
                 Result = eResult;
                 Path = strPath;
             }
-
-            private ResolvedRealPath(luarequire_NavigateResult eResult) : this(eResult, "") { }
 
             public static ResolvedRealPath For(string strModulePath)
             {
@@ -569,7 +567,7 @@ public static unsafe partial class LuauRequireByString
                         }
                     }
 
-                    strSuffix ??= ""; // if no suffix was found yet strModulePath is the real path
+                    strSuffix ??= ""; // if no suffix was found yet strModulePath (without suffix) is the real path
                 }
 
                 if (strSuffix is null)
