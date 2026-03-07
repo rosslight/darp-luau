@@ -30,6 +30,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Require/scripts/*" Pack="true" PackagePath="Require/scripts/" CopyToOutputDirectory="Always" />
+    <None Include="Require/scripts/**/*" Pack="true" PackagePath="Require/scripts/" CopyToOutputDirectory="Always" />
   </ItemGroup>
 </Project>
