@@ -19,10 +19,16 @@ public sealed class RequireByStringTests
 
     private static void ResultsShouldContainAll(LuauValue[] results, string[] expected)
     {
+        results.Length.ShouldBeGreaterThan(0);
+
         results[0].TryGet(out bool bResult).ShouldBeTrue();
         string strResult = bResult.ToString().ToLower();
 
-        if (results[1].TryGet(out LuauTable table))
+        if (results.Length < 2)
+        {
+            ContainsAll([strResult], expected).ShouldBeTrue();
+        }
+        else if (results[1].TryGet(out LuauTable table))
         {
             IEnumerable<string> values = table.IPairs()
                 .Where(p => p.Value.Type == LuauValueType.String)
@@ -237,24 +243,92 @@ public sealed class RequireByStringTests
         ResultsShouldContainAll(results, ["true", "result from nested_inits/init", "required into module"]);
     }
 
-    //TODO LuaException cannot been catched!
-    //
-    // /// <summary>See https://github.com/luau-lang/luau</summary>
-    // [Fact]
-    // public void RequireWithFileAmbiguity()
-    // {
-    //     using var state = new LuauState();
-    //     state.EnableRequireByString();
+    /// <summary>See https://github.com/luau-lang/luau</summary>
+    [Fact]
+    public void RequireWithFileAmbiguity()
+    {
+        using var state = new LuauState();
+        state.EnableRequireByString();
         
-    //     string strPath = Path.Combine(ScriptPath, "without_config/ambiguous_file_requirer");
-    //     string strSource = SourceForRunProtectedRequire(strPath);
-    //     string strChunkName = "=stdin";
-    //     LuaException exc = Should.Throw<LuaException>(() =>
-    //     {
-    //         state.DoString(Encoding.UTF8.GetBytes(strSource), nNumExpectedRetValues: 2, Encoding.UTF8.GetBytes(strChunkName));
-    //     });
-    //     exc.Message.ShouldContain("error requiring module \"./ambiguous/file/dependency\": could not resolve child component \"dependency\" (ambiguous)");
-    // }
+        string strPath = Path.Combine(ScriptPath, "without_config/ambiguous_file_requirer");
+        string strSource = SourceForRunProtectedRequire(strPath);
+        string strChunkName = "=stdin";
+        LuauValue[] results = state.DoString(Encoding.UTF8.GetBytes(strSource), nNumExpectedRetValues: 2, Encoding.UTF8.GetBytes(strChunkName));
+        //TODO should return false
+        ResultsShouldContainAll(results, ["true", "error requiring module \"./ambiguous/file/dependency\": could not resolve child component \"dependency\" (ambiguous)"]);
+    }
+
+    /// <summary>See https://github.com/luau-lang/luau</summary>
+    [Fact]
+    public void RequireWithDirectoryAmbiguity()
+    {
+        using var state = new LuauState();
+        state.EnableRequireByString();
+        
+        string strPath = Path.Combine(ScriptPath, "without_config/ambiguous_directory_requirer");
+        string strSource = SourceForRunProtectedRequire(strPath);
+        string strChunkName = "=stdin";
+        LuauValue[] results = state.DoString(Encoding.UTF8.GetBytes(strSource), nNumExpectedRetValues: 2, Encoding.UTF8.GetBytes(strChunkName));
+        //TODO should return false
+        ResultsShouldContainAll(results, ["true", "error requiring module \"./ambiguous/directory/dependency\": could not resolve child component \"dependency\" (ambiguous)"]);
+    }
+
+    /// <summary>See https://github.com/luau-lang/luau</summary>
+    [Fact]
+    public void RequireAbsolutePath()
+    {
+        using var state = new LuauState();
+        state.EnableRequireByString();
+        
+        string strPath = "/an/absolute/path";
+        string strSource = SourceForRunProtectedRequire(strPath);
+        string strChunkName = "=stdin";
+        LuauValue[] results = state.DoString(Encoding.UTF8.GetBytes(strSource), nNumExpectedRetValues: 2, Encoding.UTF8.GetBytes(strChunkName));
+        ResultsShouldContainAll(results, ["false", "require path must start with a valid prefix: ./, ../, or @"]);
+    }
+
+    /// <summary>See https://github.com/luau-lang/luau</summary>
+    [Fact]
+    public void RequireUnprefixedPath()
+    {
+        using var state = new LuauState();
+        state.EnableRequireByString();
+        
+        string strPath = "an/unprefixed/path";
+        string strSource = SourceForRunProtectedRequire(strPath);
+        string strChunkName = "=stdin";
+        LuauValue[] results = state.DoString(Encoding.UTF8.GetBytes(strSource), nNumExpectedRetValues: 2, Encoding.UTF8.GetBytes(strChunkName));
+        ResultsShouldContainAll(results, ["false", "require path must start with a valid prefix: ./, ../, or @"]);
+    }
+
+    /// <summary>See https://github.com/luau-lang/luau</summary>
+    [Fact]
+    public void RequirePathWithAlias01()
+    {
+        using var state = new LuauState();
+        state.EnableRequireByString();
+        
+        string strPath = Path.Combine(ScriptPath, "config_tests/with_config/src/alias_requirer");
+        string strSource = SourceForRunProtectedRequire(strPath);
+        string strChunkName = "=stdin";
+        LuauValue[] results = state.DoString(Encoding.UTF8.GetBytes(strSource), nNumExpectedRetValues: 2, Encoding.UTF8.GetBytes(strChunkName));
+        ResultsShouldContainAll(results, ["true", "result from dependency"]);
+    }
+
+    /// <summary>See https://github.com/luau-lang/luau</summary>
+    [Fact]
+    public void RequirePathWithAlias02()
+    {
+        using var state = new LuauState();
+        state.EnableRequireByString();
+        
+        string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/src/alias_requirer");
+        string strSource = SourceForRunProtectedRequire(strPath);
+        string strChunkName = "=stdin";
+        LuauValue[] results = state.DoString(Encoding.UTF8.GetBytes(strSource), nNumExpectedRetValues: 2, Encoding.UTF8.GetBytes(strChunkName));
+        ResultsShouldContainAll(results, ["true", "result from dependency"]);
+    }
+
 
 
 

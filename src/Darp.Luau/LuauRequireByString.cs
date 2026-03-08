@@ -136,7 +136,12 @@ public static unsafe partial class LuauRequireByString
         string strChunkName = new((sbyte*)chunkname);
         string strLoadName = new((sbyte*)loadname);
 
-        string strContent = ReadFile(strLoadName) ?? throw new LuaException($"could not read file '{strChunkName}'");
+        string? strContent = ReadFile(strLoadName);
+        if (strContent is null)
+        {
+            LuauStateMarshal.PushString(L, $"could not read file '{strChunkName}'");
+            return 1;
+        }
 
         // module needs to run in a new thread, isolated from the rest
         // note: we create ML on main thread so that it doesn't inherit environment of L
@@ -163,25 +168,25 @@ public static unsafe partial class LuauRequireByString
             if (nStatus == (int)lua_Status.LUA_OK)
             {
                 if (lua_gettop(ML) != 1)
-                    throw new LuaException($"module '{strPath}' must return a single value");
+                    LuauStateMarshal.PushString(ML, $"module '{strPath}' must return a single value");
             }
             else if (nStatus == (int)lua_Status.LUA_YIELD)
             {
-                throw new LuaException($"module '{strPath}' can not yield");
+                LuauStateMarshal.PushString(ML, $"module '{strPath}' can not yield");
             }
             else if (lua_isstring(ML, -1) == 0)
             {
-                throw new LuaException($"unknown error while running module '{strPath}'");
+                LuauStateMarshal.PushString(ML, $"unknown error while running module '{strPath}'");
             }
             else
             {
                 string strMsg = new((sbyte*)lua_tostring(ML, -1));
-                throw new LuaException($"error while running module '{strPath}': {strMsg}");
+                LuauStateMarshal.PushString(ML, $"error while running module '{strPath}': {strMsg}");
             }
-        }
 
-        // add ML result to L stack
-        lua_xmove(ML, L, 1);
+            // add ML result to L stack
+            lua_xmove(ML, L, 1);
+        }
 
         // remove ML thread from L stack
         lua_remove(L, -2);
@@ -382,8 +387,8 @@ public static unsafe partial class LuauRequireByString
             luarequire_ConfigStatus eStatus = GetConfigStatus();
             return eStatus switch
             {
-                luarequire_ConfigStatus.CONFIG_PRESENT_JSON => ReadFile(ConfigName),
-                luarequire_ConfigStatus.CONFIG_PRESENT_LUAU => ReadFile(LuauConfigName),
+                luarequire_ConfigStatus.CONFIG_PRESENT_JSON => ReadFile(GetConfigPath(ConfigName)),
+                luarequire_ConfigStatus.CONFIG_PRESENT_LUAU => ReadFile(GetConfigPath(LuauConfigName)),
                 _ => throw new LuaException("Invalid config state"),
             };
         }
