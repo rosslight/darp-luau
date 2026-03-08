@@ -5,7 +5,6 @@ using System.Text.RegularExpressions;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
-//TODO Need to find a more central location within project!?
 [assembly: DisableRuntimeMarshalling]
 
 namespace Darp.Luau;
@@ -137,6 +136,8 @@ public static unsafe partial class LuauRequireByString
         string strChunkName = new((sbyte*)chunkname);
         string strLoadName = new((sbyte*)loadname);
 
+        string strContent = ReadFile(strLoadName) ?? throw new LuaException($"could not read file '{strChunkName}'");
+
         // module needs to run in a new thread, isolated from the rest
         // note: we create ML on main thread so that it doesn't inherit environment of L
         lua_State* GL = lua_mainthread(L);
@@ -147,7 +148,6 @@ public static unsafe partial class LuauRequireByString
         luaL_sandboxthread(ML);
 
         bool bOk = false;
-        string strContent = ReadFile(strLoadName) ?? throw new LuaException($"could not read file '{strChunkName}'");
         ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes(strContent);
         fixed (byte* pSource = spanSource)
         {
