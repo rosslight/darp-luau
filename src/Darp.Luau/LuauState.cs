@@ -376,11 +376,10 @@ public sealed unsafe class LuauState : IDisposable
         CompileLoadAndCall(L, source, chunkName, nResults: 0);
     }
 
-    /// <summary> Do the string </summary>
+    /// <summary> Do the string and return all return values</summary>
     /// <param name="source"> The source to compile and run </param>
-    /// <param name="nNumExpectedRetValues">The number of expected return values</param>
     /// <param name="chunkName"> The name of the chunk to load </param>
-    public LuauValue[] DoString(ReadOnlySpan<byte> source, int nNumExpectedRetValues, ReadOnlySpan<byte> chunkName = default)
+    public LuauValue[] DoStringAndReturn(ReadOnlySpan<byte> source, ReadOnlySpan<byte> chunkName = default)
     {
         this.ThrowIfDisposed();
 #if DEBUG
@@ -388,15 +387,31 @@ public sealed unsafe class LuauState : IDisposable
 #endif
         if (chunkName.IsEmpty)
             chunkName = "main"u8;
-        CompileLoadAndCall(L, source, chunkName, nResults: nNumExpectedRetValues);
 
-        if (nNumExpectedRetValues == 0)
+        int nNumRetValues;
+        fixed (byte* pSource = source)
+        fixed (byte* pChunkName = chunkName)
+        {
+            nuint nResultSize = 0;
+            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &nResultSize);
+            int nLoadStatus = luau_load(L, pChunkName, pByteCode, nResultSize, 0);
+            LuaException.ThrowIfNotOk(L, nLoadStatus, "luau_load");
+
+            int iStackBefore = lua_absindex(L, lua_gettop(L));
+
+            int nCallStatus = lua_pcall(L, 0, LUA_MULTRET, 0);
+            LuaException.ThrowIfNotOk(L, nCallStatus, "lua_pcall");
+        
+            nNumRetValues = lua_absindex(L, lua_gettop(L)) - iStackBefore + 1;
+        }
+
+        if (nNumRetValues == 0)
             return [];
 
-        var results = new LuauValue[nNumExpectedRetValues];
-        while(--nNumExpectedRetValues >= 0)
+        var results = new LuauValue[nNumRetValues];
+        while(--nNumRetValues >= 0)
         {
-            results[nNumExpectedRetValues] = LuauValue.ToValue(this);
+            results[nNumRetValues] = LuauValue.ToValue(this);
             lua_pop(L, 1);
         }
         return results;

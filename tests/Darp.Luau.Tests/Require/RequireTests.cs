@@ -23,7 +23,8 @@ public sealed class RequireTests
         using var state = new LuauState();
         state.EnableRequire(ScriptPath);
 
-        LuauValue[] results = state.DoString(File.ReadAllBytes(Path.Combine(ScriptPath, "main.luau")), nNumExpectedRetValues: 3);
+        LuauValue[] results = state.DoStringAndReturn(File.ReadAllBytes(Path.Combine(ScriptPath, "main.luau")));
+        results.Length.ShouldBe(3);
         
         results[0].TryGet(out int nSum).ShouldBeTrue();
         nSum.ShouldBe(3);

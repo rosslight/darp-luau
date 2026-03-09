@@ -129,6 +129,8 @@ public static unsafe partial class LuauRequireByString
         return Write(strConfig, buffer, bufferSize, sizeOut);
     }
 
+    //TODO need a suitable way how caller can be informed about an error.
+    // Pushing the error message onto stack is not enough.
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int Load(lua_State* L, void* ctx, byte* path, byte* chunkname, byte* loadname)
     {
@@ -168,7 +170,13 @@ public static unsafe partial class LuauRequireByString
             if (nStatus == (int)lua_Status.LUA_OK)
             {
                 if (lua_gettop(ML) != 1)
+                {
+                    // empty stack
+                    while (lua_gettop(ML) > 0)
+                        lua_pop(ML, 1);
+
                     LuauStateMarshal.PushString(ML, $"module '{strPath}' must return a single value");
+                }
             }
             else if (nStatus == (int)lua_Status.LUA_YIELD)
             {

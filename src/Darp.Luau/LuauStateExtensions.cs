@@ -36,7 +36,9 @@ public static class LuauStateExtensions
                 throw new ArgumentException($"Script file does not exist: {strPath}");
 
             string strChunkName = Path.GetFileNameWithoutExtension(strPath);
-            LuauValue[] results = state.DoString(File.ReadAllBytes(strPath), nNumExpectedRetValues: 1, Encoding.UTF8.GetBytes(strChunkName));
+            LuauValue[] results = state.DoStringAndReturn(File.ReadAllBytes(strPath), Encoding.UTF8.GetBytes(strChunkName));
+            if (results.Length != 1)
+                throw new ArgumentException($"Script must return single value: {strPath}");
             return LuauReturn.Ok(results[0]);
         }));
     }
