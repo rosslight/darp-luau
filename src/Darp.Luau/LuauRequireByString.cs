@@ -129,8 +129,6 @@ public static unsafe partial class LuauRequireByString
         return Write(strConfig, buffer, bufferSize, sizeOut);
     }
 
-    //TODO need a suitable way how caller can be informed about an error.
-    // Pushing the error message onto stack is not enough.
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int Load(lua_State* L, void* ctx, byte* path, byte* chunkname, byte* loadname)
     {
@@ -141,7 +139,7 @@ public static unsafe partial class LuauRequireByString
         string? strContent = ReadFile(strLoadName);
         if (strContent is null)
         {
-            LuauStateMarshal.PushString(L, $"could not read file '{strChunkName}'");
+            ReportLoadError(L, $"could not read file '{strChunkName}'");
             return 1;
         }
 
@@ -166,6 +164,7 @@ public static unsafe partial class LuauRequireByString
 
         if (bOk)
         {
+            int nResults = 1; // number of results pushed onto stack
             int nStatus = lua_resume(ML, L, 0);
             if (nStatus == (int)lua_Status.LUA_OK)
             {
@@ -175,25 +174,25 @@ public static unsafe partial class LuauRequireByString
                     while (lua_gettop(ML) > 0)
                         lua_pop(ML, 1);
 
-                    LuauStateMarshal.PushString(ML, $"module '{strPath}' must return a single value");
+                    nResults = ReportLoadError(ML, $"module '{strPath}' must return a single value");
                 }
             }
             else if (nStatus == (int)lua_Status.LUA_YIELD)
             {
-                LuauStateMarshal.PushString(ML, $"module '{strPath}' can not yield");
+                nResults = ReportLoadError(ML, $"module '{strPath}' can not yield");
             }
             else if (lua_isstring(ML, -1) == 0)
             {
-                LuauStateMarshal.PushString(ML, $"unknown error while running module '{strPath}'");
+                nResults = ReportLoadError(ML, $"unknown error while running module '{strPath}'");
             }
             else
             {
                 string strMsg = new((sbyte*)lua_tostring(ML, -1));
-                LuauStateMarshal.PushString(ML, $"error while running module '{strPath}': {strMsg}");
+                nResults = ReportLoadError(ML, $"error while running module '{strPath}': {strMsg}");
             }
 
-            // add ML result to L stack
-            lua_xmove(ML, L, 1);
+            // add ML results to L stack
+            lua_xmove(ML, L, nResults);
         }
 
         // remove ML thread from L stack
@@ -201,6 +200,17 @@ public static unsafe partial class LuauRequireByString
 
         // added one value to L stack: module result
         return 1;
+    }
+
+    /// <summary>returns number of objects pushed onto stack</summary>
+    private static int ReportLoadError(lua_State* L, string strMsg)
+    {
+        // push TWO objects onto stack to indicate an error. 
+        // the caller of function Load reports this as error "module must return a single value".
+        //TODO transfer also the actual error reason (denoted by strMsg) to the caller.
+        lua_pushnil(L);
+        LuauStateMarshal.PushString(L, strMsg);
+        return 2;
     }
 
     private static luarequire_WriteResult Write(string? strSrc, byte* bufDest, nuint nSizeBufDest, nuint* nSizeBufDestOut)
@@ -536,12 +546,12 @@ public static unsafe partial class LuauRequireByString
         private class ResolvedRealPath
         {
             public luarequire_NavigateResult Result { get; }
-            public string Path { get; }
+            public string Path { get; init; }
 
-            private ResolvedRealPath(luarequire_NavigateResult eResult, string strPath = "")
+            private ResolvedRealPath(luarequire_NavigateResult eResult)
             {
                 Result = eResult;
-                Path = strPath;
+                Path = "";
             }
 
             public static ResolvedRealPath For(string strModulePath)
@@ -586,7 +596,10 @@ public static unsafe partial class LuauRequireByString
                 if (strSuffix is null)
                     return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_NOT_FOUND);
 
-                return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_SUCCESS, strModulePath + strSuffix);
+                return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_SUCCESS)
+                {
+                    Path = strModulePath + strSuffix,
+                };
             }
         }
     }

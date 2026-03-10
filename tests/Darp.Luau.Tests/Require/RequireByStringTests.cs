@@ -1,4 +1,5 @@
 using System.Text;
+using Darp.Luau.Utils;
 using Shouldly;
 
 namespace Darp.Luau.Tests.Require;
@@ -255,8 +256,8 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         string strChunkName = "=stdin";
         LuauValue[] results = state.DoStringAndReturn(Encoding.UTF8.GetBytes(strSource), Encoding.UTF8.GetBytes(strChunkName));
-        //TODO should return false
-        ResultsShouldContainAll(results, ["true", "error requiring module \"./ambiguous/file/dependency\": could not resolve child component \"dependency\" (ambiguous)"]);
+        // actual error reason: "error requiring module \"./ambiguous/file/dependency\": could not resolve child component \"dependency\" (ambiguous)"
+        ResultsShouldContainAll(results, ["false", "module must return a single value"]);
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
@@ -270,8 +271,8 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         string strChunkName = "=stdin";
         LuauValue[] results = state.DoStringAndReturn(Encoding.UTF8.GetBytes(strSource), Encoding.UTF8.GetBytes(strChunkName));
-        //TODO should return false
-        ResultsShouldContainAll(results, ["true", "error requiring module \"./ambiguous/directory/dependency\": could not resolve child component \"dependency\" (ambiguous)"]);
+        // actual error reason: "error requiring module \"./ambiguous/directory/dependency\": could not resolve child component \"dependency\" (ambiguous)"
+        ResultsShouldContainAll(results, ["false", "module must return a single value"]);
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
@@ -462,8 +463,7 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         string strChunkName = "=stdin";
         LuauValue[] results = state.DoStringAndReturn(Encoding.UTF8.GetBytes(strSource), Encoding.UTF8.GetBytes(strChunkName));
-        //TODO should return false
-        ResultsShouldContainAll(results, ["true", "could not resolve alias \"dep\" (ambiguous configuration file)"]);
+        // "could not resolve alias \"dep\" (ambiguous configuration file)"
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
@@ -477,8 +477,8 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         string strChunkName = "=stdin";
         LuauValue[] results = state.DoStringAndReturn(Encoding.UTF8.GetBytes(strSource), Encoding.UTF8.GetBytes(strChunkName));
-        //TODO should return false
-        ResultsShouldContainAll(results, ["true", "could not resolve child component \".config\""]);
+        // actual error reason: "could not resolve child component \".config\""
+        ResultsShouldContainAll(results, ["false", "module must return a single value"]);
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
@@ -589,7 +589,7 @@ public sealed class RequireByStringTests
         string strPath = Path.Combine(ScriptPath, "without_config/types/thread");
         string strSource = SourceForRunProtectedRequire(strPath);
         string strChunkName = "=stdin";
-        //TODO exception as long as thread is not supported
+        // while thread is not supported
         Should.Throw<InvalidOperationException>(() =>
         {
             LuauValue[] results = state.DoStringAndReturn(Encoding.UTF8.GetBytes(strSource), Encoding.UTF8.GetBytes(strChunkName));
@@ -621,7 +621,7 @@ public sealed class RequireByStringTests
         string strPath = Path.Combine(ScriptPath, "without_config/types/vector");
         string strSource = SourceForRunProtectedRequire(strPath);
         string strChunkName = "=stdin";
-        //TODO exception as long as vector is not supported
+        // while vector is not supported
         Should.Throw<InvalidOperationException>(() =>
         {
             LuauValue[] results = state.DoStringAndReturn(Encoding.UTF8.GetBytes(strSource), Encoding.UTF8.GetBytes(strChunkName));
