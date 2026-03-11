@@ -15,15 +15,55 @@ namespace Darp.Luau;
 /// </summary>
 public static unsafe partial class LuauRequireByString
 {
+    /// <summary>require context</summary>
+    public class Context
+    {
+        internal struct SData
+        {
+            public byte* pLoadError;
+            public int nSizeLoadError;
+
+            public void Reset()
+            {
+                pLoadError = (byte*)0;
+                nSizeLoadError = 0;
+            }
+        }
+
+        // never access directly, always access via property Data
+        private SData _data;
+
+        internal SData* Data { get; }
+
+        internal Context()
+        {
+            fixed (SData* pData = &_data)
+            {
+                Data = pData;
+            }
+        }
+
+        public void Reset()
+        {
+            Data->Reset();
+        }
+
+        public string? LoadError => Data->pLoadError == (byte*)0 ? null : new((sbyte*)Data->pLoadError, 0, Data->nSizeLoadError);
+    }
+
     private static readonly Navigator s_navigator = new();
 
     /// <summary>Enables require-by-string for LuauState</summary>
     /// <param name="state"></param>
-    public static void EnableRequireByString(this LuauState state)
+    public static Context EnableRequireByString(this LuauState state)
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        luaopen_require(state.L, &InitRequireConfig, null);
+        var ctx = new Context();
+
+        luaopen_require(state.L, &InitRequireConfig, ctx.Data);
+
+        return ctx;
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -136,10 +176,13 @@ public static unsafe partial class LuauRequireByString
         string strChunkName = new((sbyte*)chunkname);
         string strLoadName = new((sbyte*)loadname);
 
+        var pCtxData = (Context.SData*)ctx;
+        pCtxData->Reset();
+
         string? strContent = ReadFile(strLoadName);
         if (strContent is null)
         {
-            ReportLoadError(L, $"could not read file '{strChunkName}'");
+            ReportLoadError(L, pCtxData, $"could not read file '{strChunkName}'");
             return 1;
         }
 
@@ -174,21 +217,21 @@ public static unsafe partial class LuauRequireByString
                     while (lua_gettop(ML) > 0)
                         lua_pop(ML, 1);
 
-                    nResults = ReportLoadError(ML, $"module '{strPath}' must return a single value");
+                    nResults = ReportLoadError(ML, pCtxData, $"module '{strPath}' must return a single value");
                 }
             }
             else if (nStatus == (int)lua_Status.LUA_YIELD)
             {
-                nResults = ReportLoadError(ML, $"module '{strPath}' can not yield");
+                nResults = ReportLoadError(ML, pCtxData, $"module '{strPath}' can not yield");
             }
             else if (lua_isstring(ML, -1) == 0)
             {
-                nResults = ReportLoadError(ML, $"unknown error while running module '{strPath}'");
+                nResults = ReportLoadError(ML, pCtxData, $"unknown error while running module '{strPath}'");
             }
             else
             {
                 string strMsg = new((sbyte*)lua_tostring(ML, -1));
-                nResults = ReportLoadError(ML, $"error while running module '{strPath}': {strMsg}");
+                nResults = ReportLoadError(ML, pCtxData, $"error while running module '{strPath}': {strMsg}");
             }
 
             // add ML results to L stack
@@ -202,15 +245,21 @@ public static unsafe partial class LuauRequireByString
         return 1;
     }
 
-    /// <summary>returns number of objects pushed onto stack</summary>
-    private static int ReportLoadError(lua_State* L, string strMsg)
+    private static int ReportLoadError(lua_State* L, Context.SData* pCtxData, string strMsg)
     {
+        Span<byte> buf = new byte[Encoding.UTF8.GetByteCount(strMsg)];
+        int nSizeBuf = Encoding.UTF8.GetBytes(strMsg, buf);
+        fixed (byte* pStr = buf[..nSizeBuf])
+        {
+            pCtxData->pLoadError = pStr;
+            pCtxData->nSizeLoadError = nSizeBuf;
+        }
+
         // push TWO objects onto stack to indicate an error. 
         // the caller of function Load reports this as error "module must return a single value".
-        //TODO transfer also the actual error reason (denoted by strMsg) to the caller.
         lua_pushnil(L);
-        LuauStateMarshal.PushString(L, strMsg);
-        return 2;
+        lua_pushnil(L);
+        return 2; // number of objects pushed onto stack
     }
 
     private static luarequire_WriteResult Write(string? strSrc, byte* bufDest, nuint nSizeBufDest, nuint* nSizeBufDestOut)
