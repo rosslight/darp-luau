@@ -544,6 +544,68 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void Views_ToOwned_ShouldPromoteBorrowedReferences()
+    {
+        using LuauTable inputTable = _state.CreateTable();
+        inputTable.Set("value", 7);
+
+        using LuauFunction inputFunction = _state.CreateFunction((int value) => value + 1);
+        byte[] inputBuffer = [0x01, 0x02, 0x03];
+        var inputUserdata = new Fixtures.ValueUserdata { Value = 42 };
+
+        LuauTable ownedTable = default;
+        LuauString ownedString = default;
+        LuauFunction ownedFunction = default;
+        LuauBuffer ownedBuffer = default;
+        LuauUserdata ownedUserdata = default;
+
+        using LuauFunction capture = _state.CreateFunction(
+            (
+                LuauTableView table,
+                LuauStringView text,
+                LuauFunctionView function,
+                LuauBufferView buffer,
+                LuauUserdataView userdata
+            ) =>
+            {
+                ownedTable = table.ToOwned();
+                ownedString = text.ToOwned();
+                ownedFunction = function.ToOwned();
+                ownedBuffer = buffer.ToOwned();
+                ownedUserdata = userdata.ToOwned();
+            }
+        );
+
+        _state.Globals.Set("capture", capture);
+        _state.Globals.Set("inputTable", inputTable);
+        _state.Globals.Set("inputFunction", inputFunction);
+        _state.Globals.Set("inputBuffer", inputBuffer);
+        _state.Globals.Set("inputUserdata", inputUserdata);
+        _state.DoString("capture(inputTable, 'hello', inputFunction, inputBuffer, inputUserdata)");
+
+        using (ownedTable)
+            ownedTable.GetNumber("value").ShouldBe(7);
+
+        using (ownedString)
+            ownedString.ToString().ShouldBe("hello");
+
+        using (ownedFunction)
+            ownedFunction.Invoke<int>(41).ShouldBe(42);
+
+        using (ownedBuffer)
+        {
+            ownedBuffer.TryGet(out byte[]? bytes).ShouldBeTrue();
+            bytes.ShouldBe(inputBuffer);
+        }
+
+        using (ownedUserdata)
+        {
+            ownedUserdata.TryGetManaged(out Fixtures.ValueUserdata? resolved, out string? error).ShouldBeTrue(error);
+            ReferenceEquals(inputUserdata, resolved).ShouldBeTrue();
+        }
+    }
+
+    [Fact]
     public void ReturningTable_ShouldWorkInsideManagedCallback()
     {
         using LuauFunction func = _state.CreateFunctionBuilder(args =>

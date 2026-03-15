@@ -144,7 +144,7 @@ public class InterceptorTests
                 public static void DoSomething(LuauState state)
                 {
                     state.CreateFunction((LuauValue p1) => {});
-                    state.CreateFunction((LuauTable p1, LuauStringView p2, LuauFunctionView p3) => {});
+                    state.CreateFunction((LuauTableView p1, LuauStringView p2, LuauFunctionView p3) => {});
                 }
             }
             """;

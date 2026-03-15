@@ -38,6 +38,7 @@ internal static class EmitterHelper
             LuauValueType.NumberDecimal => "decimal",
             LuauValueType.LuauValue => "global::Darp.Luau.LuauValue",
             LuauValueType.LuauTable => "global::Darp.Luau.LuauTable",
+            LuauValueType.LuauTableView => "global::Darp.Luau.LuauTableView",
             LuauValueType.LuauFunctionView => "global::Darp.Luau.LuauFunctionView",
             LuauValueType.LuauStringView => "global::Darp.Luau.LuauStringView",
             LuauValueType.LuauBufferView => "global::Darp.Luau.LuauBufferView",

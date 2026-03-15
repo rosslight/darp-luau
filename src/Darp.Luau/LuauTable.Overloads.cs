@@ -9,21 +9,21 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <returns>The resolved number.</returns>
     /// <exception cref="LuaGetException">Thrown when the value cannot be read as number.</exception>
-    public readonly double GetNumber(IntoLuau key) =>
+    public double GetNumber(IntoLuau key) =>
         TryGetNumber(key, out double value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary> Gets the value for <paramref name="key"/> as a Lua number or <c>nil</c>. </summary>
     /// <param name="key">Table key to resolve.</param>
     /// <returns>The resolved number, or <c>null</c>.</returns>
     /// <exception cref="LuaGetException"> Thrown when the value is neither number nor <c>nil</c>.</exception>
-    public readonly double? GetNumberOrNil(IntoLuau key) =>
+    public double? GetNumberOrNil(IntoLuau key) =>
         TryGetNumberOrNil(key, out double? value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary> Attempts to get the value for <paramref name="key"/> as a Lua number. </summary>
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved number when successful.</param>
     /// <returns><c>true</c> when the value exists and is a number; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetNumber(IntoLuau key, out double value) => TryGetNumber(key, out value, out _);
+    public bool TryGetNumber(IntoLuau key, out double value) => TryGetNumber(key, out value, out _);
 
     /// <summary>
     /// Attempts to get the value for <paramref name="key"/> as a Lua number or <c>nil</c>.
@@ -31,11 +31,11 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved number, or <c>null</c> when the value is <c>nil</c>.</param>
     /// <returns><c>true</c> when the value is number or <c>nil</c>; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetNumberOrNil(IntoLuau key, out double? value) => TryGetNumberOrNil(key, out value, out _);
+    public bool TryGetNumberOrNil(IntoLuau key, out double? value) => TryGetNumberOrNil(key, out value, out _);
 
     /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumber(IntoLuau key, out sbyte value)
+    public bool TryGetNumber(IntoLuau key, out sbyte value)
     {
         value = 0;
         if (!TryGetNumber(key, out double rawValue, out _))
@@ -46,7 +46,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumberOrNil(IntoLuau key, out sbyte? value)
+    public bool TryGetNumberOrNil(IntoLuau key, out sbyte? value)
     {
         value = null;
         if (!TryGetNumberOrNil(key, out double? rawValue, out _))
@@ -57,7 +57,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumber(IntoLuau key, out byte value)
+    public bool TryGetNumber(IntoLuau key, out byte value)
     {
         value = 0;
         if (!TryGetNumber(key, out double rawValue, out _))
@@ -68,7 +68,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumberOrNil(IntoLuau key, out byte? value)
+    public bool TryGetNumberOrNil(IntoLuau key, out byte? value)
     {
         value = null;
         if (!TryGetNumberOrNil(key, out double? rawValue, out _))
@@ -79,7 +79,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumber(IntoLuau key, out short value)
+    public bool TryGetNumber(IntoLuau key, out short value)
     {
         value = 0;
         if (!TryGetNumber(key, out double rawValue, out _))
@@ -91,7 +91,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumberOrNil(IntoLuau key, out short? value)
+    public bool TryGetNumberOrNil(IntoLuau key, out short? value)
     {
         value = null;
         if (!TryGetNumberOrNil(key, out double? rawValue, out _))
@@ -103,7 +103,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumber(IntoLuau key, out ushort value)
+    public bool TryGetNumber(IntoLuau key, out ushort value)
     {
         value = 0;
         if (!TryGetNumber(key, out double rawValue, out _))
@@ -115,7 +115,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumberOrNil(IntoLuau key, out ushort? value)
+    public bool TryGetNumberOrNil(IntoLuau key, out ushort? value)
     {
         value = null;
         if (!TryGetNumberOrNil(key, out double? rawValue, out _))
@@ -127,7 +127,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumber(IntoLuau key, out int value)
+    public bool TryGetNumber(IntoLuau key, out int value)
     {
         value = 0;
         if (!TryGetNumber(key, out double rawValue, out _))
@@ -139,7 +139,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumberOrNil(IntoLuau key, out int? value)
+    public bool TryGetNumberOrNil(IntoLuau key, out int? value)
     {
         value = null;
         if (!TryGetNumberOrNil(key, out double? rawValue, out _))
@@ -151,7 +151,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumber(IntoLuau key, out uint value)
+    public bool TryGetNumber(IntoLuau key, out uint value)
     {
         value = 0;
         if (!TryGetNumber(key, out double rawValue, out _))
@@ -163,7 +163,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumberOrNil(IntoLuau key, out uint? value)
+    public bool TryGetNumberOrNil(IntoLuau key, out uint? value)
     {
         value = null;
         if (!TryGetNumberOrNil(key, out double? rawValue, out _))
@@ -175,7 +175,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumber(IntoLuau key, out long value)
+    public bool TryGetNumber(IntoLuau key, out long value)
     {
         value = 0;
         if (!TryGetNumber(key, out double rawValue, out _))
@@ -187,7 +187,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumberOrNil(IntoLuau key, out long? value)
+    public bool TryGetNumberOrNil(IntoLuau key, out long? value)
     {
         value = null;
         if (!TryGetNumberOrNil(key, out double? rawValue, out _))
@@ -199,7 +199,7 @@ public partial struct LuauTable
 
     /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
     /// <remarks>Conversion uses a direct cast from Lua <see cref="double"/> and may truncate fractional values.</remarks>
-    public readonly bool TryGetNumber(IntoLuau key, out ulong value)
+    public bool TryGetNumber(IntoLuau key, out ulong value)
     {
         value = 0;
         if (!TryGetNumber(key, out double rawValue, out _))
@@ -222,7 +222,7 @@ public partial struct LuauTable
     }
 
     /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    public readonly bool TryGetNumber(IntoLuau key, out float value)
+    public bool TryGetNumber(IntoLuau key, out float value)
     {
         value = 0;
         if (!TryGetNumber(key, out double rawValue, out _))
@@ -233,7 +233,7 @@ public partial struct LuauTable
     }
 
     /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    public readonly bool TryGetNumberOrNil(IntoLuau key, out float? value)
+    public bool TryGetNumberOrNil(IntoLuau key, out float? value)
     {
         value = null;
         if (!TryGetNumberOrNil(key, out double? rawValue, out _))
@@ -244,7 +244,7 @@ public partial struct LuauTable
     }
 
     /// <inheritdoc cref="TryGetNumber(IntoLuau, out double)"/>
-    public readonly bool TryGetNumber(IntoLuau key, out decimal value)
+    public bool TryGetNumber(IntoLuau key, out decimal value)
     {
         value = 0;
         if (!TryGetNumber(key, out double rawValue, out _))
@@ -255,7 +255,7 @@ public partial struct LuauTable
     }
 
     /// <inheritdoc cref="TryGetNumberOrNil(IntoLuau, out double?)"/>
-    public readonly bool TryGetNumberOrNil(IntoLuau key, out decimal? value)
+    public bool TryGetNumberOrNil(IntoLuau key, out decimal? value)
     {
         value = null;
         if (!TryGetNumberOrNil(key, out double? rawValue, out _))
@@ -269,33 +269,33 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <returns>The resolved boolean.</returns>
     /// <exception cref="LuaGetException">Thrown when the value cannot be read as boolean.</exception>
-    public readonly bool GetBoolean(IntoLuau key) =>
+    public bool GetBoolean(IntoLuau key) =>
         TryGetBoolean(key, out bool value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary> Gets the value for <paramref name="key"/> as a Lua boolean or <c>nil</c>. </summary>
     /// <param name="key">Table key to resolve.</param>
     /// <returns>The resolved boolean, or <c>null</c>.</returns>
     /// <exception cref="LuaGetException">Thrown when the value is neither boolean nor <c>nil</c>.</exception>
-    public readonly bool? GetBooleanOrNil(IntoLuau key) =>
+    public bool? GetBooleanOrNil(IntoLuau key) =>
         TryGetBooleanOrNil(key, out bool? value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary> Attempts to get the value for <paramref name="key"/> as a Lua boolean. </summary>
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved boolean when successful.</param>
     /// <returns><c>true</c> when the value exists and is a boolean; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetBoolean(IntoLuau key, out bool value) => TryGetBoolean(key, out value, out _);
+    public bool TryGetBoolean(IntoLuau key, out bool value) => TryGetBoolean(key, out value, out _);
 
     /// <summary> Attempts to get the value for <paramref name="key"/> as a Lua boolean or <c>nil</c>. </summary>
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved boolean, or <c>null</c> when the value is <c>nil</c>.</param>
     /// <returns><c>true</c> when the value is boolean or <c>nil</c>; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetBooleanOrNil(IntoLuau key, out bool? value) => TryGetBooleanOrNil(key, out value, out _);
+    public bool TryGetBooleanOrNil(IntoLuau key, out bool? value) => TryGetBooleanOrNil(key, out value, out _);
 
     /// <summary> Gets the value for <paramref name="key"/> as a UTF-8 string decoded to managed text. </summary>
     /// <param name="key">Table key to resolve.</param>
     /// <returns>The resolved managed string.</returns>
     /// <exception cref="LuaGetException">Thrown when the value cannot be read as string.</exception>
-    public readonly string GetUtf8String(IntoLuau key) =>
+    public string GetUtf8String(IntoLuau key) =>
         TryGetUtf8String(key, out ReadOnlySpan<byte> value, out string? error)
             ? Encoding.UTF8.GetString(value)
             : throw CreateReadException(error);
@@ -304,7 +304,7 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <returns>The resolved managed string, or <c>null</c>.</returns>
     /// <exception cref="LuaGetException">Thrown when the value is neither string nor <c>nil</c>.</exception>
-    public readonly string? GetUtf8StringOrNil(IntoLuau key) =>
+    public string? GetUtf8StringOrNil(IntoLuau key) =>
         TryGetUtf8StringOrNil(key, out ReadOnlySpan<byte> value, out bool isNil, out string? error)
             ? isNil
                 ? null
@@ -315,15 +315,14 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved UTF-8 bytes.</param>
     /// <returns><c>true</c> when the value exists and is a string; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetUtf8String(IntoLuau key, out ReadOnlySpan<byte> value) =>
-        TryGetUtf8String(key, out value, out _);
+    public bool TryGetUtf8String(IntoLuau key, out ReadOnlySpan<byte> value) => TryGetUtf8String(key, out value, out _);
 
     /// <summary> Attempts to get the value for <paramref name="key"/> as a UTF-8 string or <c>nil</c>. </summary>
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved UTF-8 bytes, or <c>default</c> when the value is <c>nil</c>.</param>
     /// <param name="isNil">Set to <c>true</c> when the value is <c>nil</c>.</param>
     /// <returns><c>true</c> when the value is string or <c>nil</c>; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetUtf8StringOrNil(IntoLuau key, out ReadOnlySpan<byte> value, out bool isNil) =>
+    public bool TryGetUtf8StringOrNil(IntoLuau key, out ReadOnlySpan<byte> value, out bool isNil) =>
         TryGetUtf8StringOrNil(key, out value, out isNil, out _);
 
     /// <summary>
@@ -332,7 +331,7 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved managed string when successful.</param>
     /// <returns><c>true</c> when the value exists and is a string; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetUtf8String(IntoLuau key, [NotNullWhen(true)] out string? value)
+    public bool TryGetUtf8String(IntoLuau key, [NotNullWhen(true)] out string? value)
     {
         value = null;
         if (!TryGetUtf8String(key, out ReadOnlySpan<byte> bytes, out _))
@@ -347,7 +346,7 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved managed string, or <c>null</c> when the value is <c>nil</c>.</param>
     /// <returns><c>true</c> when the value is string or <c>nil</c>; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetUtf8StringOrNil(IntoLuau key, out string? value)
+    public bool TryGetUtf8StringOrNil(IntoLuau key, out string? value)
     {
         value = null;
         if (!TryGetUtf8StringOrNil(key, out ReadOnlySpan<byte> bytes, out bool isNil, out _))
@@ -362,7 +361,7 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <returns>The resolved managed byte array.</returns>
     /// <exception cref="LuaGetException">Thrown when the value cannot be read as buffer.</exception>
-    public readonly byte[] GetBuffer(IntoLuau key) =>
+    public byte[] GetBuffer(IntoLuau key) =>
         TryGetBuffer(key, out ReadOnlySpan<byte> value, out string? error)
             ? value.ToArray()
             : throw CreateReadException(error);
@@ -371,7 +370,7 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <returns>The resolved managed byte array, or <c>null</c>.</returns>
     /// <exception cref="LuaGetException">Thrown when the value is neither buffer nor <c>nil</c>.</exception>
-    public readonly byte[]? GetBufferOrNil(IntoLuau key) =>
+    public byte[]? GetBufferOrNil(IntoLuau key) =>
         TryGetBufferOrNil(key, out ReadOnlySpan<byte> value, out bool isNil, out string? error)
             ? isNil
                 ? null
@@ -382,15 +381,14 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved buffer bytes.</param>
     /// <returns><c>true</c> when the value exists and is a buffer; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetBuffer(IntoLuau key, out ReadOnlySpan<byte> value) =>
-        TryGetBuffer(key, out value, out _);
+    public bool TryGetBuffer(IntoLuau key, out ReadOnlySpan<byte> value) => TryGetBuffer(key, out value, out _);
 
     /// <summary> Attempts to get the value for <paramref name="key"/> as a Lua buffer or <c>nil</c>. </summary>
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved buffer bytes, or <c>default</c> when the value is <c>nil</c>.</param>
     /// <param name="isNil">Set to <c>true</c> when the value is <c>nil</c>.</param>
     /// <returns><c>true</c> when the value is buffer or <c>nil</c>; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetBufferOrNil(IntoLuau key, out ReadOnlySpan<byte> value, out bool isNil) =>
+    public bool TryGetBufferOrNil(IntoLuau key, out ReadOnlySpan<byte> value, out bool isNil) =>
         TryGetBufferOrNil(key, out value, out isNil, out _);
 
     /// <summary>
@@ -399,7 +397,7 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved managed byte array when successful.</param>
     /// <returns><c>true</c> when the value exists and is a buffer; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetBuffer(IntoLuau key, [NotNullWhen(true)] out byte[]? value)
+    public bool TryGetBuffer(IntoLuau key, [NotNullWhen(true)] out byte[]? value)
     {
         value = null;
         if (!TryGetBuffer(key, out ReadOnlySpan<byte> rawValue, out _))
@@ -414,7 +412,7 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved managed byte array, or <c>null</c> when the value is <c>nil</c>.</param>
     /// <returns><c>true</c> when the value is buffer or <c>nil</c>; otherwise <c>false</c>.</returns>
-    public readonly bool TryGetBufferOrNil(IntoLuau key, out byte[]? value)
+    public bool TryGetBufferOrNil(IntoLuau key, out byte[]? value)
     {
         value = null;
         if (!TryGetBufferOrNil(key, out ReadOnlySpan<byte> rawValue, out bool isNil, out _))
@@ -426,20 +424,20 @@ public partial struct LuauTable
     }
 
     /// <summary>Attempts to get managed userdata of type <typeparamref name="T"/> for <paramref name="key"/>.</summary>
-    public readonly bool TryGetUserdata<T>(IntoLuau key, [NotNullWhen(true)] out T? value)
+    public bool TryGetUserdata<T>(IntoLuau key, [NotNullWhen(true)] out T? value)
         where T : class, ILuauUserData<T> => TryGetUserdata(key, out value, out _);
 
     /// <summary>Attempts to get managed userdata of type <typeparamref name="T"/> or <c>nil</c> for <paramref name="key"/>.</summary>
-    public readonly bool TryGetUserdataOrNil<T>(IntoLuau key, out T? value)
+    public bool TryGetUserdataOrNil<T>(IntoLuau key, out T? value)
         where T : class, ILuauUserData<T> => TryGetUserdataOrNil(key, out value, out _);
 
     /// <summary>Gets managed userdata of type <typeparamref name="T"/> for <paramref name="key"/>.</summary>
-    public readonly T GetUserdata<T>(IntoLuau key)
+    public T GetUserdata<T>(IntoLuau key)
         where T : class, ILuauUserData<T> =>
         TryGetUserdata(key, out T? value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary>Gets managed userdata of type <typeparamref name="T"/> or <c>nil</c> for <paramref name="key"/>.</summary>
-    public readonly T? GetUserdataOrNil<T>(IntoLuau key)
+    public T? GetUserdataOrNil<T>(IntoLuau key)
         where T : class, ILuauUserData<T> =>
         TryGetUserdataOrNil(key, out T? value, out string? error) ? value : throw CreateReadException(error);
 
@@ -447,51 +445,47 @@ public partial struct LuauTable
     /// <param name="key">Table key to resolve.</param>
     /// <returns>The resolved value.</returns>
     /// <exception cref="LuaGetException">Thrown when the value is <c>nil</c>.</exception>
-    public readonly LuauValue GetLuauValue(IntoLuau key) =>
+    public LuauValue GetLuauValue(IntoLuau key) =>
         TryGetLuauValue(key, out LuauValue value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary> Attempts to get a non-nil value for <paramref name="key"/> as <see cref="LuauValue"/>. </summary>
     /// <param name="key">Table key to resolve.</param>
     /// <param name="value">Resolved value when successful.</param>
     /// <returns><c>true</c></returns>
-    public readonly bool TryGetLuauValue(IntoLuau key, out LuauValue value) => TryGetLuauValue(key, out value, out _);
+    public bool TryGetLuauValue(IntoLuau key, out LuauValue value) => TryGetLuauValue(key, out value, out _);
 
     /// <summary>Gets the value for <paramref name="key"/> as <see cref="LuauTable"/>.</summary>
-    public readonly LuauTable GetLuauTable(IntoLuau key) =>
+    public LuauTable GetLuauTable(IntoLuau key) =>
         TryGetLuauTable(key, out LuauTable value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary>Attempts to get the value for <paramref name="key"/> as <see cref="LuauTable"/>.</summary>
-    public readonly bool TryGetLuauTable(IntoLuau key, out LuauTable value) => TryGetLuauTable(key, out value, out _);
+    public bool TryGetLuauTable(IntoLuau key, out LuauTable value) => TryGetLuauTable(key, out value, out _);
 
     /// <summary>Gets the value for <paramref name="key"/> as <see cref="LuauFunction"/>.</summary>
-    public readonly LuauFunction GetLuauFunction(IntoLuau key) =>
+    public LuauFunction GetLuauFunction(IntoLuau key) =>
         TryGetLuauFunction(key, out LuauFunction value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary>Attempts to get the value for <paramref name="key"/> as <see cref="LuauFunction"/>.</summary>
-    public readonly bool TryGetLuauFunction(IntoLuau key, out LuauFunction value) =>
-        TryGetLuauFunction(key, out value, out _);
+    public bool TryGetLuauFunction(IntoLuau key, out LuauFunction value) => TryGetLuauFunction(key, out value, out _);
 
     /// <summary>Gets the value for <paramref name="key"/> as <see cref="LuauString"/>.</summary>
-    public readonly LuauString GetLuauString(IntoLuau key) =>
+    public LuauString GetLuauString(IntoLuau key) =>
         TryGetLuauString(key, out LuauString value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary>Attempts to get the value for <paramref name="key"/> as <see cref="LuauString"/>.</summary>
-    public readonly bool TryGetLuauString(IntoLuau key, out LuauString value) =>
-        TryGetLuauString(key, out value, out _);
+    public bool TryGetLuauString(IntoLuau key, out LuauString value) => TryGetLuauString(key, out value, out _);
 
     /// <summary>Gets the value for <paramref name="key"/> as <see cref="LuauBuffer"/>.</summary>
     public LuauBuffer GetLuauBuffer(IntoLuau key) =>
         TryGetLuauBuffer(key, out LuauBuffer value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary>Attempts to get the value for <paramref name="key"/> as <see cref="LuauBuffer"/>.</summary>
-    public readonly bool TryGetLuauBuffer(IntoLuau key, out LuauBuffer value) =>
-        TryGetLuauBuffer(key, out value, out _);
+    public bool TryGetLuauBuffer(IntoLuau key, out LuauBuffer value) => TryGetLuauBuffer(key, out value, out _);
 
     /// <summary>Gets the value for <paramref name="key"/> as <see cref="LuauUserdata"/>.</summary>
-    public readonly LuauUserdata GetLuauUserdata(IntoLuau key) =>
+    public LuauUserdata GetLuauUserdata(IntoLuau key) =>
         TryGetLuauUserdata(key, out LuauUserdata value, out string? error) ? value : throw CreateReadException(error);
 
     /// <summary>Attempts to get the value for <paramref name="key"/> as <see cref="LuauUserdata"/>.</summary>
-    public readonly bool TryGetLuauUserdata(IntoLuau key, out LuauUserdata value) =>
-        TryGetLuauUserdata(key, out value, out _);
+    public bool TryGetLuauUserdata(IntoLuau key, out LuauUserdata value) => TryGetLuauUserdata(key, out value, out _);
 }

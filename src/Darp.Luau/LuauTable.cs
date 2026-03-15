@@ -8,12 +8,12 @@ namespace Darp.Luau;
 
 /// <summary> A reference to a luau table </summary>
 /// <remarks> A view of the table  </remarks>
-public readonly unsafe partial struct LuauTable : IDisposable, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
+public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
 {
     private readonly LuauState? _state;
     private readonly ulong _handle;
 
-    /// <summary> True, if the <see cref="LuauTable"/> refers to a valid lua ref; False, otherwise </summary>
+    /// <inheritdoc/>
     public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
     /// <summary> Do (not) initialize a new LuauTable </summary>
@@ -62,12 +62,7 @@ public readonly unsafe partial struct LuauTable : IDisposable, IEnumerable<KeyVa
     /// <returns> The converted value </returns>
     public static implicit operator IntoLuau(LuauTable value) => IntoLuau.Borrow(value._state, value._handle);
 
-    /// <summary> Transfers ownership of this table reference into a <see cref="LuauValue"/>. </summary>
-    /// <remarks>
-    /// This method consumes the current <see cref="LuauTable"/>.
-    /// It does not clone ownership, so using this wrapper afterwards is invalid.
-    /// </remarks>
-    /// <returns>The same underlying reference represented as a <see cref="LuauValue"/>.</returns>
+    /// <inheritdoc/>
     public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Table);
 
     /// <inheritdoc />

@@ -139,8 +139,8 @@ public readonly ref struct LuauArgsSingle
     public bool TryReadLuauValue(out LuauValue value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadLuauValue(1, out value, out error);
 
-    /// <inheritdoc cref="LuauArgs.TryReadLuauTable(int, out LuauTable, out string)"/>
-    public bool TryReadLuauTable(out LuauTable value, [NotNullWhen(false)] out string? error) =>
+    /// <inheritdoc cref="LuauArgs.TryReadLuauTable(int, out LuauTableView, out string)"/>
+    public bool TryReadLuauTable(out LuauTableView value, [NotNullWhen(false)] out string? error) =>
         _args.TryReadLuauTable(1, out value, out error);
 
     /// <inheritdoc cref="LuauArgs.TryReadLuauFunction(int, out LuauFunctionView, out string)"/>

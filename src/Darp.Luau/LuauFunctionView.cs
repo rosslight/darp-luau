@@ -1,5 +1,4 @@
 using Darp.Luau.Internal;
-using Darp.Luau.Native;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
@@ -12,7 +11,7 @@ namespace Darp.Luau;
 /// It is valid only while the originating callback frame is active on the same <see cref="LuauState"/>.
 /// Using it after the callback frame ends throws <see cref="ObjectDisposedException"/>.
 /// </remarks>
-public readonly ref struct LuauFunctionView
+public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
 {
     private readonly StackReference _reference;
 
@@ -53,6 +52,13 @@ public readonly ref struct LuauFunctionView
     /// </exception>
     public TR Invoke<TR>(in IntoLuau p1, in IntoLuau p2)
         where TR : allows ref struct => LuauFunctionInvokeCore.Invoke2<StackReference, TR>(_reference, p1, p2);
+
+    /// <inheritdoc/>
+    public LuauFunction ToOwned()
+    {
+        LuauState state = _reference.ValidateInternal();
+        return new LuauFunction(state, ReferenceSourceExtensions.ToOwnedHandle(_reference));
+    }
 
     /// <summary>
     /// Converts this borrowed function view to an <see cref="IntoLuau"/> value without creating an owned reference.

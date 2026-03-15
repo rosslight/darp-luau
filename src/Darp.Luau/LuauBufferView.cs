@@ -11,7 +11,7 @@ namespace Darp.Luau;
 /// It is valid only while the originating callback frame is active on the same <see cref="LuauState"/>.
 /// Using it after the callback frame ends throws <see cref="ObjectDisposedException"/>.
 /// </remarks>
-public readonly ref struct LuauBufferView
+public readonly ref struct LuauBufferView : ILuauView<LuauBuffer>
 {
     private readonly StackReference _reference;
 
@@ -34,6 +34,13 @@ public readonly ref struct LuauBufferView
     /// <param name="bytes">Receives the copied bytes when successful; otherwise an empty array.</param>
     /// <returns><c>true</c> when the copy succeeded; otherwise <c>false</c>.</returns>
     public bool TryGet(out byte[] bytes) => LuauBufferAccessCore.TryGet(_reference, out bytes);
+
+    /// <inheritdoc/>
+    public LuauBuffer ToOwned()
+    {
+        LuauState state = _reference.ValidateInternal();
+        return new LuauBuffer(state, ReferenceSourceExtensions.ToOwnedHandle(_reference));
+    }
 
     /// <summary>
     /// Converts this borrowed buffer view to an <see cref="IntoLuau"/> value without creating an owned reference.

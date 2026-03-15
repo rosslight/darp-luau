@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
-using Darp.Luau.Native;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
@@ -13,7 +12,7 @@ namespace Darp.Luau;
 /// It is valid only while the originating callback frame is active on the same <see cref="LuauState"/>.
 /// Using it after the callback frame ends throws <see cref="ObjectDisposedException"/>.
 /// </remarks>
-public readonly ref struct LuauUserdataView
+public readonly ref struct LuauUserdataView : ILuauView<LuauUserdata>
 {
     private readonly StackReference _reference;
 
@@ -31,6 +30,13 @@ public readonly ref struct LuauUserdataView
     /// </returns>
     public bool TryGetManaged<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
         where T : class, ILuauUserData<T> => LuauUserdataAccessCore.TryGetManaged(_reference, out value, out error);
+
+    /// <inheritdoc/>
+    public LuauUserdata ToOwned()
+    {
+        LuauState state = _reference.ValidateInternal();
+        return new LuauUserdata(state, ReferenceSourceExtensions.ToOwnedHandle(_reference));
+    }
 
     /// <summary>
     /// Converts this borrowed userdata view to an <see cref="IntoLuau"/> value without creating an owned reference.

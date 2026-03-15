@@ -3,12 +3,12 @@ using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
-public readonly struct LuauFunction : IDisposable
+public readonly struct LuauFunction : ILuauReference
 {
     private readonly LuauState? _state;
     private readonly ulong _handle;
 
-    /// <summary> True, if the <see cref="LuauTable"/> refers to a valid lua ref; False, otherwise </summary>
+    /// <inheritdoc/>
     public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
     /// <summary> Do (not) initialize a new LuauFunction </summary>
@@ -82,12 +82,7 @@ public readonly struct LuauFunction : IDisposable
     /// <returns>A temporary representation with the same callback-frame lifetime constraints.</returns>
     public static implicit operator IntoLuau(LuauFunction value) => IntoLuau.Borrow(value._state, value._handle);
 
-    /// <summary> Transfers ownership of this function reference into a <see cref="LuauValue"/>. </summary>
-    /// <remarks>
-    /// This method consumes the current <see cref="LuauFunction"/>.
-    /// It does not clone ownership, so using this wrapper afterwards is invalid.
-    /// </remarks>
-    /// <returns>The same underlying reference represented as a <see cref="LuauValue"/>.</returns>
+    /// <inheritdoc/>
     public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Function);
 
     /// <inheritdoc />

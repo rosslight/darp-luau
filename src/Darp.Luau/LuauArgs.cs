@@ -317,15 +317,15 @@ public readonly unsafe ref partial struct LuauArgs
     }
 
     /// <summary>
-    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauTable"/>.
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauTableView"/>.
     /// </summary>
     /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
-    /// <param name="value">Receives a referenced <see cref="LuauTable"/> when successful.</param>
+    /// <param name="value">Receives a borrowed <see cref="LuauTableView"/> when successful.</param>
     /// <param name="error">Receives a descriptive error when the read fails.</param>
     /// <returns>
     /// <c>true</c> when the parameter exists and has type <see cref="lua_Type.LUA_TTABLE"/>; otherwise <c>false</c>.
     /// </returns>
-    public bool TryReadLuauTable(int parameterIndex, out LuauTable value, [NotNullWhen(false)] out string? error)
+    public bool TryReadLuauTable(int parameterIndex, out LuauTableView value, [NotNullWhen(false)] out string? error)
     {
         value = default;
         _state.ThrowIfDisposed();
@@ -334,8 +334,7 @@ public readonly unsafe ref partial struct LuauArgs
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TTABLE, out error))
             return false;
 
-        ulong reference = _state.ReferenceTracker.TrackRef(L, stackIndex);
-        value = new LuauTable(_state, reference);
+        value = new LuauTableView(_state, stackIndex);
         return true;
     }
 

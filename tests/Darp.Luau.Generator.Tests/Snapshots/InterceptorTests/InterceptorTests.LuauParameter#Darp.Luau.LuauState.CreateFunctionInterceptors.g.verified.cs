@@ -24,7 +24,7 @@ file static class CreateFunctionInterceptors
         }
     }
     [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "ScrubbedInterceptLocation")]
-    public static global::Darp.Luau.LuauFunction CreateMethod(this global::Darp.Luau.LuauState state, global::System.Action<global::Darp.Luau.LuauTable,global::Darp.Luau.LuauStringView,global::Darp.Luau.LuauFunctionView> onLuaCall)
+    public static global::Darp.Luau.LuauFunction CreateMethod(this global::Darp.Luau.LuauState state, global::System.Action<global::Darp.Luau.LuauTableView,global::Darp.Luau.LuauStringView,global::Darp.Luau.LuauFunctionView> onLuaCall)
     {
         global::System.ArgumentNullException.ThrowIfNull(state);
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
@@ -34,7 +34,7 @@ file static class CreateFunctionInterceptors
         {
             if (!args.TryValidateArgumentCount(3, out string? error))
                 return global::Darp.Luau.LuauReturn.Error(error);
-            if (!args.TryReadLuauTable(parameterIndex: 1, out global::Darp.Luau.LuauTable a1, out error))
+            if (!args.TryReadLuauTable(parameterIndex: 1, out global::Darp.Luau.LuauTableView a1, out error))
                 return global::Darp.Luau.LuauReturn.Error(error);
             if (!args.TryReadLuauString(parameterIndex: 2, out global::Darp.Luau.LuauStringView a2, out error))
                 return global::Darp.Luau.LuauReturn.Error(error);

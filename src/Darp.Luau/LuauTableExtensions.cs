@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 

@@ -1,7 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 using Darp.Luau.Internal;
-using Darp.Luau.Native;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
@@ -14,7 +12,7 @@ namespace Darp.Luau;
 /// It is valid only while the originating callback frame is active on the same <see cref="LuauState"/>.
 /// Using it after the callback frame ends throws <see cref="ObjectDisposedException"/>.
 /// </remarks>
-public readonly ref struct LuauStringView
+public readonly ref struct LuauStringView : ILuauView<LuauString>
 {
     private readonly StackReference _reference;
 
@@ -37,6 +35,13 @@ public readonly ref struct LuauStringView
     /// <param name="value">Receives the decoded string when successful.</param>
     /// <returns><c>true</c> when decoding succeeded; otherwise <c>false</c>.</returns>
     public bool TryGet([NotNullWhen(true)] out string? value) => LuauStringAccessCore.TryGet(_reference, out value);
+
+    /// <inheritdoc/>
+    public LuauString ToOwned()
+    {
+        LuauState state = _reference.ValidateInternal();
+        return new LuauString(state, ReferenceSourceExtensions.ToOwnedHandle(_reference));
+    }
 
     /// <summary>
     /// Converts this borrowed string view to an <see cref="IntoLuau"/> value without creating an owned reference.

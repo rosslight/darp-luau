@@ -1,7 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 using Darp.Luau.Internal;
-using Darp.Luau.Native;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
@@ -9,12 +7,12 @@ namespace Darp.Luau;
 /// <summary>
 /// Represents an owned Luau string reference stored in the registry.
 /// </summary>
-public readonly struct LuauString : IDisposable
+public readonly struct LuauString : ILuauReference
 {
     private readonly LuauState? _state;
     private readonly ulong _handle;
 
-    /// <summary> True, if the <see cref="LuauTable"/> refers to a valid lua ref; False, otherwise </summary>
+    /// <inheritdoc/>
     public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
     /// <summary> Do not initialize directly. Create via <see cref="LuauState"/> APIs. </summary>
@@ -57,12 +55,7 @@ public readonly struct LuauString : IDisposable
     /// <summary> Converts this string reference into an <see cref="IntoLuau"/> value. </summary>
     public static implicit operator IntoLuau(LuauString value) => IntoLuau.Borrow(value._state, value._handle);
 
-    /// <summary> Transfers ownership of this string reference into a <see cref="LuauValue"/>. </summary>
-    /// <remarks>
-    /// This method consumes the current <see cref="LuauString"/>.
-    /// It does not clone ownership, so using this wrapper afterwards is invalid.
-    /// </remarks>
-    /// <returns>The same underlying reference represented as a <see cref="LuauValue"/>.</returns>
+    /// <inheritdoc/>
     public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.String);
 
     /// <inheritdoc />

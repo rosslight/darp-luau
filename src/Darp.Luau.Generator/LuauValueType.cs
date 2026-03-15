@@ -27,6 +27,7 @@ internal enum LuauValueType
 
     LuauValue,
     LuauTable,
+    LuauTableView,
     LuauFunctionView,
     LuauStringView,
     LuauBufferView,

@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
-using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau.Internal;
 
