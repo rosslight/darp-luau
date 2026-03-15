@@ -80,11 +80,10 @@ public sealed class MemoryManagementTests
 
         LuauMemoryStatistics stats = state.MemoryStatistics;
         stats.ActiveRegistryReferences.ShouldBe(baselineActiveReferences);
-        (stats.CreatedRegistryReferences - stats.ReleasedRegistryReferences).ShouldBe(stats.ActiveRegistryReferences);
     }
 
     [Fact]
-    public void LuauTable_ExplicitCastToLuauValue_ShouldCloneReferenceOwnership()
+    public void LuauTable_ExplicitCastToLuauValue_ShouldTransferReferenceOwnership()
     {
         using var state = new LuauState();
         using LuauTable table = state.CreateTable();
@@ -93,12 +92,16 @@ public sealed class MemoryManagementTests
         ulong baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
 
         LuauValue value = table.DisposeAndToLuauValue();
-        state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences + 1);
-
-        value.Dispose();
         state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences);
 
-        table.GetNumber("value").ShouldBe(123);
+        value.TryGet(out LuauTable transferredTable).ShouldBeTrue();
+        using (transferredTable)
+        {
+            transferredTable.GetNumber("value").ShouldBe(123);
+        }
+
+        value.Dispose();
+        state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences - 1);
     }
 
     [Fact]

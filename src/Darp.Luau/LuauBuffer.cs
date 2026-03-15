@@ -9,6 +9,9 @@ public readonly struct LuauBuffer : IDisposable
     private readonly LuauState? _state;
     private readonly ulong _handle;
 
+    /// <summary> True, if the <see cref="LuauTable"/> refers to a valid lua ref; False, otherwise </summary>
+    public bool IsDisposed => !_state.IsReferenceValid(_handle);
+
     [Obsolete("Do not initialize the LuauBuffer. Create using the LuauState instead", true)]
     public LuauBuffer() { }
 
@@ -51,10 +54,13 @@ public readonly struct LuauBuffer : IDisposable
     /// <returns> The converted value </returns>
     public static implicit operator IntoLuau(LuauBuffer value) => IntoLuau.Borrow(value._state, value._handle);
 
-    /// <summary> Converts this string reference into a <see cref="LuauValue"/>. </summary>
-    /// <remarks> Calling this method releases the reference of the current <see cref="LuauBuffer"/> </remarks>
-    /// <returns> The reference as a luauValue </returns>
-    public LuauValue DisposeAndToLuauValue() => LuauValue.FromSource(_state, _handle, LuauValueType.Buffer);
+    /// <summary> Transfers ownership of this buffer reference into a <see cref="LuauValue"/>. </summary>
+    /// <remarks>
+    /// This method consumes the current <see cref="LuauBuffer"/>.
+    /// It does not clone ownership, so using this wrapper afterwards is invalid.
+    /// </remarks>
+    /// <returns>The same underlying reference represented as a <see cref="LuauValue"/>.</returns>
+    public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Buffer);
 
     /// <inheritdoc />
     public override string ToString() => TryGet(out ReadOnlySpan<byte> span) ? Convert.ToHexString(span) : "<nil>";

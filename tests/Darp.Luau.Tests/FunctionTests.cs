@@ -338,8 +338,8 @@ public sealed class FunctionTests : IDisposable
 
         using (bufferResult)
         {
-            bufferResult.TryGet(out byte[] bufferBytes);
-            Convert.ToHexString(bufferBytes).ShouldBe(expectedValue);
+            bufferResult.TryGet(out byte[]? bufferBytes);
+            Convert.ToHexString(bufferBytes!).ShouldBe(expectedValue);
         }
     }
 
@@ -579,6 +579,28 @@ public sealed class FunctionTests : IDisposable
 
         _state.Globals.GetNumber("result").ShouldBe(99);
         x.GetNumber("value").ShouldBe(99);
+    }
+
+    [Fact]
+    public void ReturningBuffer_ShouldWorkInsideManagedCallback()
+    {
+        using LuauFunction func = _state.CreateFunctionBuilder(args =>
+        {
+            if (!args.TryValidateArgumentCount(0, out string? error))
+                return LuauReturn.Error(error);
+            using LuauBuffer x = _state.CreateBuffer([0x01, 0x02, 0x03]);
+            return LuauReturn.Ok(x);
+        });
+
+        _state.Globals.Set("make_buffer", func);
+        _state.DoString("result = make_buffer()");
+
+        _state.Globals.TryGetLuauValue("result", out LuauValue result).ShouldBeTrue();
+        using (result)
+        {
+            result.TryGet(out byte[]? bytes).ShouldBeTrue();
+            bytes.ShouldBe([0x01, 0x02, 0x03]);
+        }
     }
 
     public void Dispose()

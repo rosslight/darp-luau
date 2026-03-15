@@ -8,6 +8,9 @@ public readonly struct LuauFunction : IDisposable
     private readonly LuauState? _state;
     private readonly ulong _handle;
 
+    /// <summary> True, if the <see cref="LuauTable"/> refers to a valid lua ref; False, otherwise </summary>
+    public bool IsDisposed => !_state.IsReferenceValid(_handle);
+
     /// <summary> Do (not) initialize a new LuauFunction </summary>
     [Obsolete("Do not initialize the LuauFunction. Create using the LuauState instead", false)]
     public LuauFunction() { }
@@ -79,10 +82,13 @@ public readonly struct LuauFunction : IDisposable
     /// <returns>A temporary representation with the same callback-frame lifetime constraints.</returns>
     public static implicit operator IntoLuau(LuauFunction value) => IntoLuau.Borrow(value._state, value._handle);
 
-    /// <summary> Converts this string reference into a <see cref="LuauValue"/>. </summary>
-    /// <remarks> Calling this method releases the reference of the current <see cref="LuauFunction"/> </remarks>
-    /// <returns> The reference as a luauValue </returns>
-    public LuauValue DisposeAndToLuauValue() => LuauValue.FromSource(_state, _handle, LuauValueType.Function);
+    /// <summary> Transfers ownership of this function reference into a <see cref="LuauValue"/>. </summary>
+    /// <remarks>
+    /// This method consumes the current <see cref="LuauFunction"/>.
+    /// It does not clone ownership, so using this wrapper afterwards is invalid.
+    /// </remarks>
+    /// <returns>The same underlying reference represented as a <see cref="LuauValue"/>.</returns>
+    public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Function);
 
     /// <inheritdoc />
     public override string ToString() => Helpers.HandleToString(_state, _handle);

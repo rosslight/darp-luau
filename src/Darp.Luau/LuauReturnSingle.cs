@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Darp.Luau.Internal;
 
 namespace Darp.Luau;
 
@@ -13,7 +14,7 @@ namespace Darp.Luau;
 /// </remarks>
 public readonly ref struct LuauReturnSingle
 {
-    private readonly IntoLuau _value;
+    private readonly IntoLuauCopied _value;
     private readonly string? _error;
 
     /// <summary> Gets whether this callback result is successful. </summary>
@@ -22,7 +23,7 @@ public readonly ref struct LuauReturnSingle
     private LuauReturnSingle(bool isOk, IntoLuau value = default, string? error = null)
     {
         IsOk = isOk;
-        _value = value;
+        _value = value.CaptureCopied();
         _error = error;
     }
 
@@ -50,7 +51,14 @@ public readonly ref struct LuauReturnSingle
             return false;
         }
         error = null;
-        _value.Push(state);
-        return true;
+        try
+        {
+            _value.Push(state);
+            return true;
+        }
+        finally
+        {
+            _value.Release();
+        }
     }
 }

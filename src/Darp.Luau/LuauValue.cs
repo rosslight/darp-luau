@@ -62,7 +62,7 @@ public readonly struct LuauValue : IDisposable
     public static explicit operator LuauValue(double value) =>
         new(null, LuauValueType.Number, new LuauValueUnion(value));
 
-    internal static LuauValue FromSource(LuauState? state, in ulong handle, LuauValueType type)
+    internal static LuauValue Move(LuauState? state, in ulong handle, LuauValueType type)
     {
         ulong? newHandle = state?.ReferenceTracker.CountRefOrThrow(handle);
         state?.ReferenceTracker.ReleaseRef(handle);

@@ -19,6 +19,9 @@ public readonly struct LuauUserdata : IDisposable, IEquatable<LuauUserdata>
     private readonly LuauState? _state;
     private readonly ulong _handle;
 
+    /// <summary> True, if the <see cref="LuauTable"/> refers to a valid lua ref; False, otherwise </summary>
+    public bool IsDisposed => !_state.IsReferenceValid(_handle);
+
     [Obsolete("Do not initialize the LuauTable. Create using the LuauState instead", true)]
     public LuauUserdata() { }
 
@@ -55,7 +58,13 @@ public readonly struct LuauUserdata : IDisposable, IEquatable<LuauUserdata>
     /// <summary> Converts this string reference into a <see cref="LuauValue"/>. </summary>
     /// <remarks> Calling this method releases the reference of the current <see cref="LuauUserdata"/> </remarks>
     /// <returns> The reference as a luauValue </returns>
-    public LuauValue DisposeAndToLuauValue() => LuauValue.FromSource(_state, _handle, LuauValueType.Userdata);
+    /// <summary> Transfers ownership of this userdata reference into a <see cref="LuauValue"/>. </summary>
+    /// <remarks>
+    /// This method consumes the current <see cref="LuauUserdata"/>.
+    /// It does not clone ownership, so using this wrapper afterwards is invalid.
+    /// </remarks>
+    /// <returns>The same underlying reference represented as a <see cref="LuauValue"/>.</returns>
+    public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Userdata);
 
     /// <inheritdoc />
     public bool Equals(LuauUserdata other) => other._state == _state && other._handle == _handle;

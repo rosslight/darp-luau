@@ -44,6 +44,11 @@ internal static class ReferenceSourceExtensions
         return source.ValidateInternal();
     }
 
+    public static bool IsReferenceValid([NotNullWhen(true)] this LuauState? state, ulong handle)
+    {
+        return state is not null && state.ReferenceTracker.HasRegistryReference(handle);
+    }
+
     public static RegistryReferenceTracker.TrackedReference GetTrackedReferenceOrThrow(
         [NotNull] this LuauState? state,
         ulong handle

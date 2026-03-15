@@ -29,11 +29,11 @@ public sealed class LuauTableReferenceOverloadTests
         LuauTable table = lua.CreateTable();
 
         table.TryGetLuauTable("missing", out LuauTable missingValue).ShouldBeFalse();
-        missingValue.ShouldBe(default);
+        missingValue.IsDisposed.ShouldBe(true);
 
         table.Set("wrong", 1);
         table.TryGetLuauTable("wrong", out LuauTable wrongTypeValue).ShouldBeFalse();
-        wrongTypeValue.ShouldBe(default);
+        wrongTypeValue.IsDisposed.ShouldBe(true);
     }
 
     [Fact]

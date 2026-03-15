@@ -170,6 +170,48 @@ public readonly ref struct IntoLuau
         }
     }
 
+    internal IntoLuauCopied CaptureCopied()
+    {
+        switch (Type)
+        {
+            case Kind.Chars:
+                return IntoLuauCopied.FromString(_readOnlySpanChar.ToString());
+            case Kind.Buffer:
+                return IntoLuauCopied.FromBuffer(_readOnlyBuffer.ToArray());
+            case Kind.Bool:
+                return IntoLuauCopied.FromBool(_bool);
+            case Kind.Number:
+                return IntoLuauCopied.FromNumber(_number);
+            case Kind.Integer:
+                return IntoLuauCopied.FromInteger(_integer);
+            case Kind.Unsigned:
+                return IntoLuauCopied.FromUnsigned((uint)_integer);
+            case Kind.Value:
+                if (!_luauValue.TryGet(out LuauValue copiedValue))
+                    throw new InvalidOperationException("Could not capture LuauValue for deferred return.");
+                return IntoLuauCopied.FromValue(copiedValue);
+            case Kind.UserdataFactory:
+                Debug.Assert(_factory is not null);
+                return IntoLuauCopied.FromUserdataFactory(_factory);
+            case Kind.StackReference:
+            {
+                LuauState state = _stackReference.ValidateInternal();
+                using var pop = _stackReference.PushToTop();
+                return IntoLuauCopied.FromValue(LuauValue.ToValue(state));
+            }
+            case Kind.TrackedReference:
+            {
+                Debug.Assert(_trackedReference is not null);
+                LuauState state = _trackedReference.ValidateInternal();
+                using var pop = _trackedReference.PushToTop();
+                return IntoLuauCopied.FromValue(LuauValue.ToValue(state));
+            }
+            case Kind.Nil:
+            default:
+                return default;
+        }
+    }
+
     /// <summary> Converts to a string or nil </summary>
     /// <param name="value"> The string value </param>
     /// <returns> A temporary representation of the value </returns>
