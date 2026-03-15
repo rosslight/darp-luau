@@ -69,7 +69,6 @@ internal static class CreateFunctionInterceptorsEmitter
                 !TryMapTypeToLuauValueType(
                     typeArg.Type,
                     parameterLocation,
-                    isParameter: true,
                     usageDescription,
                     out LuauValueType luauType,
                     out bool isNullable,
@@ -105,7 +104,6 @@ internal static class CreateFunctionInterceptorsEmitter
                 !TryMapTypeToLuauValueType(
                     invokeMethod.ReturnType,
                     returnLocation,
-                    isParameter: false,
                     returnUsageDescription,
                     out LuauValueType returnType,
                     out bool isReturnNullable,
@@ -161,7 +159,6 @@ internal static class CreateFunctionInterceptorsEmitter
     private static bool TryMapTypeToLuauValueType(
         ITypeSymbol type,
         Location diagnosticLocation,
-        bool isParameter,
         string usageDescription,
         out LuauValueType luauType,
         out bool isNullable,
@@ -184,7 +181,6 @@ internal static class CreateFunctionInterceptorsEmitter
                 !TryMapTypeToLuauValueType(
                     namedType.TypeArguments[0],
                     diagnosticLocation,
-                    isParameter,
                     usageDescription,
                     out luauType,
                     out _,
@@ -268,11 +264,6 @@ internal static class CreateFunctionInterceptorsEmitter
                 return true;
             case "global::Darp.Luau.LuauValue":
                 luauType = LuauValueType.LuauValue;
-                return true;
-            case "global::Darp.Luau.LuauTable":
-                if (isParameter)
-                    break;
-                luauType = LuauValueType.LuauTable;
                 return true;
             case "global::Darp.Luau.LuauTableView":
                 luauType = LuauValueType.LuauTableView;
@@ -391,7 +382,6 @@ internal static class CreateFunctionInterceptorsEmitter
             LuauValueType.LuauValue => "TryReadLuauValue",
             LuauValueType.LuauStringView => "TryReadLuauString",
             LuauValueType.LuauTableView => "TryReadLuauTable",
-            LuauValueType.LuauTable => "TryReadLuauTable",
             LuauValueType.LuauFunctionView => "TryReadLuauFunction",
             LuauValueType.LuauBufferView => "TryReadLuauBuffer",
             LuauValueType.LuauUserdataView => "TryReadLuauUserdata",
@@ -486,7 +476,6 @@ internal static class CreateFunctionInterceptorsEmitter
                     """,
             LuauValueType.LuauValue
             or LuauValueType.LuauTableView
-            or LuauValueType.LuauTable
             or LuauValueType.LuauStringView
             or LuauValueType.LuauFunctionView
             or LuauValueType.LuauBufferView

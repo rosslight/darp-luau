@@ -37,7 +37,6 @@ internal static class EmitterHelper
             LuauValueType.NumberFloat => "float",
             LuauValueType.NumberDecimal => "decimal",
             LuauValueType.LuauValue => "global::Darp.Luau.LuauValue",
-            LuauValueType.LuauTable => "global::Darp.Luau.LuauTable",
             LuauValueType.LuauTableView => "global::Darp.Luau.LuauTableView",
             LuauValueType.LuauFunctionView => "global::Darp.Luau.LuauFunctionView",
             LuauValueType.LuauStringView => "global::Darp.Luau.LuauStringView",

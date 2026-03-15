@@ -26,7 +26,6 @@ internal enum LuauValueType
     Enum, // C# enum -> number in Lua
 
     LuauValue,
-    LuauTable,
     LuauTableView,
     LuauFunctionView,
     LuauStringView,
