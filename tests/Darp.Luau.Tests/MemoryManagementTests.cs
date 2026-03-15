@@ -165,6 +165,17 @@ public sealed class MemoryManagementTests
     }
 
     [Fact]
+    public void CrossState_FunctionInvocationArgument_ShouldThrowInvalidOperationException()
+    {
+        using var stateA = new LuauState();
+        using var stateB = new LuauState();
+        using LuauTable tableA = stateA.CreateTable();
+        using LuauFunction functionB = stateB.CreateFunctionBuilder(_ => LuauReturn.Ok());
+
+        Should.Throw<InvalidOperationException>(() => functionB.Invoke<LuauNil>(tableA));
+    }
+
+    [Fact]
     public void LuauValue_TryGetString_Twice_ShouldSucceed()
     {
         using var state = new LuauState();

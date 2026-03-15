@@ -158,9 +158,13 @@ public readonly ref struct IntoLuau
                 }
                 break;
             case Kind.StackReference:
+                if (!ReferenceEquals(state, _stackReference.ValidateInternal()))
+                    throw new InvalidOperationException("Cross-state reference usage is not allowed.");
                 _ = _stackReference.PushToTop();
                 break;
             case Kind.TrackedReference:
+                if (!ReferenceEquals(state, _trackedReference!.ValidateInternal()))
+                    throw new InvalidOperationException("Cross-state reference usage is not allowed.");
                 _ = _trackedReference!.PushToTop();
                 break;
             case Kind.Nil:

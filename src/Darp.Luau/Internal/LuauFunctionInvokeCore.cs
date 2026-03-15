@@ -19,7 +19,7 @@ internal static unsafe class LuauFunctionInvokeCore
         return InvokeAfterPush<TR>(state, L, nargs: 0);
     }
 
-    internal static TR Invoke1<T, TR>(scoped in T? source, in IntoLuau p1)
+    internal static TR Invoke1<T, TR>(scoped in T? source, scoped in IntoLuau p1)
         where T : IReferenceSource, allows ref struct
         where TR : allows ref struct
     {
@@ -33,7 +33,7 @@ internal static unsafe class LuauFunctionInvokeCore
         return InvokeAfterPush<TR>(state, L, nargs: 1);
     }
 
-    internal static TR Invoke2<T, TR>(scoped in T? source, in IntoLuau p1, in IntoLuau p2)
+    internal static TR Invoke2<T, TR>(scoped in T? source, scoped in IntoLuau p1, scoped in IntoLuau p2)
         where T : IReferenceSource, allows ref struct
         where TR : allows ref struct
     {

@@ -46,7 +46,7 @@ public readonly struct LuauFunction : IDisposable
     /// <exception cref="InvalidCastException">
     /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
-    public TR Invoke<TR>(in IntoLuau p1)
+    public TR Invoke<TR>(scoped in IntoLuau p1)
         where TR : allows ref struct
     {
         return LuauFunctionInvokeCore.Invoke1<RegistryReferenceTracker.TrackedReference, TR>(
@@ -65,7 +65,7 @@ public readonly struct LuauFunction : IDisposable
     /// <exception cref="InvalidCastException">
     /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
-    public TR Invoke<TR>(in IntoLuau p1, in IntoLuau p2)
+    public TR Invoke<TR>(scoped in IntoLuau p1, scoped in IntoLuau p2)
         where TR : allows ref struct
     {
         return LuauFunctionInvokeCore.Invoke2<RegistryReferenceTracker.TrackedReference, TR>(
