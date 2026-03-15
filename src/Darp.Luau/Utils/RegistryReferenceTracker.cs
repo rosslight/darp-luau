@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
@@ -5,25 +7,105 @@ namespace Darp.Luau.Utils;
 
 /// <summary> Snapshot of reference/callback tracking counters for a <see cref="LuauState"/>. </summary>
 internal readonly record struct LuauMemoryStatistics(
-    int ActiveRegistryReferences,
-    int CreatedRegistryReferences,
-    int ReleasedRegistryReferences,
+    ulong ActiveRegistryReferences,
+    ulong CreatedRegistryReferences,
+    ulong ReleasedRegistryReferences,
     int ActiveManagedCallbacks
 );
+
+public readonly unsafe ref struct PopDisposable(lua_State* L, bool shouldPop) : IDisposable
+{
+    private readonly lua_State* _L = L;
+    private readonly bool _shouldPop = shouldPop;
+
+    /// <summary> Pops a value from the stack. </summary>
+    public void Dispose()
+    {
+        if (_L is null || !_shouldPop)
+            return;
+        lua_pop(_L, 1);
+    }
+}
+
+internal interface IReferenceSource
+{
+    LuauState ValidateInternal();
+    PopDisposable PushToStack(out int stackIndex);
+    PopDisposable PushToTop();
+}
+
+internal static class ReferenceSourceExtensions
+{
+    public static LuauState Validate<T>([NotNull] this T? source)
+        where T : IReferenceSource, allows ref struct
+    {
+        if (source is null)
+            throw new ArgumentNullException(nameof(source));
+        return source.ValidateInternal();
+    }
+
+    public static RegistryReferenceTracker.TrackedReference GetTrackedReferenceOrThrow(
+        [NotNull] this LuauState? state,
+        ulong handle
+    )
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.ReferenceTracker.TryGetTrackedReference(handle, out var trackedReference))
+            return trackedReference;
+        throw new ObjectDisposedException("Tried to get a reference that was not tracked.");
+    }
+
+    public static bool TryGetTrackedReference(
+        [NotNullWhen(true)] this LuauState? state,
+        ulong handle,
+        [NotNullWhen(true)] out RegistryReferenceTracker.TrackedReference? trackedReference
+    )
+    {
+        if (state is not null)
+            return state.ReferenceTracker.TryGetTrackedReference(handle, out trackedReference);
+        trackedReference = null;
+        return false;
+    }
+}
+
+internal readonly ref struct StackReference(LuauState state, int stackIndex) : IReferenceSource
+{
+    private readonly LuauState _state = state;
+    private readonly int _stackIndex = stackIndex;
+
+    public LuauState ValidateInternal()
+    {
+        _state.ThrowIfDisposed();
+        return _state;
+    }
+
+    public PopDisposable PushToStack(out int stackIndex)
+    {
+        stackIndex = _stackIndex;
+        return default;
+    }
+
+    public unsafe PopDisposable PushToTop()
+    {
+        _state.ThrowIfDisposed();
+        lua_pushvalue(_state.L, _stackIndex);
+        return new PopDisposable(_state.L, true);
+    }
+
+    public override string ToString() => Helpers.StackString(_state, _stackIndex);
+}
 
 internal sealed class RegistryReferenceTracker(LuauState state)
 {
     private readonly LuauState _state = state;
-    private readonly Dictionary<int, TrackedReference> _trackedReferences = [];
-    private readonly Dictionary<int, List<int>> _callbackFrameOwnedHandles = [];
-    private int _nextTrackedReferenceHandle = 1;
-    private int _createdRegistryReferenceCount;
-    private int _releasedRegistryReferenceCount;
+    private readonly ConcurrentDictionary<ulong, TrackedReference> _trackedReferences = [];
+    private ulong _nextTrackedReferenceHandle = 1;
+    private ulong _releasedRegistryReferenceCount;
 
     public LuauMemoryStatistics GetStatistics(int activeManagedCallbacks) =>
         new(
-            ActiveRegistryReferences: _trackedReferences.Count,
-            CreatedRegistryReferences: _createdRegistryReferenceCount,
+            ActiveRegistryReferences: (ulong)_trackedReferences.Count,
+            CreatedRegistryReferences: _nextTrackedReferenceHandle - 1,
             ReleasedRegistryReferences: _releasedRegistryReferenceCount,
             ActiveManagedCallbacks: activeManagedCallbacks
         );
@@ -36,134 +118,143 @@ internal sealed class RegistryReferenceTracker(LuauState state)
     /// <param name="pinned">Indicates whether the reference should be pinned to prevent garbage collection. Defaults to false.</param>
     /// <returns>An integer representing the tracked reference handle.</returns>
     /// <exception cref="InvalidOperationException"> Thrown if the maximum number of tracked registry references has been exceeded. </exception>
-    public unsafe int TrackRef(lua_State* L, int stackIndex, bool pinned = false)
+    public unsafe ulong TrackRef(lua_State* L, int stackIndex, bool pinned = false)
     {
         ArgumentNullException.ThrowIfNull(L);
         if ((nint)L != (nint)_state.L)
             throw new InvalidOperationException("Cross-state reference tracking is not allowed.");
-        if (_nextTrackedReferenceHandle == int.MaxValue)
-            throw new InvalidOperationException("Too many tracked registry references were created for this state.");
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         int luaReference = lua_ref(L, stackIndex);
 
-        int handle = _nextTrackedReferenceHandle;
-        _nextTrackedReferenceHandle++;
-        int callbackFrameToken = pinned ? 0 : _state.GetCurrentCallbackFrameToken();
-        _trackedReferences[handle] = new TrackedReference(luaReference, pinned, callbackFrameToken);
-        if (callbackFrameToken != 0)
-        {
-            if (!_callbackFrameOwnedHandles.TryGetValue(callbackFrameToken, out List<int>? callbackOwnedHandles))
-            {
-                callbackOwnedHandles = [];
-                _callbackFrameOwnedHandles.Add(callbackFrameToken, callbackOwnedHandles);
-            }
-
-            callbackOwnedHandles.Add(handle);
-        }
-        _createdRegistryReferenceCount++;
+        ulong handle = GetNextHandle();
+        _trackedReferences[handle] = new TrackedReference(_state, luaReference, handle, pinned);
         return handle;
     }
 
-    public unsafe int TrackAndPopRef(lua_State* L, int stackIndex, bool pinned = false)
+    public unsafe ulong TrackAndPopRef(lua_State* L, int stackIndex, bool pinned = false)
     {
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: -1);
 #endif
-        int handle = TrackRef(L, stackIndex, pinned);
+        ulong handle = TrackRef(L, stackIndex, pinned);
         lua_pop(L, 1);
         return handle;
     }
 
-    public bool HasRegistryReference(int handle) => _trackedReferences.ContainsKey(handle);
+    public bool HasRegistryReference(ulong handle) => _trackedReferences.ContainsKey(handle);
 
-    public bool TryResolveLuaRef(int handle, out int luaReference)
+    public ulong CountRefOrThrow(ulong handle)
     {
-        luaReference = 0;
-        if (handle is 0)
-            return false;
-        if (!_trackedReferences.TryGetValue(handle, out TrackedReference trackedReference))
-            return false;
+        if (!_trackedReferences.TryGetValue(handle, out TrackedReference? trackedReference))
+            throw new InvalidOperationException("Tried to count a reference that was not tracked.");
 
-        luaReference = trackedReference.LuaReference;
-        return true;
+        // A pinned reference is never released so there is no need to track it multiple times
+        if (trackedReference.IsPinned)
+            return handle;
+        return trackedReference.CountRef();
     }
 
-    public int ResolveLuaRef(int handle, ReadOnlySpan<char> ownerTypeName)
-    {
-        if (TryResolveLuaRef(handle, out int luaReference))
-            return luaReference;
-        throw new ObjectDisposedException(ownerTypeName.ToString(), $"The reference to '{ownerTypeName}' is invalid.");
-    }
-
-    public unsafe int CloneTrackedReference(lua_State* L, int handle, string ownerTypeName)
-    {
-        ArgumentNullException.ThrowIfNull(L);
-        if ((nint)L != (nint)_state.L)
-            throw new InvalidOperationException("Cross-state reference cloning is not allowed.");
-        int oldRef = ResolveLuaRef(handle, ownerTypeName);
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        lua_getref(L, oldRef);
-        int newHandle = TrackRef(L, -1);
-        lua_pop(L, 1);
-        return newHandle;
-    }
-
-    public unsafe int CloneTrackedReference(int handle, string ownerTypeName) =>
-        CloneTrackedReference(_state.L, handle, ownerTypeName);
-
-    public unsafe void ReleaseRef(int handle)
+    public void ReleaseRef(ulong handle)
     {
         if (_state.IsDisposed)
             return;
-        if (!_trackedReferences.TryGetValue(handle, out TrackedReference trackedReference))
+        if (!_trackedReferences.TryGetValue(handle, out TrackedReference? trackedReference))
             return;
         if (trackedReference.IsPinned)
             return;
-
-        _trackedReferences.Remove(handle);
-        if (
-            trackedReference.CallbackFrameToken != 0
-            && _callbackFrameOwnedHandles.TryGetValue(
-                trackedReference.CallbackFrameToken,
-                out List<int>? callbackOwnedHandles
-            )
-        )
-        {
-            callbackOwnedHandles.Remove(handle);
-            if (callbackOwnedHandles.Count == 0)
-                _callbackFrameOwnedHandles.Remove(trackedReference.CallbackFrameToken);
-        }
-
-        _releasedRegistryReferenceCount++;
-        int luaReference = trackedReference.LuaReference;
-
-        lua_unref(_state.L, luaReference);
-    }
-
-    public void ReleaseCallbackFrameReferences(int callbackFrameToken)
-    {
-        if (callbackFrameToken == 0)
-            return;
-        if (!_callbackFrameOwnedHandles.Remove(callbackFrameToken, out List<int>? callbackOwnedHandles))
-            return;
-
-        foreach (int handle in callbackOwnedHandles)
-            ReleaseRef(handle);
+        trackedReference.RemoveRef(handle);
     }
 
     public void ReleaseAll()
     {
-        if (_trackedReferences.Count is 0)
+        if (_trackedReferences.IsEmpty)
             return;
 
-        _releasedRegistryReferenceCount += _trackedReferences.Count;
+        _releasedRegistryReferenceCount += (ulong)_trackedReferences.Count;
         _trackedReferences.Clear();
-        _callbackFrameOwnedHandles.Clear();
+    }
+
+    private ulong GetNextHandle()
+    {
+        if (_nextTrackedReferenceHandle == ulong.MaxValue)
+            throw new InvalidOperationException("Too many tracked registry references were created for this state.");
+        ulong nextHandle = _nextTrackedReferenceHandle;
+        _nextTrackedReferenceHandle++;
+        return nextHandle;
+    }
+
+    public bool TryGetTrackedReference(ulong handle, [NotNullWhen(true)] out TrackedReference? trackedReference) =>
+        _trackedReferences.TryGetValue(handle, out trackedReference);
+
+    internal sealed class TrackedReference(LuauState state, int luaReference, ulong originalHandle, bool isPinned)
+        : IReferenceSource
+    {
+        private readonly LuauState _state = state;
+        private readonly int _luaReference = luaReference;
+        private readonly ulong _originalHandle = originalHandle;
+        private int _numberOfManagedRefs = 1;
+
+        public bool IsPinned { get; } = isPinned;
+
+        public LuauState ValidateInternal()
+        {
+            _state.ThrowIfDisposed();
+            return _state;
+        }
+
+        public unsafe PopDisposable PushToStack(out int stackIndex)
+        {
+            _state.ThrowIfDisposed();
+            lua_State* L = _state.L;
+            var type = (lua_Type)lua_getref(L, _luaReference);
+            stackIndex = lua_gettop(L);
+            return new PopDisposable(L, true);
+        }
+
+        public unsafe PopDisposable PushToTop()
+        {
+            _state.ThrowIfDisposed();
+            lua_State* L = _state.L;
+            var type = (lua_Type)lua_getref(L, _luaReference);
+            return new PopDisposable(L, true);
+        }
+
+        public ulong CountRef()
+        {
+            if (IsPinned)
+                return _originalHandle;
+            ulong nextHandle = _state.ReferenceTracker.GetNextHandle();
+            _state.ReferenceTracker._trackedReferences[nextHandle] = this;
+            _numberOfManagedRefs++;
+            return nextHandle;
+        }
+
+        public unsafe void RemoveRef(ulong handle)
+        {
+            if (!_state.ReferenceTracker._trackedReferences.TryRemove(handle, out TrackedReference? reference))
+                throw new InvalidOperationException("Tried to remove a handle that was not tracked.");
+            if (reference != this)
+                throw new InvalidOperationException("Tried to remove a handle that does not belong to this reference.");
+
+            _numberOfManagedRefs--;
+            if (_numberOfManagedRefs > 0)
+                return;
+
+            _state.ThrowIfDisposed();
+            lua_State* L = _state.L;
+            lua_unref(L, _luaReference);
+            _state.ReferenceTracker._releasedRegistryReferenceCount++;
+        }
     }
 }
 
-internal readonly record struct TrackedReference(int LuaReference, bool IsPinned, int CallbackFrameToken);
+/*
+internal readonly struct TrackedReference(int luaReference, bool isPinned, int numberOfRefs)
+{
+    public int LuaReference { get; } = luaReference;
+    public bool IsPinned { get; } = isPinned;
+    public int NumberOfRefs { get; } = numberOfRefs;
+}
+*/

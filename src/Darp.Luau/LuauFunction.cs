@@ -1,19 +1,21 @@
 using Darp.Luau.Internal;
-using Darp.Luau.Native;
+using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
 public readonly struct LuauFunction : IDisposable
 {
-    private readonly LuauRefSource _source;
+    private readonly LuauState? _state;
+    private readonly ulong _handle;
 
     /// <summary> Do (not) initialize a new LuauFunction </summary>
     [Obsolete("Do not initialize the LuauFunction. Create using the LuauState instead", false)]
     public LuauFunction() { }
 
-    internal LuauFunction(LuauState? state, int reference)
+    internal LuauFunction(LuauState? state, ulong handle)
     {
-        _source = LuauRefSource.FromReference(state, reference, lua_Type.LUA_TFUNCTION);
+        _state = state;
+        _handle = handle;
     }
 
     /// <summary> Invokes the borrowed function with no arguments and converts the result. </summary>
@@ -25,7 +27,12 @@ public readonly struct LuauFunction : IDisposable
     /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
     public TR Invoke<TR>()
-        where TR : allows ref struct => LuauFunctionInvokeCore.Invoke0<TR>(_source, nameof(LuauFunction));
+        where TR : allows ref struct
+    {
+        return LuauFunctionInvokeCore.Invoke0<RegistryReferenceTracker.TrackedReference, TR>(
+            _state.GetTrackedReferenceOrThrow(_handle)
+        );
+    }
 
     /// <summary> Invokes the borrowed function with one argument and converts the result. </summary>
     /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
@@ -37,7 +44,13 @@ public readonly struct LuauFunction : IDisposable
     /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
     public TR Invoke<TR>(in IntoLuau p1)
-        where TR : allows ref struct => LuauFunctionInvokeCore.Invoke1<TR>(_source, p1, nameof(LuauFunction));
+        where TR : allows ref struct
+    {
+        return LuauFunctionInvokeCore.Invoke1<RegistryReferenceTracker.TrackedReference, TR>(
+            _state.GetTrackedReferenceOrThrow(_handle),
+            p1
+        );
+    }
 
     /// <summary> Invokes the borrowed function with two arguments and converts the result. </summary>
     /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
@@ -50,21 +63,30 @@ public readonly struct LuauFunction : IDisposable
     /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
     public TR Invoke<TR>(in IntoLuau p1, in IntoLuau p2)
-        where TR : allows ref struct => LuauFunctionInvokeCore.Invoke2<TR>(_source, p1, p2, nameof(LuauFunction));
+        where TR : allows ref struct
+    {
+        return LuauFunctionInvokeCore.Invoke2<RegistryReferenceTracker.TrackedReference, TR>(
+            _state.GetTrackedReferenceOrThrow(_handle),
+            p1,
+            p2
+        );
+    }
 
     /// <summary>
     /// Converts this function to an <see cref="IntoLuau"/> value without creating an owned reference.
     /// </summary>
     /// <param name="value">The borrowed function view.</param>
     /// <returns>A temporary representation with the same callback-frame lifetime constraints.</returns>
-    public static implicit operator IntoLuau(LuauFunction value) => IntoLuau.FromRefSource(value._source);
+    public static implicit operator IntoLuau(LuauFunction value) => IntoLuau.Borrow(value._state, value._handle);
 
-    public static explicit operator LuauValue(LuauFunction value) =>
-        LuauValue.FromSource(value._source, LuauValueType.Function);
+    /// <summary> Converts this string reference into a <see cref="LuauValue"/>. </summary>
+    /// <remarks> Calling this method releases the reference of the current <see cref="LuauFunction"/> </remarks>
+    /// <returns> The reference as a luauValue </returns>
+    public LuauValue DisposeAndToLuauValue() => LuauValue.FromSource(_state, _handle, LuauValueType.Function);
 
     /// <inheritdoc />
-    public override string ToString() => _source.ToString();
+    public override string ToString() => Helpers.HandleToString(_state, _handle);
 
     /// <summary> Remove the reference from the lua state </summary>
-    public void Dispose() => _source.Dispose();
+    public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
 }

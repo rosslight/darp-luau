@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
@@ -13,25 +14,19 @@ internal struct LuauUserdataNative
     public GCHandle RegistryValueHandle { get; internal set; }
 }
 
-public readonly struct LuauUserdata : IDisposable
+public readonly struct LuauUserdata : IDisposable, IEquatable<LuauUserdata>
 {
-    private readonly LuauRefSource _source;
-
-    internal LuauState? State => _source.State;
-    internal int Reference => _source.Reference;
+    private readonly LuauState? _state;
+    private readonly ulong _handle;
 
     [Obsolete("Do not initialize the LuauTable. Create using the LuauState instead", true)]
     public LuauUserdata() { }
 
-    internal LuauUserdata(LuauState? state, int reference)
+    internal LuauUserdata(LuauState state, ulong handle)
     {
-        _source = LuauRefSource.FromReference(state, reference, lua_Type.LUA_TUSERDATA);
+        _state = state;
+        _handle = handle;
     }
-
-    /// <summary> Ability for <see cref="LuauUserdata"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
-    /// <param name="value"> The userdata </param>
-    /// <returns> The converted value </returns>
-    public static implicit operator IntoLuau(LuauUserdata value) => IntoLuau.FromRefSource(value._source);
 
     /// <summary>
     /// Attempts to resolve this userdata reference back to the managed userdata instance.
@@ -44,12 +39,30 @@ public readonly struct LuauUserdata : IDisposable
     /// otherwise <c>false</c>.
     /// </returns>
     public bool TryGetManaged<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
-        where T : class, ILuauUserData<T> =>
-        LuauUserdataAccessCore.TryGetManaged(_source, nameof(LuauUserdata), out value, out error);
+        where T : class, ILuauUserData<T>
+    {
+        value = null;
+        error = null;
+        return _state.TryGetTrackedReference(_handle, out RegistryReferenceTracker.TrackedReference? reference)
+            && LuauUserdataAccessCore.TryGetManaged(reference, out value, out error);
+    }
+
+    /// <summary> Ability for <see cref="LuauUserdata"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
+    /// <param name="value"> The userdata </param>
+    /// <returns> The converted value </returns>
+    public static implicit operator IntoLuau(LuauUserdata value) => IntoLuau.Borrow(value._state, value._handle);
+
+    /// <summary> Converts this string reference into a <see cref="LuauValue"/>. </summary>
+    /// <remarks> Calling this method releases the reference of the current <see cref="LuauUserdata"/> </remarks>
+    /// <returns> The reference as a luauValue </returns>
+    public LuauValue DisposeAndToLuauValue() => LuauValue.FromSource(_state, _handle, LuauValueType.Userdata);
 
     /// <inheritdoc />
-    public override string ToString() => _source.ToString();
+    public bool Equals(LuauUserdata other) => other._state == _state && other._handle == _handle;
 
     /// <inheritdoc />
-    public void Dispose() => _source.Dispose();
+    public override string ToString() => Helpers.HandleToString(_state, _handle);
+
+    /// <inheritdoc />
+    public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
 }

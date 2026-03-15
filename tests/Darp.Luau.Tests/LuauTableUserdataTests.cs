@@ -61,7 +61,7 @@ public sealed class LuauTableUserdataTests : IDisposable
 
     public void Dispose()
     {
-        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2);
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2UL);
         _state.Dispose();
     }
 }

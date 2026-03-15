@@ -16,7 +16,6 @@ public static class LuauTableExtensions
         where TValue : allows ref struct
     {
         value = default;
-        table.State.ThrowIfDisposed();
         if (!table.TryGetLuauValue(key, out LuauValue luauValue))
             return false;
 

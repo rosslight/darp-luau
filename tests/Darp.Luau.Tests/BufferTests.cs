@@ -24,7 +24,7 @@ public sealed class BufferTests : IDisposable
 
         using LuauBuffer buffer = _state.CreateBuffer(expected);
 
-        LuauValue value = (LuauValue)buffer;
+        using LuauValue value = buffer.DisposeAndToLuauValue();
         value.Type.ShouldBe(LuauValueType.Buffer);
 
         value.TryGet(out byte[]? found).ShouldBeTrue();
@@ -38,7 +38,7 @@ public sealed class BufferTests : IDisposable
 
         using LuauBuffer buffer = _state.CreateBuffer(expected);
 
-        LuauValue value = (LuauValue)buffer;
+        using LuauValue value = buffer.DisposeAndToLuauValue();
         value.Type.ShouldBe(LuauValueType.Buffer);
 
         value.TryGet(out ReadOnlySpan<byte> found).ShouldBeTrue();
@@ -50,13 +50,13 @@ public sealed class BufferTests : IDisposable
     {
         using LuauBuffer expected = _state.CreateBuffer([0x01, 0x02, 0x03]);
 
-        LuauValue value = (LuauValue)expected;
+        using LuauValue value = expected.DisposeAndToLuauValue();
         value.Type.ShouldBe(LuauValueType.Buffer);
 
         value.TryGet(out LuauBuffer found).ShouldBeTrue();
         using (found)
         {
-            found.TryGet(out byte[] bytes).ShouldBeTrue();
+            found.TryGet(out byte[]? bytes).ShouldBeTrue();
             bytes.ShouldBe<byte>([0x01, 0x02, 0x03]);
         }
     }
@@ -73,7 +73,7 @@ public sealed class BufferTests : IDisposable
 
     public void Dispose()
     {
-        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2);
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2UL);
         _state.Dispose();
     }
 }

@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using static Darp.Luau.Native.LuauNative;
 
@@ -20,20 +22,22 @@ internal static class Helpers
 
     /// <summary> Return the string representation of a string </summary>
     /// <param name="state"> The state the reference is associated with </param>
-    /// <param name="reference"> The reference </param>
+    /// <param name="handle"> The tracked handle </param>
     /// <returns> The resulting string </returns>
-    public static unsafe string RefToString(LuauState state, int reference)
+    public static unsafe string HandleToString(LuauState? state, ulong handle)
     {
+        if (state is null || state.IsDisposed)
+            return "<nil>";
         lua_State* L = state.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        var toStringFunc = "tostring"u8;
-
-        lua_getref(L, reference); // [value]
-        fixed (byte* pToStrFunc = toStringFunc)
+        var trackedReference = state.GetTrackedReferenceOrThrow(handle);
+        using PopDisposable _ = trackedReference.PushToTop(); // [value]
+        fixed (byte* pToStrFunc = "tostring"u8)
         {
-            lua_getglobal(L, pToStrFunc); // [value, tostring]
+            var type = (lua_Type)lua_getglobal(L, pToStrFunc); // [value, tostring]
+            Debug.Assert(type == lua_Type.LUA_TFUNCTION);
         }
         lua_pushvalue(L, -2); // [value, tostring, value]
         lua_call(L, 1, 1); // [value, result]
@@ -41,7 +45,7 @@ internal static class Helpers
         nuint length;
         byte* pStr = lua_tolstring(L, -1, &length);
         string str = pStr is null ? "<no_str>" : Encoding.UTF8.GetString(pStr, (int)length);
-        lua_pop(L, 2);
+        lua_pop(L, 1);
         return str;
     }
 
@@ -51,6 +55,7 @@ internal static class Helpers
     /// <returns> The resulting string </returns>
     public static unsafe string StackString(LuauState state, int stackIndex)
     {
+        state.ThrowIfDisposed();
         lua_State* L = state.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);

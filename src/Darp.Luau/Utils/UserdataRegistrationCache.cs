@@ -53,21 +53,13 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
             ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
 
-            int callbackFrameToken = state.EnterCallbackFrame();
-            try
-            {
-                LuauReturnSingle result = T.OnIndex(target, state, resolvedMemberName);
+            LuauReturnSingle result = T.OnIndex(target, state, resolvedMemberName);
 
-                if (result.TryPushValue(state, out string? error))
-                    return 1;
-                if (error == LuauReturn.NotHandled)
-                    return 0;
-                return error;
-            }
-            finally
-            {
-                state.ExitCallbackFrame(callbackFrameToken);
-            }
+            if (result.TryPushValue(state, out string? error))
+                return 1;
+            if (error == LuauReturn.NotHandled)
+                return 0;
+            return error;
         }
 
         static LuaResult<int, string> NewIndexCallbackManaged(LuauState lua, object? userdata)
@@ -83,26 +75,18 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
             ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
 
-            int callbackFrameToken = lua.EnterCallbackFrame();
-            try
+            var args = new LuauArgs(lua, argumentCount: 1, firstParameterStackIndex: 3);
+            Debug.Assert(args.ArgumentCount == 1);
+            var argsSingle = new LuauArgsSingle(args);
+            LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
+            if (!result.TryGetError(out string? error))
             {
-                var args = new LuauArgs(lua, argumentCount: 1, firstParameterStackIndex: 3, callbackFrameToken);
-                Debug.Assert(args.ArgumentCount == 1);
-                var argsSingle = new LuauArgsSingle(args);
-                LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
-                if (!result.TryGetError(out string? error))
-                {
-                    // Success
-                    return 0;
-                }
-                if (error == LuauReturn.NotHandled)
-                    return (string)$"attempt to set unknown userdata member '{resolvedMemberName}'";
-                return error;
+                // Success
+                return 0;
             }
-            finally
-            {
-                lua.ExitCallbackFrame(callbackFrameToken);
-            }
+            if (error == LuauReturn.NotHandled)
+                return (string)$"attempt to set unknown userdata member '{resolvedMemberName}'";
+            return error;
         }
 
         static LuaResult<int, string> MethodCallbackManaged(LuauState lua, object? userdata)
@@ -129,8 +113,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             }
 
             int topBeforeInvoke = lua_gettop(L);
-            int callbackFrameToken = lua.EnterCallbackFrame();
-            var functionArgs = new LuauArgs(lua, numberOfParameters, firstParameterStackIndex, callbackFrameToken);
+            var functionArgs = new LuauArgs(lua, numberOfParameters, firstParameterStackIndex);
             Span<char> methodName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MethodName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MethodName, methodName);
             ReadOnlySpan<char> resolvedMethodName = methodName[..memberNameLength];
@@ -150,10 +133,6 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
                 lua_settop(L, topBeforeInvoke);
                 throw;
             }
-            finally
-            {
-                lua.ExitCallbackFrame(callbackFrameToken);
-            }
         }
     }
 
@@ -168,9 +147,9 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
 
-        if (TryGetCachedUserdataReference(L, identity, out int cachedReference))
+        if (TryGetCachedUserdataHandle(L, identity, out ulong cachedHandle))
         {
-            return new LuauUserdata(_state, cachedReference);
+            return new LuauUserdata(_state, cachedHandle);
         }
 
         GCHandle registrationHandle = Register<T>();
@@ -189,7 +168,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         lua_settable(L, -3); // [userdata, identityMap]
         lua_pop(L, 1); // [userdata]
 
-        int reference = _state.ReferenceTracker.TrackAndPopRef(L, -1);
+        ulong reference = _state.ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauUserdata(_state, reference);
     }
 
@@ -226,7 +205,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         return LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
     }
 
-    private unsafe bool TryGetCachedUserdataReference(lua_State* L, int identity, out int reference)
+    private unsafe bool TryGetCachedUserdataHandle(lua_State* L, int identity, out ulong handle)
     {
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
@@ -237,7 +216,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
         if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)
         {
-            reference = 0;
+            handle = 0;
             lua_pop(L, 2);
             return false;
         }
@@ -245,12 +224,12 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         var native = (LuauUserdataNative*)lua_touserdatatagged(L, -1, LuauUserdataNative.Tag);
         if (native is null || !native->UserdataHandle.IsAllocated)
         {
-            reference = 0;
+            handle = 0;
             lua_pop(L, 2);
             return false;
         }
 
-        reference = _state.ReferenceTracker.TrackRef(L, -1);
+        handle = _state.ReferenceTracker.TrackRef(L, -1);
         lua_pop(L, 2);
         return true;
     }

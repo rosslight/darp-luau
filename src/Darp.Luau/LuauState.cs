@@ -17,11 +17,9 @@ public sealed unsafe class LuauState : IDisposable
     // ReSharper disable once ReplaceWithFieldKeyword
     internal readonly lua_State* L;
     private int _disposing; // 0 = false, 1 = true
-    private readonly int _globalsReference;
-    private readonly int _callbackWrapperReference;
+    private readonly ulong _globalsHandle;
+    private readonly ulong _callbackWrapperReference;
     private readonly UserdataRegistrationCache _cache;
-    private readonly Stack<int> _activeCallbackFrameTokens = [];
-    private int _nextCallbackFrameToken = 1;
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
@@ -30,7 +28,7 @@ public sealed unsafe class LuauState : IDisposable
     private readonly List<Delegate> _delegateSave = [];
 
     /// <summary> The global table. Used as a entry point </summary>
-    public LuauTable Globals => new(this, _globalsReference);
+    public LuauTable Globals => new(this, _globalsHandle);
 
     /// <summary> If true, the LuauState is disposed and any method will throw </summary>
     public bool IsDisposed => _disposing > 0;
@@ -75,7 +73,7 @@ public sealed unsafe class LuauState : IDisposable
 
         // Push table to stack, get the reference and pop
         lua_pushvalue(L, LUA_GLOBALSINDEX);
-        _globalsReference = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
+        _globalsHandle = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
 
         _callbackWrapperReference = RegisterCallbackWrapper();
     }
@@ -148,7 +146,7 @@ public sealed unsafe class LuauState : IDisposable
         Globals.Set(name, table);
     }
 
-    private int RegisterCallbackWrapper()
+    private ulong RegisterCallbackWrapper()
     {
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
@@ -190,48 +188,13 @@ public sealed unsafe class LuauState : IDisposable
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 1);
 #endif
-        lua_getref(L, ReferenceTracker.ResolveLuaRef(_callbackWrapperReference, nameof(LuauState)));
+        RegistryReferenceTracker.TrackedReference trackedReference = this.GetTrackedReferenceOrThrow(
+            _callbackWrapperReference
+        );
+        _ = trackedReference.PushToTop();
         lua_pushcfunction(L, callback, debugName);
         int callStatus = lua_pcall(L, 1, 1, 0);
         LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
-    }
-
-    internal int EnterCallbackFrame()
-    {
-        this.ThrowIfDisposed();
-        if (_nextCallbackFrameToken == int.MaxValue)
-            throw new InvalidOperationException("Too many callback frames were created for this state.");
-
-        int callbackFrameToken = _nextCallbackFrameToken++;
-        _activeCallbackFrameTokens.Push(callbackFrameToken);
-        return callbackFrameToken;
-    }
-
-    internal int GetCurrentCallbackFrameToken() =>
-        _activeCallbackFrameTokens.Count == 0 ? 0 : _activeCallbackFrameTokens.Peek();
-
-    internal void ExitCallbackFrame(int callbackFrameToken)
-    {
-        if (_activeCallbackFrameTokens.Count == 0 || _activeCallbackFrameTokens.Peek() != callbackFrameToken)
-            throw new InvalidOperationException("Callback frame stack was corrupted.");
-
-        ReferenceTracker.ReleaseCallbackFrameReferences(callbackFrameToken);
-
-        _activeCallbackFrameTokens.Pop();
-    }
-
-    internal bool IsCallbackFrameActive(int callbackFrameToken)
-    {
-        if (callbackFrameToken == 0)
-            return false;
-
-        foreach (int activeToken in _activeCallbackFrameTokens)
-        {
-            if (activeToken == callbackFrameToken)
-                return true;
-        }
-
-        return false;
     }
 
     /// <summary> Create a new table </summary>
@@ -243,7 +206,7 @@ public sealed unsafe class LuauState : IDisposable
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
         lua_newtable(L);
-        int reference = ReferenceTracker.TrackAndPopRef(L, -1);
+        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauTable(this, reference);
     }
 
@@ -267,7 +230,7 @@ public sealed unsafe class LuauState : IDisposable
 #pragma warning restore CS0618 // Type or member is obsolete
 
         PushWrappedCallback((delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr);
-        int reference = ReferenceTracker.TrackAndPopRef(L, -1);
+        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauFunction(this, reference);
 
         int F(lua_State* luaState)
@@ -278,8 +241,7 @@ public sealed unsafe class LuauState : IDisposable
             using var nestedGuard = new StackGuard(L, expectedDelta: 0);
 #endif
             int topBeforeInvoke = lua_gettop(luaState);
-            int callbackFrameToken = EnterCallbackFrame();
-            var args = new LuauArgs(this, numberOfParameters, firstParameterStackIndex: 1, callbackFrameToken);
+            var args = new LuauArgs(this, numberOfParameters, firstParameterStackIndex: 1);
             try
             {
                 LuauReturn result = onCalled(args);
@@ -308,10 +270,6 @@ public sealed unsafe class LuauState : IDisposable
                 nestedGuard.OverwriteExpectedDelta(returnCount);
 #endif
                 return returnCount;
-            }
-            finally
-            {
-                ExitCallbackFrame(callbackFrameToken);
             }
         }
     }
@@ -364,7 +322,7 @@ public sealed unsafe class LuauState : IDisposable
             lua_pushlstring(L, pValue, (nuint)utf8Value.Length);
         }
 
-        int reference = ReferenceTracker.TrackAndPopRef(L, -1);
+        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauString(this, reference);
     }
 
@@ -387,8 +345,8 @@ public sealed unsafe class LuauState : IDisposable
             Unsafe.CopyBlock(pDest, pSrc, (uint)span.Length);
         }
 
-        int reference = ReferenceTracker.TrackAndPopRef(L, -1);
-        return new LuauBuffer(this, reference);
+        ulong handle = ReferenceTracker.TrackAndPopRef(L, -1);
+        return new LuauBuffer(this, handle);
     }
 
     /// <inheritdoc />

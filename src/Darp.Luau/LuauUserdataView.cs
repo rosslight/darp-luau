@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
@@ -14,12 +15,9 @@ namespace Darp.Luau;
 /// </remarks>
 public readonly ref struct LuauUserdataView
 {
-    private readonly LuauRefSource _source;
+    private readonly StackReference _reference;
 
-    internal LuauUserdataView(LuauState? state, int stackIndex, int callbackFrameToken)
-    {
-        _source = LuauRefSource.FromCallbackStack(state, stackIndex, callbackFrameToken, lua_Type.LUA_TUSERDATA);
-    }
+    internal LuauUserdataView(LuauState state, int stackIndex) => _reference = new StackReference(state, stackIndex);
 
     /// <summary>
     /// Attempts to resolve this borrowed userdata as managed userdata of type <typeparamref name="T"/>.
@@ -32,16 +30,15 @@ public readonly ref struct LuauUserdataView
     /// <typeparamref name="T"/>; otherwise <c>false</c>.
     /// </returns>
     public bool TryGetManaged<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
-        where T : class, ILuauUserData<T> =>
-        LuauUserdataAccessCore.TryGetManaged(_source, nameof(LuauUserdataView), out value, out error);
+        where T : class, ILuauUserData<T> => LuauUserdataAccessCore.TryGetManaged(_reference, out value, out error);
 
     /// <summary>
     /// Converts this borrowed userdata view to an <see cref="IntoLuau"/> value without creating an owned reference.
     /// </summary>
     /// <param name="value">The borrowed userdata view.</param>
     /// <returns>A temporary representation with the same callback-frame lifetime constraints.</returns>
-    public static implicit operator IntoLuau(LuauUserdataView value) => IntoLuau.FromRefSource(value._source);
+    public static implicit operator IntoLuau(LuauUserdataView value) => IntoLuau.FromRefSource(value._reference);
 
     /// <inheritdoc />
-    public override string ToString() => _source.ToString();
+    public override string ToString() => _reference.ToString();
 }

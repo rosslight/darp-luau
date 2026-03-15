@@ -502,7 +502,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.TryGet("mk_table", out LuauFunction mkTable).ShouldBeTrue();
         using (mkTable)
         {
-            int baselineActiveReferences = _state.MemoryStatistics.ActiveRegistryReferences;
+            ulong baselineActiveReferences = _state.MemoryStatistics.ActiveRegistryReferences;
 
             using (LuauTable table = mkTable.Invoke<LuauTable>())
             {
@@ -548,9 +548,9 @@ public sealed class FunctionTests : IDisposable
     {
         using LuauFunction func = _state.CreateFunctionBuilder(args =>
         {
-            if (!args.TryValidateArgumentCount(0, out var error))
+            if (!args.TryValidateArgumentCount(0, out string? error))
                 return LuauReturn.Error(error);
-            LuauTable x = _state.CreateTable();
+            using LuauTable x = _state.CreateTable();
             x.Set("value", 99);
             return LuauReturn.Ok(x);
         });
@@ -564,7 +564,7 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void ReturningTable_ShouldWorkInsideManagedCallback2()
     {
-        LuauTable x = _state.CreateTable();
+        using LuauTable x = _state.CreateTable();
         x.Set("value", 99);
 
         using LuauFunction func = _state.CreateFunctionBuilder(args =>
@@ -579,12 +579,11 @@ public sealed class FunctionTests : IDisposable
 
         _state.Globals.GetNumber("result").ShouldBe(99);
         x.GetNumber("value").ShouldBe(99);
-        x.Dispose();
     }
 
     public void Dispose()
     {
-        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2);
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe((ulong)2);
         _state.Dispose();
     }
 }

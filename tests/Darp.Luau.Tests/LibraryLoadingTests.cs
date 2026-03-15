@@ -92,7 +92,7 @@ public sealed class LibraryLoadingTests : IDisposable
         {
             if (!state.IsDisposed)
                 state.Dispose();
-            state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(0);
+            state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(0UL);
         }
     }
 

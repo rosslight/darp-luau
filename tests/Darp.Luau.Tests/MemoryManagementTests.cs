@@ -1,5 +1,5 @@
-using Darp.Luau.Utils;
 using Darp.Luau.Tests.Fixtures;
+using Darp.Luau.Utils;
 using Shouldly;
 
 namespace Darp.Luau.Tests;
@@ -16,7 +16,7 @@ public sealed class MemoryManagementTests
             state.Globals.Set("payload", table);
         }
 
-        int baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
+        ulong baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
 
         state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
         state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences + 1);
@@ -67,7 +67,7 @@ public sealed class MemoryManagementTests
             state.Globals.Set("payload", table);
         }
 
-        int baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
+        ulong baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
 
         for (int i = 0; i < 2000; i++)
         {
@@ -90,9 +90,9 @@ public sealed class MemoryManagementTests
         using LuauTable table = state.CreateTable();
         table.Set("value", 123);
 
-        int baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
+        ulong baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
 
-        LuauValue value = (LuauValue)table;
+        LuauValue value = table.DisposeAndToLuauValue();
         state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences + 1);
 
         value.Dispose();
@@ -112,7 +112,7 @@ public sealed class MemoryManagementTests
         }
 
         state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
-        int referencesAfterValue = state.MemoryStatistics.ActiveRegistryReferences;
+        ulong referencesAfterValue = state.MemoryStatistics.ActiveRegistryReferences;
 
         value.TryGet(out LuauTable tableAlias).ShouldBeTrue();
         state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(referencesAfterValue + 1);
@@ -135,7 +135,7 @@ public sealed class MemoryManagementTests
         using var state = new LuauState();
         using LuauTable table = state.CreateTable();
 
-        int baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
+        ulong baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
         state.Globals.Set("payload", table);
 
         state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences);
@@ -150,7 +150,7 @@ public sealed class MemoryManagementTests
 
         Should.Throw<InvalidOperationException>(() => stateB.Globals.Set("payload", tableA));
 
-        LuauValue valueA = (LuauValue)tableA;
+        LuauValue valueA = tableA.DisposeAndToLuauValue();
         try
         {
             Should.Throw<InvalidOperationException>(() => stateB.Globals.Set("payload2", valueA));
@@ -188,9 +188,9 @@ public sealed class MemoryManagementTests
         using var state = new LuauState();
         state.Globals.Set("payload", "hello");
 
-        int baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
+        ulong baselineActiveReferences = state.MemoryStatistics.ActiveRegistryReferences;
         state.Globals.TryGetLuauValue("payload", out LuauValue value).ShouldBeTrue();
-        int referencesAfterValue = state.MemoryStatistics.ActiveRegistryReferences;
+        ulong referencesAfterValue = state.MemoryStatistics.ActiveRegistryReferences;
         referencesAfterValue.ShouldBe(baselineActiveReferences + 1);
 
         value.TryGet(out string? text).ShouldBeTrue();

@@ -1,3 +1,4 @@
+using Darp.Luau.Utils;
 using Shouldly;
 
 namespace Darp.Luau.Tests;
@@ -37,7 +38,7 @@ public sealed class IntoLuauTests
     {
         IntoLuau intoValue = default(LuauTable);
 
-        intoValue.Type.ShouldBe(IntoLuau.Kind.RefSource);
+        intoValue.Type.ShouldBe(IntoLuau.Kind.Nil);
     }
 
     [Fact]
@@ -45,7 +46,7 @@ public sealed class IntoLuauTests
     {
         IntoLuau intoValue = default(LuauFunction);
 
-        intoValue.Type.ShouldBe(IntoLuau.Kind.RefSource);
+        intoValue.Type.ShouldBe(IntoLuau.Kind.Nil);
     }
 
     [Fact]
@@ -126,7 +127,7 @@ public sealed class IntoLuauTests
     {
         IntoLuau intoValue = default(LuauBuffer);
 
-        intoValue.Type.ShouldBe(IntoLuau.Kind.RefSource);
+        intoValue.Type.ShouldBe(IntoLuau.Kind.Nil);
     }
 
     [Fact]

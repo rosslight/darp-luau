@@ -208,7 +208,7 @@ public sealed class LuauTableBasicTests : IDisposable
         using LuauTable table = _lua.CreateTable();
 
         var key = "spanByteKey"u8;
-        using var keyValue = (LuauValue)_lua.CreateString(key);
+        using LuauValue keyValue = _lua.CreateString(key).DisposeAndToLuauValue();
         table.Set(keyValue, 42.0);
 
         LuauValue value = table.GetLuauValue(keyValue);
@@ -297,7 +297,7 @@ public sealed class LuauTableBasicTests : IDisposable
 
     public void Dispose()
     {
-        _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2);
+        _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2UL);
         _lua.Dispose();
     }
 }

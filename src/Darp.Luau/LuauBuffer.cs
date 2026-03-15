@@ -1,27 +1,22 @@
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
-using Darp.Luau.Native;
+using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
 public readonly struct LuauBuffer : IDisposable
 {
-    private readonly LuauRefSource _source;
-
-    internal LuauState? State => _source.State;
-    internal int Reference => _source.Reference;
+    private readonly LuauState? _state;
+    private readonly ulong _handle;
 
     [Obsolete("Do not initialize the LuauBuffer. Create using the LuauState instead", true)]
     public LuauBuffer() { }
 
-    internal LuauBuffer(LuauState? state, int reference)
+    internal LuauBuffer(LuauState state, ulong handle)
     {
-        _source = LuauRefSource.FromReference(state, reference, lua_Type.LUA_TBUFFER);
+        _state = state;
+        _handle = handle;
     }
-
-    /// <summary> Ability for <see cref="LuauBuffer"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
-    /// <param name="value"> The buffer </param>
-    /// <returns> The converted value </returns>
-    public static implicit operator IntoLuau(LuauBuffer value) => IntoLuau.FromRefSource(value._source);
 
     /// <summary>
     /// Attempts to get a read-only span over the underlying Luau buffer bytes.
@@ -32,19 +27,38 @@ public readonly struct LuauBuffer : IDisposable
     /// The returned span aliases Luau memory and should be consumed immediately.
     /// Copy the data if it must outlive the callback frame.
     /// </remarks>
-    public bool TryGet(out ReadOnlySpan<byte> bytes) =>
-        LuauBufferAccessCore.TryGet(_source, nameof(LuauBuffer), out bytes);
+    public bool TryGet(out ReadOnlySpan<byte> bytes)
+    {
+        bytes = default;
+        return _state.TryGetTrackedReference(_handle, out RegistryReferenceTracker.TrackedReference? reference)
+            && LuauBufferAccessCore.TryGet(reference, out bytes);
+    }
 
     /// <summary>
     /// Attempts to copy the underlying Luau buffer bytes into a managed array.
     /// </summary>
     /// <param name="bytes">Receives the copied bytes when successful; otherwise an empty array.</param>
     /// <returns><c>true</c> when the copy succeeded; otherwise <c>false</c>.</returns>
-    public bool TryGet(out byte[] bytes) => LuauBufferAccessCore.TryGet(_source, nameof(LuauBuffer), out bytes);
+    public bool TryGet([NotNullWhen(true)] out byte[]? bytes)
+    {
+        bytes = null;
+        return _state.TryGetTrackedReference(_handle, out RegistryReferenceTracker.TrackedReference? reference)
+            && LuauBufferAccessCore.TryGet(reference, out bytes);
+    }
+
+    /// <summary> Ability for <see cref="LuauBuffer"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
+    /// <param name="value"> The buffer </param>
+    /// <returns> The converted value </returns>
+    public static implicit operator IntoLuau(LuauBuffer value) => IntoLuau.Borrow(value._state, value._handle);
+
+    /// <summary> Converts this string reference into a <see cref="LuauValue"/>. </summary>
+    /// <remarks> Calling this method releases the reference of the current <see cref="LuauBuffer"/> </remarks>
+    /// <returns> The reference as a luauValue </returns>
+    public LuauValue DisposeAndToLuauValue() => LuauValue.FromSource(_state, _handle, LuauValueType.Buffer);
 
     /// <inheritdoc />
     public override string ToString() => TryGet(out ReadOnlySpan<byte> span) ? Convert.ToHexString(span) : "<nil>";
 
     /// <summary> Remove the reference from the lua state </summary>
-    public void Dispose() => _source.Dispose();
+    public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
 }

@@ -12,17 +12,9 @@ public readonly unsafe ref partial struct LuauArgs
 {
     private readonly LuauState? _state;
     private readonly int _firstParameterStackIndex;
-    private readonly int _callbackFrameToken;
 
     /// <summary> Gets the number of arguments supplied by the Lua caller. </summary>
     public int ArgumentCount { get; }
-
-    /// <summary> Initializes a new argument view that starts at stack index <c>1</c>. </summary>
-    /// <param name="state">Owning Lua state.</param>
-    /// <param name="argumentCount">Number of arguments available in this call frame.</param>
-    /// <param name="callbackFrameToken">Token identifying the active callback frame.</param>
-    internal LuauArgs(LuauState state, int argumentCount, int callbackFrameToken)
-        : this(state, argumentCount, firstParameterStackIndex: 1, callbackFrameToken) { }
 
     /// <summary>
     /// Initializes a new argument view over a specific call-frame window.
@@ -30,13 +22,11 @@ public readonly unsafe ref partial struct LuauArgs
     /// <param name="state">Owning Lua state.</param>
     /// <param name="argumentCount">Number of arguments available in this call frame.</param>
     /// <param name="firstParameterStackIndex">Absolute Lua stack index of parameter <c>1</c>.</param>
-    /// <param name="callbackFrameToken">Token identifying the active callback frame.</param>
-    internal LuauArgs(LuauState state, int argumentCount, int firstParameterStackIndex, int callbackFrameToken)
+    internal LuauArgs(LuauState state, int argumentCount, int firstParameterStackIndex)
     {
         _state = state;
         ArgumentCount = argumentCount;
         _firstParameterStackIndex = firstParameterStackIndex;
-        _callbackFrameToken = callbackFrameToken;
     }
 
     /// <summary>
@@ -344,7 +334,7 @@ public readonly unsafe ref partial struct LuauArgs
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TTABLE, out error))
             return false;
 
-        int reference = _state.ReferenceTracker.TrackRef(L, stackIndex);
+        ulong reference = _state.ReferenceTracker.TrackRef(L, stackIndex);
         value = new LuauTable(_state, reference);
         return true;
     }
@@ -371,7 +361,7 @@ public readonly unsafe ref partial struct LuauArgs
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TFUNCTION, out error))
             return false;
 
-        value = new LuauFunctionView(_state, stackIndex, _callbackFrameToken);
+        value = new LuauFunctionView(_state, stackIndex);
         return true;
     }
 
@@ -393,7 +383,7 @@ public readonly unsafe ref partial struct LuauArgs
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TSTRING, out error))
             return false;
 
-        value = new LuauStringView(_state, stackIndex, _callbackFrameToken);
+        value = new LuauStringView(_state, stackIndex);
         return true;
     }
 
@@ -415,7 +405,7 @@ public readonly unsafe ref partial struct LuauArgs
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TBUFFER, out error))
             return false;
 
-        value = new LuauBufferView(_state, stackIndex, _callbackFrameToken);
+        value = new LuauBufferView(_state, stackIndex);
         return true;
     }
 
@@ -441,7 +431,7 @@ public readonly unsafe ref partial struct LuauArgs
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TUSERDATA, out error))
             return false;
 
-        value = new LuauUserdataView(_state, stackIndex, _callbackFrameToken);
+        value = new LuauUserdataView(_state, stackIndex);
         return true;
     }
 

@@ -8,39 +8,30 @@ namespace Darp.Luau.Internal;
 
 internal static unsafe class LuauStringAccessCore
 {
-    internal static bool TryGet(scoped in LuauRefSource source, string ownerTypeName, out ReadOnlySpan<byte> span)
+    internal static bool TryGet<T>(scoped in T source, out ReadOnlySpan<byte> span)
+        where T : IReferenceSource, allows ref struct
     {
         span = ReadOnlySpan<byte>.Empty;
-        LuauState state = source.Validate(ownerTypeName);
+        LuauState state = source.Validate();
         lua_State* L = state.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        source.Push(L, ownerTypeName);
-        try
-        {
-            nuint length = 0;
-            byte* pStr = lua_tolstring(L, -1, &length);
-            if (pStr is null)
-                return false;
+        using PopDisposable _ = source.PushToStack(out int stackIndex);
+        nuint length = 0;
+        byte* pStr = lua_tolstring(L, stackIndex, &length);
+        if (pStr is null)
+            return false;
 
-            span = new ReadOnlySpan<byte>(pStr, checked((int)length));
-            return true;
-        }
-        finally
-        {
-            lua_pop(L, 1);
-        }
+        span = new ReadOnlySpan<byte>(pStr, checked((int)length));
+        return true;
     }
 
-    public static bool TryGet(
-        scoped in LuauRefSource source,
-        string ownerTypeName,
-        [NotNullWhen(true)] out string? value
-    )
+    public static bool TryGet<T>(scoped in T source, [NotNullWhen(true)] out string? value)
+        where T : IReferenceSource, allows ref struct
     {
         value = null;
-        if (!TryGet(source, ownerTypeName, out ReadOnlySpan<byte> rawValue))
+        if (!TryGet(source, out ReadOnlySpan<byte> rawValue))
             return false;
 
         value = Encoding.UTF8.GetString(rawValue);

@@ -121,7 +121,7 @@ public sealed class LuauTableListTests : IDisposable
 
     public void Dispose()
     {
-        _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2);
+        _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2UL);
         _lua.Dispose();
     }
 }

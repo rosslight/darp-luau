@@ -9,12 +9,14 @@ namespace Darp.Luau;
 public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, LuauValue>>
 {
     private readonly LuauTable _table;
-    private readonly LuauState _state;
+    private readonly LuauState? _state;
+    private readonly ulong _handle;
 
-    internal TableIPairsEnumerable(LuauTable table, LuauState state)
+    internal TableIPairsEnumerable(LuauTable table, LuauState? state, ulong handle)
     {
         _table = table;
         _state = state;
+        _handle = handle;
     }
 
     /// <summary> The raw length of the underlying lua table </summary>
@@ -22,7 +24,12 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
     public int Count => _table.ListCount;
 
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator" />
-    public Enumerator GetEnumerator() => new(_table, _state);
+    public Enumerator GetEnumerator()
+    {
+        _state.ThrowIfDisposed();
+        ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_handle);
+        return new Enumerator(_state, newHandle);
+    }
 
     IEnumerator<KeyValuePair<int, LuauValue>> IEnumerable<KeyValuePair<int, LuauValue>>.GetEnumerator() =>
         GetEnumerator();
@@ -32,10 +39,8 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
     /// <summary> The enumerator of the <see cref="TableIPairsEnumerable"/> </summary>
     public struct Enumerator : IEnumerator<KeyValuePair<int, LuauValue>>
     {
-#pragma warning disable CA2213 // Disposable fields should be disposed
-        private readonly LuauTable _table;
-        private readonly LuauState _state;
-#pragma warning restore CA2213 // Disposable fields should be disposed
+        private readonly LuauState? _state;
+        private readonly ulong _handle;
         private KeyValuePair<int, LuauValue> _current;
         private int _i;
 
@@ -45,25 +50,23 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
         object IEnumerator.Current => _current;
 
         /// <summary> The enumerator of the <see cref="TableIPairsEnumerable"/> </summary>
-        /// <param name="table"> The table to enumerate </param>
-        /// <param name="state"> The state of the table </param>
-        internal Enumerator(LuauTable table, LuauState state)
+        /// <param name="source"> The source of the table </param>
+        internal Enumerator(LuauState? state, ulong handle)
         {
-            _table = table;
             _state = state;
+            _handle = handle;
         }
 
         /// <inheritdoc />
         public unsafe bool MoveNext()
         {
             _i++;
-            _state.ThrowIfDisposed();
+            RegistryReferenceTracker.TrackedReference trackedReference = _state.GetTrackedReferenceOrThrow(_handle);
             lua_State* L = _state.L;
-            int tableReference = _state.ReferenceTracker.ResolveLuaRef(_table.Reference, nameof(LuauTable));
 #if DEBUG
             using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-            lua_getref(L, tableReference);
+            _ = trackedReference.PushToTop();
             int t = lua_gettop(L);
             _ = lua_rawgeti(L, t, _i);
             if (lua_isnil(L, -1))
@@ -86,6 +89,10 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
             _current = default;
         }
 
-        void IDisposable.Dispose() => Reset();
+        void IDisposable.Dispose()
+        {
+            Reset();
+            _state?.ReferenceTracker.ReleaseRef(_handle);
+        }
     }
 }

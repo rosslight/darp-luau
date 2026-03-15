@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
@@ -22,7 +23,8 @@ public readonly ref struct IntoLuau
         Value,
         Buffer,
         UserdataFactory,
-        RefSource,
+        StackReference,
+        TrackedReference,
     }
 
     /// <summary> Describes of which kind the resulting <see cref="LuauValue"/> will be </summary>
@@ -34,7 +36,8 @@ public readonly ref struct IntoLuau
     private readonly ReadOnlySpan<byte> _readOnlyBuffer;
     private readonly LuauValue _luauValue;
     private readonly Func<LuauState, LuauUserdata>? _factory;
-    private readonly LuauRefSource _source;
+    private readonly StackReference _stackReference;
+    private readonly RegistryReferenceTracker.TrackedReference? _trackedReference;
 
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
@@ -68,16 +71,26 @@ public readonly ref struct IntoLuau
         _factory = factory;
     }
 
-    private IntoLuau(LuauRefSource source)
+    private IntoLuau(StackReference stackReference)
     {
-        Type = Kind.RefSource;
-        _source = source;
+        Type = Kind.StackReference;
+        _stackReference = stackReference;
     }
 
-    internal static IntoLuau FromRefSource(LuauRefSource source) => new(source);
+    private IntoLuau(RegistryReferenceTracker.TrackedReference trackedReference)
+    {
+        Type = Kind.TrackedReference;
+        _trackedReference = trackedReference;
+    }
 
-    internal static IntoLuau FromRefSource(LuauState? state, int reference) =>
-        new(LuauRefSource.FromReference(state, reference, lua_Type.LUA_TTABLE));
+    internal static IntoLuau FromRefSource(StackReference stackReference) => new(stackReference);
+
+    internal static IntoLuau Borrow(LuauState? state, ulong handle)
+    {
+        if (!state.TryGetTrackedReference(handle, out var reference))
+            return default;
+        return new IntoLuau(reference);
+    }
 
     internal unsafe void Push(LuauState state)
     {
@@ -127,11 +140,8 @@ public readonly ref struct IntoLuau
             case Kind.UserdataFactory:
                 Debug.Assert(_factory is not null);
                 LuauUserdata userdata = _factory.Invoke(state);
-                if (
-                    userdata.State is null
-                    || userdata.Reference is 0
-                    || !userdata.State.ReferenceTracker.HasRegistryReference(userdata.Reference)
-                )
+
+                if (userdata.Equals(default))
                 {
                     lua_pushnil(L);
                     break;
@@ -139,15 +149,19 @@ public readonly ref struct IntoLuau
 
                 try
                 {
-                    ((LuauValue)userdata).Push(L);
+                    IntoLuau l = userdata;
+                    l.Push(state);
                 }
                 finally
                 {
                     userdata.Dispose();
                 }
                 break;
-            case Kind.RefSource:
-                _source.Push(state.L, nameof(IntoLuau));
+            case Kind.StackReference:
+                _ = _stackReference.PushToTop();
+                break;
+            case Kind.TrackedReference:
+                _ = _trackedReference!.PushToTop();
                 break;
             case Kind.Nil:
             default:

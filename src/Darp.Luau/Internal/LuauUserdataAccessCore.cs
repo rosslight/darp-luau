@@ -7,23 +7,21 @@ namespace Darp.Luau.Internal;
 
 internal static unsafe class LuauUserdataAccessCore
 {
-    internal static bool TryGetManaged<T>(
-        scoped in LuauRefSource source,
-        string ownerTypeName,
-        [NotNullWhen(true)] out T? value,
+    internal static bool TryGetManaged<T, TUserData>(
+        scoped in T source,
+        [NotNullWhen(true)] out TUserData? value,
         [NotNullWhen(false)] out string? error
     )
-        where T : class, ILuauUserData<T>
+        where T : IReferenceSource, allows ref struct
+        where TUserData : class, ILuauUserData<TUserData>
     {
         value = null;
-        LuauState state = source.Validate(ownerTypeName);
+        LuauState state = source.Validate();
         lua_State* L = state.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        source.Push(L, ownerTypeName);
-        bool ok = ManagedUserdataResolver.TryResolve(L, -1, out value, out error, valueLabel: ownerTypeName);
-        lua_pop(L, 1);
-        return ok;
+        using PopDisposable _ = source.PushToStack(out int stackIndex);
+        return ManagedUserdataResolver.TryResolve(L, stackIndex, out value, out error, typeof(TUserData).Name);
     }
 }

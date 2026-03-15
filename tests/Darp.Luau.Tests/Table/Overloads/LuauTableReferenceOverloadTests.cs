@@ -29,13 +29,11 @@ public sealed class LuauTableReferenceOverloadTests
         LuauTable table = lua.CreateTable();
 
         table.TryGetLuauTable("missing", out LuauTable missingValue).ShouldBeFalse();
-        missingValue.State.ShouldBeNull();
-        missingValue.Reference.ShouldBe(0);
+        missingValue.ShouldBe(default);
 
         table.Set("wrong", 1);
         table.TryGetLuauTable("wrong", out LuauTable wrongTypeValue).ShouldBeFalse();
-        wrongTypeValue.State.ShouldBeNull();
-        wrongTypeValue.Reference.ShouldBe(0);
+        wrongTypeValue.ShouldBe(default);
     }
 
     [Fact]
@@ -180,13 +178,11 @@ public sealed class LuauTableReferenceOverloadTests
         LuauTable table = lua.CreateTable();
 
         table.TryGetLuauBuffer("missing", out LuauBuffer missingValue).ShouldBeFalse();
-        missingValue.State.ShouldBeNull();
-        missingValue.Reference.ShouldBe(0);
+        missingValue.ShouldBe(default);
 
         table.Set("wrong", 1);
         table.TryGetLuauBuffer("wrong", out LuauBuffer wrongTypeValue).ShouldBeFalse();
-        wrongTypeValue.State.ShouldBeNull();
-        wrongTypeValue.Reference.ShouldBe(0);
+        wrongTypeValue.ShouldBe(default);
     }
 
     [Fact]

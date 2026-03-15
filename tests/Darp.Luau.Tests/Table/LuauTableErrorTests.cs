@@ -38,7 +38,7 @@ public sealed class LuauTableErrorTests : IDisposable
     public void Dispose()
     {
         if (!_lua.IsDisposed)
-            _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2);
+            _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2UL);
         _lua.Dispose();
     }
 }
