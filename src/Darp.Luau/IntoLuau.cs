@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text;
+using Darp.Luau.Internal;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
@@ -21,6 +23,8 @@ public readonly ref struct IntoLuau
         Value,
         Buffer,
         UserdataFactory,
+        StackReference,
+        TrackedReference,
     }
 
     /// <summary> Describes of which kind the resulting <see cref="LuauValue"/> will be </summary>
@@ -32,6 +36,8 @@ public readonly ref struct IntoLuau
     private readonly ReadOnlySpan<byte> _readOnlyBuffer;
     private readonly LuauValue _luauValue;
     private readonly Func<LuauState, LuauUserdata>? _factory;
+    private readonly StackReference _stackReference;
+    private readonly RegistryReferenceTracker.TrackedReference? _trackedReference;
 
     private IntoLuau(bool valueBool) => (Type, _bool) = (Kind.Bool, valueBool);
 
@@ -63,6 +69,27 @@ public readonly ref struct IntoLuau
     {
         Type = Kind.UserdataFactory;
         _factory = factory;
+    }
+
+    private IntoLuau(StackReference stackReference)
+    {
+        Type = Kind.StackReference;
+        _stackReference = stackReference;
+    }
+
+    private IntoLuau(RegistryReferenceTracker.TrackedReference trackedReference)
+    {
+        Type = Kind.TrackedReference;
+        _trackedReference = trackedReference;
+    }
+
+    internal static IntoLuau FromRefSource(StackReference stackReference) => new(stackReference);
+
+    internal static IntoLuau Borrow(LuauState? state, ulong handle)
+    {
+        if (!state.TryGetTrackedReference(handle, out var reference))
+            return default;
+        return new IntoLuau(reference);
     }
 
     internal unsafe void Push(LuauState state)
@@ -113,7 +140,8 @@ public readonly ref struct IntoLuau
             case Kind.UserdataFactory:
                 Debug.Assert(_factory is not null);
                 LuauUserdata userdata = _factory.Invoke(state);
-                if (userdata.State is null || userdata.Reference is 0)
+
+                if (userdata.Equals(default))
                 {
                     lua_pushnil(L);
                     break;
@@ -121,17 +149,70 @@ public readonly ref struct IntoLuau
 
                 try
                 {
-                    ((LuauValue)userdata).Push(L);
+                    IntoLuau l = userdata;
+                    l.Push(state);
                 }
                 finally
                 {
                     userdata.Dispose();
                 }
                 break;
+            case Kind.StackReference:
+                if (!ReferenceEquals(state, _stackReference.ValidateInternal()))
+                    throw new InvalidOperationException("Cross-state reference usage is not allowed.");
+                _ = _stackReference.PushToTop();
+                break;
+            case Kind.TrackedReference:
+                if (!ReferenceEquals(state, _trackedReference!.ValidateInternal()))
+                    throw new InvalidOperationException("Cross-state reference usage is not allowed.");
+                _ = _trackedReference!.PushToTop();
+                break;
             case Kind.Nil:
             default:
                 lua_pushnil(L);
                 break;
+        }
+    }
+
+    internal IntoLuauCopied CaptureCopied()
+    {
+        switch (Type)
+        {
+            case Kind.Chars:
+                return IntoLuauCopied.FromString(_readOnlySpanChar.ToString());
+            case Kind.Buffer:
+                return IntoLuauCopied.FromBuffer(_readOnlyBuffer.ToArray());
+            case Kind.Bool:
+                return IntoLuauCopied.FromBool(_bool);
+            case Kind.Number:
+                return IntoLuauCopied.FromNumber(_number);
+            case Kind.Integer:
+                return IntoLuauCopied.FromInteger(_integer);
+            case Kind.Unsigned:
+                return IntoLuauCopied.FromUnsigned((uint)_integer);
+            case Kind.Value:
+                if (!_luauValue.TryGet(out LuauValue copiedValue))
+                    throw new InvalidOperationException("Could not capture LuauValue for deferred return.");
+                return IntoLuauCopied.FromValue(copiedValue);
+            case Kind.UserdataFactory:
+                Debug.Assert(_factory is not null);
+                return IntoLuauCopied.FromUserdataFactory(_factory);
+            case Kind.StackReference:
+            {
+                LuauState state = _stackReference.ValidateInternal();
+                using var pop = _stackReference.PushToTop();
+                return IntoLuauCopied.FromValue(LuauValue.ToValue(state));
+            }
+            case Kind.TrackedReference:
+            {
+                Debug.Assert(_trackedReference is not null);
+                LuauState state = _trackedReference.ValidateInternal();
+                using var pop = _trackedReference.PushToTop();
+                return IntoLuauCopied.FromValue(LuauValue.ToValue(state));
+            }
+            case Kind.Nil:
+            default:
+                return default;
         }
     }
 
@@ -234,8 +315,15 @@ public readonly ref struct IntoLuau
     /// <returns> A temporary representation of the value </returns>
     public static implicit operator IntoLuau(byte[] value) => new(value);
 
-    public static IntoLuau FromUserdata<T>(T t)
-        where T : class, ILuauUserData<T> => new(state => state.GetOrCreateUserdata(t));
+    /// <summary> Converts to a userdata </summary>
+    /// <param name="userdata"> The userdata </param>
+    /// <typeparam name="T"> The type of the userdata </typeparam>
+    /// <returns> A temporary representation of the value </returns>
+    public static IntoLuau FromUserdata<T>(T userdata)
+        where T : class, ILuauUserData<T> => new(state => state.GetOrCreateUserdata(userdata));
 
+    /// <summary> Converts to a userdata </summary>
+    /// <param name="factory"> The userdata factory </param>
+    /// <returns> A temporary representation of the value </returns>
     public static IntoLuau FromUserdata(Func<LuauState, LuauUserdata> factory) => new(factory);
 }

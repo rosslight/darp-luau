@@ -1,8 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
-using Darp.Luau.Native;
+using Darp.Luau.Internal;
 using Darp.Luau.Utils;
-using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
@@ -14,36 +13,22 @@ internal struct LuauUserdataNative
     public GCHandle RegistryValueHandle { get; internal set; }
 }
 
-public struct LuauUserdata : ILuauReference
+public readonly struct LuauUserdata : ILuauReference, IEquatable<LuauUserdata>
 {
-    /// <inheritdoc />
-    public LuauState? State { get; }
+    private readonly LuauState? _state;
+    private readonly ulong _handle;
 
-    /// <inheritdoc />
-    public int Reference { get; private set; }
+    /// <inheritdoc/>
+    public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
     [Obsolete("Do not initialize the LuauTable. Create using the LuauState instead", true)]
     public LuauUserdata() { }
 
-    internal LuauUserdata(LuauState? state, int reference) => (State, Reference) = (state, reference);
-
-    public unsafe void Dispose()
+    internal LuauUserdata(LuauState state, ulong handle)
     {
-        if (State is null || Reference is 0)
-            return;
-        lua_unref(State.L, Reference);
-        Reference = 0;
+        _state = state;
+        _handle = handle;
     }
-
-    [MemberNotNull(nameof(State))]
-    private readonly void ThrowIfDisposed()
-    {
-        State.ThrowIfDisposed();
-        if (Reference is 0)
-            throw new ObjectDisposedException(nameof(LuauTable), "The reference to the LuauTable is invalid");
-    }
-
-    public static implicit operator IntoLuau(LuauUserdata value) => (LuauValue)value;
 
     /// <summary>
     /// Attempts to resolve this userdata reference back to the managed userdata instance.
@@ -55,28 +40,29 @@ public struct LuauUserdata : ILuauReference
     /// <c>true</c> when this reference points to managed userdata of type <typeparamref name="T"/>;
     /// otherwise <c>false</c>.
     /// </returns>
-    public unsafe bool TryGetManaged<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
+    public bool TryGetManaged<T>([NotNullWhen(true)] out T? value, [NotNullWhen(false)] out string? error)
         where T : class, ILuauUserData<T>
     {
         value = null;
-        ThrowIfDisposed();
-        lua_State* L = State.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        lua_getref(L, Reference);
-        if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)
-        {
-            lua_pop(L, 1);
-            error = "userdata reference does not currently point to a userdata value.";
-            return false;
-        }
-
-        bool ok = ManagedUserdataResolver.TryResolve(L, -1, out value, out error, valueLabel: "userdata reference");
-        lua_pop(L, 1);
-        return ok;
+        error = null;
+        return _state.TryGetTrackedReference(_handle, out RegistryReferenceTracker.TrackedReference? reference)
+            && LuauUserdataAccessCore.TryGetManaged(reference, out value, out error);
     }
 
+    /// <summary> Ability for <see cref="LuauUserdata"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
+    /// <param name="value"> The userdata </param>
+    /// <returns> The converted value </returns>
+    public static implicit operator IntoLuau(LuauUserdata value) => IntoLuau.Borrow(value._state, value._handle);
+
+    /// <inheritdoc/>
+    public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Userdata);
+
     /// <inheritdoc />
-    public override readonly string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);
+    public bool Equals(LuauUserdata other) => other._state == _state && other._handle == _handle;
+
+    /// <inheritdoc />
+    public override string ToString() => Helpers.HandleToString(_state, _handle);
+
+    /// <inheritdoc />
+    public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
 }

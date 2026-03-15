@@ -14,59 +14,6 @@ Luau bindings and a higher level wrapper
 - Module support (TODO)
 - Async (Thread and Coroutines) support (MAYBE)
 
-## Mapping of data types
-
-### `nil`
-
-- `LuauNil`
-- `null` for parameters
-- `void` for return types
-
-### `string`
-
-- `ReadOnlySpan<byte>`
-- `ReadOnlySpan<char>`, `string` using UTF8 Encoding
-
-### `number`
-
-- `double`
-- `byte, sbyte, ushort, short, uint, int, ulong, long, UInt128, Int128` are converted (cut off)
-- `Half`, `float`, `decimal` are converted (loss of precision)
-- Any user defined enum
-
-### `boolean`
-
-- `bool`
-
-### `table`
-
-- `LuauTable`
-
-### `function`
-
-- `LuauFunction`
-- Delegates that with parameters of the primitives listed here
-
-### `thread`
-
-Unsupported for now
-
-### `userdata`
-
-Any `class` that implements `ILuauUserData<T>`
-
-### `buffer`
-
-- `ReadOnlySpan<byte>`
-- `byte[]`
-
-### `vector`
-
-Unsupported for now. Planned:
-
-- `System.Numerics.Vector4`
-- `System.Numerics.Vector3` (loss of fourth dimension)
-
 ## Usage
 
 ### Script execution
@@ -100,7 +47,7 @@ state.Globals.Set("log", (string s) => Console.WriteLine(s));
 using LuauFunction add = state.Globals.GetLuauFunction("add");
 
 // Call
-double result = add.Call<double>(1, 2);
+double result = add.Invoke<double>(1, 2);
 ```
 
 ### Tables
@@ -208,3 +155,18 @@ state.OpenLibrary("game", static (_, in lib) =>
     lib.Set("add", (int a, int b) => a + b);
 });
 ```
+
+## Mapping of data types
+
+| Lua type | C# mapping | Notes |
+| --- | --- | --- |
+| `nil` | `LuauNil`, `null` (params), `void` (returns) | - |
+| `string` | `ReadOnlySpan<byte>`, `ReadOnlySpan<char>`, `string`, `LuauString`, `LuauStringView` | `LuauStringView` is callback-scoped; other mappings use UTF-8 encoding |
+| `number` | `double`; `byte`, `sbyte`, `ushort`, `short`, `uint`, `int`, `ulong`, `long`, `UInt128`, `Int128`; `Half`, `float`, `decimal`; enums | Integer types are truncated, floating types may lose precision |
+| `boolean` | `bool` | - |
+| `table` | `LuauTable` | - |
+| `function` | `LuauFunction`, `LuauFunctionView`, delegates | `LuauFunctionView` is callback-scoped |
+| `thread` | - | Unsupported for now |
+| `userdata` | `LuauUserdataView`, any `class` implementing `ILuauUserData<T>` | `LuauUserdataView` is callback-scoped |
+| `buffer` | `ReadOnlySpan<byte>`, `byte[]`, `LuauBufferView` | `LuauBufferView` is callback-scoped |
+| `vector` | Planned: `System.Numerics.Vector4`, `System.Numerics.Vector3` | `Vector3` loses the 4th component |

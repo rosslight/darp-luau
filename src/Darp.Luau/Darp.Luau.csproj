@@ -5,13 +5,14 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsAotCompatible>true</IsAotCompatible>
+    <NoWarn>CA2225;CA1031</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="$(AssemblyName).Tests" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Darp.Luau.Native" Version="0.2.0" />
+    <PackageReference Include="Darp.Luau.Native" Version="0.3.0" />
   </ItemGroup>
 
   <ItemGroup>

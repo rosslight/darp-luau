@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
@@ -16,8 +15,13 @@ public static class LuauTableExtensions
         where TValue : allows ref struct
     {
         value = default;
-        table.State.ThrowIfDisposed();
-        return table.TryGetLuauValue(key, out LuauValue luauValue) && luauValue.TryGet(out value, acceptNil: false);
+        if (!table.TryGetLuauValue(key, out LuauValue luauValue))
+            return false;
+
+        using (luauValue)
+        {
+            return luauValue.TryGet(out value, acceptNil: false);
+        }
     }
 
     /// <summary> Iterates on a table until the first value not matching the given type </summary>
@@ -29,10 +33,13 @@ public static class LuauTableExtensions
     {
         foreach ((int i, LuauValue value) in table.IPairs())
         {
-            if (value.TryGet(out T? v))
-                yield return new KeyValuePair<int, T>(i, v);
-            else
-                break;
+            using (value)
+            {
+                if (value.TryGet(out T? v))
+                    yield return new KeyValuePair<int, T>(i, v);
+                else
+                    break;
+            }
         }
     }
 

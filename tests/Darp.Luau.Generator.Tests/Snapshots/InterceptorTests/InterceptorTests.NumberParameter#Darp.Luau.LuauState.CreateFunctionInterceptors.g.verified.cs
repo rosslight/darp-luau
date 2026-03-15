@@ -6,7 +6,7 @@ namespace Darp.Luau.Generator
 {
 file static class CreateFunctionInterceptors
 {
-    [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "gXe7H6FQOmtMXBD/GevKlnMAAAA=")]
+    [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "ScrubbedInterceptLocation")]
     public static global::Darp.Luau.LuauFunction CreateMethod(this global::Darp.Luau.LuauState state, global::System.Action<double> onLuaCall)
     {
         global::System.ArgumentNullException.ThrowIfNull(state);
@@ -23,7 +23,7 @@ file static class CreateFunctionInterceptors
             return global::Darp.Luau.LuauReturn.Ok();
         }
     }
-    [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "gXe7H6FQOmtMXBD/GevKlqQAAAA=")]
+    [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "ScrubbedInterceptLocation")]
     public static global::Darp.Luau.LuauFunction CreateMethod(this global::Darp.Luau.LuauState state, global::System.Action<int> onLuaCall)
     {
         global::System.ArgumentNullException.ThrowIfNull(state);

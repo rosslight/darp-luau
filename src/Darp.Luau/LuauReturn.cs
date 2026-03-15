@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Darp.Luau.Internal;
 
 namespace Darp.Luau;
 
@@ -12,7 +13,7 @@ namespace Darp.Luau;
 /// </remarks>
 public readonly ref struct LuauReturn
 {
-    private readonly IntoLuauBuffer _buffer;
+    private readonly IntoLuauCopiedBuffer _buffer;
     private readonly string? _error;
 
     /// <summary> Gets whether this callback result is successful. </summary>
@@ -30,8 +31,14 @@ public readonly ref struct LuauReturn
     )
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(valueCount, 0);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(valueCount, IntoLuauBuffer.MaxLength);
-        _buffer = new IntoLuauBuffer(valueCount, value1, value2, value3, value4);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(valueCount, IntoLuauCopiedBuffer.MaxLength);
+        _buffer = new IntoLuauCopiedBuffer(
+            valueCount,
+            value1.CaptureCopied(),
+            value2.CaptureCopied(),
+            value3.CaptureCopied(),
+            value4.CaptureCopied()
+        );
         IsOk = true;
     }
 
@@ -94,47 +101,62 @@ public readonly ref struct LuauReturn
 
         error = null;
         outputCount = _buffer.Length;
-        switch (outputCount)
+        try
         {
-            case 0:
-                return true;
-            case 1:
-                _buffer.Element0.Push(state);
-                return true;
-            case 2:
-                _buffer.Element0.Push(state);
-                _buffer.Element1.Push(state);
-                return true;
-            case 3:
-                _buffer.Element0.Push(state);
-                _buffer.Element1.Push(state);
-                _buffer.Element2.Push(state);
-                return true;
-            case 4:
-                _buffer.Element0.Push(state);
-                _buffer.Element1.Push(state);
-                _buffer.Element2.Push(state);
-                _buffer.Element3.Push(state);
-                return true;
-            default:
-                throw new InvalidOperationException("Invalid number of return values.");
+            switch (outputCount)
+            {
+                case 0:
+                    return true;
+                case 1:
+                    _buffer.Element0.Push(state);
+                    return true;
+                case 2:
+                    _buffer.Element0.Push(state);
+                    _buffer.Element1.Push(state);
+                    return true;
+                case 3:
+                    _buffer.Element0.Push(state);
+                    _buffer.Element1.Push(state);
+                    _buffer.Element2.Push(state);
+                    return true;
+                case 4:
+                    _buffer.Element0.Push(state);
+                    _buffer.Element1.Push(state);
+                    _buffer.Element2.Push(state);
+                    _buffer.Element3.Push(state);
+                    return true;
+                default:
+                    throw new InvalidOperationException("Invalid number of return values.");
+            }
+        }
+        finally
+        {
+            _buffer.Release();
         }
     }
 
-    private ref struct IntoLuauBuffer(
+    private readonly ref struct IntoLuauCopiedBuffer(
         int length,
-        IntoLuau element0,
-        IntoLuau element1,
-        IntoLuau element2,
-        IntoLuau element3
+        IntoLuauCopied element0,
+        IntoLuauCopied element1,
+        IntoLuauCopied element2,
+        IntoLuauCopied element3
     )
     {
         public const int MaxLength = 4;
 
         public readonly int Length = length;
-        public readonly IntoLuau Element0 = element0;
-        public readonly IntoLuau Element1 = element1;
-        public readonly IntoLuau Element2 = element2;
-        public readonly IntoLuau Element3 = element3;
+        public readonly IntoLuauCopied Element0 = element0;
+        public readonly IntoLuauCopied Element1 = element1;
+        public readonly IntoLuauCopied Element2 = element2;
+        public readonly IntoLuauCopied Element3 = element3;
+
+        public void Release()
+        {
+            Element0.Release();
+            Element1.Release();
+            Element2.Release();
+            Element3.Release();
+        }
     }
 }

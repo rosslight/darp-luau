@@ -1,41 +1,73 @@
-using System.Text;
-using Darp.Luau.Native;
+using System.Diagnostics.CodeAnalysis;
+using Darp.Luau.Internal;
 using Darp.Luau.Utils;
-using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-public readonly ref struct LuauString
+/// <summary>
+/// Represents an owned Luau string reference stored in the registry.
+/// </summary>
+public readonly struct LuauString : ILuauReference
 {
-    internal LuauState? State { get; }
-    internal int Reference { get; }
+    private readonly LuauState? _state;
+    private readonly ulong _handle;
 
+    /// <inheritdoc/>
+    public bool IsDisposed => !_state.IsReferenceValid(_handle);
+
+    /// <summary> Do not initialize directly. Create via <see cref="LuauState"/> APIs. </summary>
     [Obsolete("Do not initialize the LuauString. Create using the LuauState instead", true)]
-    public LuauString() => State = null;
+    public LuauString() { }
 
-    internal LuauString(LuauState? state, int reference) => (State, Reference) = (state, reference);
+    internal LuauString(LuauState state, ulong handle)
+    {
+        _state = state;
+        _handle = handle;
+    }
 
-    public static implicit operator IntoLuau(LuauString value) => (LuauValue)value;
+    /// <summary>
+    /// Attempts to get the underlying string bytes as a UTF-8 span.
+    /// </summary>
+    /// <param name="value">Receives a span over Luau-owned memory when successful.</param>
+    /// <returns><c>true</c> when the string is still valid; otherwise <c>false</c>.</returns>
+    public bool TryGet(out ReadOnlySpan<byte> value)
+    {
+        value = default;
+        return _state.TryGetTrackedReference(_handle, out RegistryReferenceTracker.TrackedReference? reference)
+            && LuauStringAccessCore.TryGet(reference, out value);
+    }
+
+    /// <summary>
+    /// Attempts to decode the underlying UTF-8 bytes into a managed <see cref="string"/>.
+    /// </summary>
+    /// <param name="value">Receives the decoded string when successful.</param>
+    /// <returns><c>true</c> when decoding succeeded; otherwise <c>false</c>.</returns>
+    public bool TryGet([NotNullWhen(true)] out string? value)
+    {
+        value = null;
+        return _state.TryGetTrackedReference(_handle, out RegistryReferenceTracker.TrackedReference? reference)
+            && LuauStringAccessCore.TryGet(reference, out value);
+    }
+
+    /// <summary> Releases this string reference from the state registry. </summary>
+    public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
+
+    /// <summary> Converts this string reference into an <see cref="IntoLuau"/> value. </summary>
+    public static implicit operator IntoLuau(LuauString value) => IntoLuau.Borrow(value._state, value._handle);
+
+    /// <inheritdoc/>
+    public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.String);
 
     /// <inheritdoc />
-    public override unsafe string ToString()
+    public override string ToString()
     {
-        if (State is null)
-            return "<nil>";
-        lua_State* L = State.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        _ = lua_getref(L, Reference);
-        nuint length = 0;
-        byte* pStr = lua_tolstring(L, -1, &length);
-        if (pStr is null)
+        try
         {
-            lua_pop(L, 1);
+            return TryGet(out string? value) ? value : "<nil>";
+        }
+        catch (ObjectDisposedException)
+        {
             return "<nil>";
         }
-        string str = Encoding.UTF8.GetString(pStr, (int)length);
-        lua_pop(L, 1);
-        return str;
     }
 }

@@ -1,9 +1,9 @@
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
@@ -24,7 +24,7 @@ public enum LuauValueType
 }
 
 [StructLayout(LayoutKind.Sequential)]
-public readonly struct LuauValue
+public readonly struct LuauValue : IDisposable
 {
     public LuauValueType Type { get; }
     private readonly LuauState? _state;
@@ -40,13 +40,13 @@ public readonly struct LuauValue
         public readonly double ValueDouble;
 
         [FieldOffset(0)]
-        public readonly int ValueReference;
+        public readonly ulong ValueHandle;
 
         public LuauValueUnion(bool value) => ValueBool = value;
 
         public LuauValueUnion(double value) => ValueDouble = value;
 
-        public LuauValueUnion(int value) => ValueReference = value;
+        public LuauValueUnion(ulong value) => ValueHandle = value;
     }
 
     private LuauValue(LuauState? state, LuauValueType type, LuauValueUnion union)
@@ -56,26 +56,18 @@ public readonly struct LuauValue
         _union = union;
     }
 
-    public static implicit operator LuauValue(bool value) =>
+    public static explicit operator LuauValue(bool value) =>
         new(null, LuauValueType.Boolean, new LuauValueUnion(value));
 
-    public static implicit operator LuauValue(double value) =>
+    public static explicit operator LuauValue(double value) =>
         new(null, LuauValueType.Number, new LuauValueUnion(value));
 
-    public static implicit operator LuauValue(LuauString value) =>
-        new(value.State, LuauValueType.String, new LuauValueUnion(value.Reference));
-
-    public static implicit operator LuauValue(LuauTable value) =>
-        new(value.State, LuauValueType.Table, new LuauValueUnion(value.Reference));
-
-    public static implicit operator LuauValue(LuauFunction value) =>
-        new(value.State, LuauValueType.Function, new LuauValueUnion(value.Reference));
-
-    public static implicit operator LuauValue(LuauBuffer value) =>
-        new(value.State, LuauValueType.Buffer, new LuauValueUnion(value.Reference));
-
-    public static implicit operator LuauValue(LuauUserdata value) =>
-        new(value.State, LuauValueType.Userdata, new LuauValueUnion(value.Reference));
+    internal static LuauValue Move(LuauState? state, in ulong handle, LuauValueType type)
+    {
+        ulong? newHandle = state?.ReferenceTracker.CountRefOrThrow(handle);
+        state?.ReferenceTracker.ReleaseRef(handle);
+        return new LuauValue(state, type, new LuauValueUnion(newHandle ?? 0));
+    }
 
     public bool TryGet<T>([NotNullWhen(true)] out T? value, bool acceptNil = false)
         where T : allows ref struct
@@ -83,6 +75,20 @@ public readonly struct LuauValue
         if (typeof(T) == typeof(LuauValue))
         {
             LuauValue temp = this;
+            if (
+                _state is not null
+                && Type
+                    is LuauValueType.String
+                        or LuauValueType.Table
+                        or LuauValueType.Function
+                        or LuauValueType.Userdata
+                        or LuauValueType.Buffer
+                && _state.ReferenceTracker.HasRegistryReference(_union.ValueHandle)
+            )
+            {
+                ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                temp = new LuauValue(_state, Type, new LuauValueUnion(newHandle));
+            }
             value = Unsafe.As<LuauValue, T>(ref temp)!;
             return true;
         }
@@ -204,15 +210,20 @@ public readonly struct LuauValue
                 }
                 return false;
             case LuauValueType.String:
+                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
+                    return false;
                 if (typeof(T) == typeof(string))
                 {
-                    string temp = new LuauString(_state, _union.ValueReference).ToString();
+                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                    using var luauString = new LuauString(_state, newHandle);
+                    string temp = luauString.ToString();
                     value = Unsafe.As<string, T>(ref temp)!;
                     return true;
                 }
                 if (typeof(T) == typeof(LuauString))
                 {
-                    var temp = new LuauString(_state, _union.ValueReference);
+                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                    var temp = new LuauString(_state, newHandle);
                     value = Unsafe.As<LuauString, T>(ref temp)!;
                     return true;
                 }
@@ -318,33 +329,45 @@ public readonly struct LuauValue
                 }
                 return false;
             case LuauValueType.Table:
+                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
+                    return false;
                 if (typeof(T) == typeof(LuauTable))
                 {
-                    var temp = new LuauTable(_state, _union.ValueReference);
+                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                    var temp = new LuauTable(_state, newHandle);
                     value = Unsafe.As<LuauTable, T>(ref temp)!;
                     return true;
                 }
                 return false;
             case LuauValueType.Function:
+                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
+                    return false;
                 if (typeof(T) == typeof(LuauFunction))
                 {
-                    var temp = new LuauFunction(_state, _union.ValueReference);
+                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                    var temp = new LuauFunction(_state, newHandle);
                     value = Unsafe.As<LuauFunction, T>(ref temp)!;
                     return true;
                 }
                 return false;
             case LuauValueType.Userdata:
+                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
+                    return false;
                 if (typeof(T) == typeof(LuauUserdata))
                 {
-                    var temp = new LuauUserdata(_state, _union.ValueReference);
+                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                    var temp = new LuauUserdata(_state, newHandle);
                     value = Unsafe.As<LuauUserdata, T>(ref temp)!;
                     return true;
                 }
                 return false;
             case LuauValueType.Buffer:
+                if (_state is null || !_state.ReferenceTracker.HasRegistryReference(_union.ValueHandle))
+                    return false;
                 if (typeof(T) == typeof(ReadOnlySpan<byte>))
                 {
-                    var temp = new LuauBuffer(_state, _union.ValueReference);
+                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                    using var temp = new LuauBuffer(_state, newHandle);
                     if (!temp.TryGet(out ReadOnlySpan<byte> span))
                         return false;
 
@@ -353,8 +376,9 @@ public readonly struct LuauValue
                 }
                 if (typeof(T) == typeof(byte[]))
                 {
-                    var temp = new LuauBuffer(_state, _union.ValueReference);
-                    if (!temp.TryGet(out byte[] bytes))
+                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                    using var temp = new LuauBuffer(_state, newHandle);
+                    if (!temp.TryGet(out byte[]? bytes))
                         return false;
 
                     value = Unsafe.As<byte[], T>(ref bytes)!;
@@ -362,7 +386,8 @@ public readonly struct LuauValue
                 }
                 if (typeof(T) == typeof(LuauBuffer))
                 {
-                    var temp = new LuauBuffer(_state, _union.ValueReference);
+                    ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                    var temp = new LuauBuffer(_state, newHandle);
                     value = Unsafe.As<LuauBuffer, T>(ref temp)!;
                     return true;
                 }
@@ -377,7 +402,13 @@ public readonly struct LuauValue
     /// <exception cref="ArgumentOutOfRangeException"> Thrown if the Type is invalid </exception>
     internal unsafe void Push(lua_State* L)
     {
-        Debug.Assert(_state is null || _state.L == L);
+        if (_state is not null)
+        {
+            _state.ThrowIfDisposed();
+            if ((nint)_state.L != (nint)L)
+                throw new InvalidOperationException("Cross-state reference usage is not allowed.");
+        }
+
         switch (Type)
         {
             case LuauValueType.Nil:
@@ -394,7 +425,10 @@ public readonly struct LuauValue
             or LuauValueType.Function
             or LuauValueType.Userdata
             or LuauValueType.Buffer:
-                lua_getref(L, _union.ValueReference);
+                if (_state is null)
+                    throw new InvalidOperationException("No LuauState present.");
+                var trackedReference = _state.GetTrackedReferenceOrThrow(_union.ValueHandle);
+                trackedReference.PushToTop();
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -404,6 +438,9 @@ public readonly struct LuauValue
     internal static unsafe LuauValue ToValue(LuauState state, int index = -1)
     {
         lua_State* L = state.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
         var type = (lua_Type)lua_type(L, index);
         switch (type)
         {
@@ -416,39 +453,83 @@ public readonly struct LuauValue
                 double valueNumber = lua_tonumber(L, index);
                 return new LuauValue(state, LuauValueType.Number, new LuauValueUnion(valueNumber));
             case lua_Type.LUA_TSTRING:
-                int referenceString = lua_ref(L, index);
+                ulong referenceString = state.ReferenceTracker.TrackRef(L, index);
                 return new LuauValue(state, LuauValueType.String, new LuauValueUnion(referenceString));
             case lua_Type.LUA_TTABLE:
-                int referenceTable = lua_ref(L, index);
+                ulong referenceTable = state.ReferenceTracker.TrackRef(L, index);
                 return new LuauValue(state, LuauValueType.Table, new LuauValueUnion(referenceTable));
             case lua_Type.LUA_TFUNCTION:
-                int referenceFunction = lua_ref(L, index);
+                ulong referenceFunction = state.ReferenceTracker.TrackRef(L, index);
                 return new LuauValue(state, LuauValueType.Function, new LuauValueUnion(referenceFunction));
             case lua_Type.LUA_TUSERDATA:
-                int referenceUserdata = lua_ref(L, index);
+                ulong referenceUserdata = state.ReferenceTracker.TrackRef(L, index);
                 return new LuauValue(state, LuauValueType.Userdata, new LuauValueUnion(referenceUserdata));
             case lua_Type.LUA_TBUFFER:
-                int referenceBuffer = lua_ref(L, index);
+                ulong referenceBuffer = state.ReferenceTracker.TrackRef(L, index);
                 return new LuauValue(state, LuauValueType.Buffer, new LuauValueUnion(referenceBuffer));
             default:
                 throw new NotSupportedException($"The lua type {type} is not supported!");
         }
     }
 
+    /// <summary>
+    /// Releases an owned registry reference when this value represents a reference-backed Lua type.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_state is null)
+            return;
+        if (
+            Type
+            is not LuauValueType.String
+                and not LuauValueType.Table
+                and not LuauValueType.Function
+                and not LuauValueType.Userdata
+                and not LuauValueType.Buffer
+        )
+            return;
+
+        _state.ReferenceTracker.ReleaseRef(_union.ValueHandle);
+    }
+
     /// <inheritdoc />
     public override string ToString()
     {
-        return Type switch
+        switch (Type)
         {
-            LuauValueType.Nil => "nil",
-            LuauValueType.String => new LuauString(_state, _union.ValueReference).ToString(),
-            LuauValueType.Number => _union.ValueDouble.ToString(CultureInfo.InvariantCulture),
-            LuauValueType.Boolean => _union.ValueBool ? "true" : "false",
-            LuauValueType.Table => new LuauTable(_state, _union.ValueReference).ToString(),
-            LuauValueType.Function => new LuauFunction(_state, _union.ValueReference).ToString(),
-            LuauValueType.Userdata => new LuauUserdata(_state, _union.ValueReference).ToString(),
-            LuauValueType.Buffer => new LuauBuffer(_state, _union.ValueReference).ToString(),
-            _ => "n/a",
-        };
+            case LuauValueType.Nil:
+                return "nil";
+            case LuauValueType.String:
+            {
+                _state.ThrowIfDisposed();
+                ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                using var temp = new LuauString(_state, newHandle);
+                return temp.ToString();
+            }
+            case LuauValueType.Number:
+                return _union.ValueDouble.ToString(CultureInfo.InvariantCulture);
+            case LuauValueType.Boolean:
+                return _union.ValueBool ? "true" : "false";
+            case LuauValueType.Table:
+                return new LuauTable(_state, _union.ValueHandle).ToString();
+            case LuauValueType.Function:
+                return new LuauFunction(_state, _union.ValueHandle).ToString();
+            case LuauValueType.Userdata:
+            {
+                _state.ThrowIfDisposed();
+                ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                using var temp = new LuauUserdata(_state, newHandle);
+                return temp.ToString();
+            }
+            case LuauValueType.Buffer:
+            {
+                _state.ThrowIfDisposed();
+                ulong newHandle = _state.ReferenceTracker.CountRefOrThrow(_union.ValueHandle);
+                using var temp = new LuauBuffer(_state, newHandle);
+                return temp.ToString();
+            }
+            default:
+                return "n/a";
+        }
     }
 }
