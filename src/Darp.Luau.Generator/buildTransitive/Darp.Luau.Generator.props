@@ -1,4 +1,7 @@
 <Project>
+  <PropertyGroup>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Darp.Luau.Generator</InterceptorsNamespaces>
+  </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="DarpLuauGenerator_X" />
   </ItemGroup>

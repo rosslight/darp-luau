@@ -1,0 +1,17 @@
+{
+  Diagnostics: [
+    {
+      Location: SourceFile([159..179)),
+      Message: CreateFunction must be invoked directly so the compiler can intercept it. Converting it to a delegate would hit the runtime stub.,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0001,
+        Title: CreateFunction must be invoked directly,
+        MessageFormat: CreateFunction must be invoked directly so the compiler can intercept it. {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

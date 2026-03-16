@@ -555,8 +555,29 @@ internal static class CreateFunctionInterceptorsEmitter
         {
             var syntax = (InvocationExpressionSyntax)calledMethod.Syntax;
             InterceptableLocation? location = calledMethod.SemanticModel.GetInterceptableLocation(syntax);
-            if (location is null || calledMethod.SemanticModel is null)
+            if (calledMethod.SemanticModel is null)
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.InterceptableLocationUnavailableDescriptor,
+                        syntax.GetLocation(),
+                        "the semantic model was unavailable"
+                    )
+                );
                 continue;
+            }
+
+            if (location is null)
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.InterceptableLocationUnavailableDescriptor,
+                        syntax.GetLocation(),
+                        "the compiler did not provide an interceptable location for this invocation"
+                    )
+                );
+                continue;
+            }
 
             if (!TryExtractSignature(calledMethod, out var key, diagnostics))
                 continue;
