@@ -60,12 +60,6 @@ nav = [
     { "Tables" = "features/tables.md" },
     { "Userdata" = "features/userdata.md" },
     { "Libraries" = "features/libraries.md" },
-    { "Generator and analyzer support" = "features/generator.md" },
-  ]},
-  { "Contributing" = [
-    { "Overview" = "contributing/index.md" },
-    { "Local development" = "contributing/local-development.md" },
-    { "Testing and validation" = "contributing/testing.md" },
   ]},
 ]
 

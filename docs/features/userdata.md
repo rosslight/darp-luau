@@ -74,6 +74,8 @@ internal sealed class PlayerUserdata : ILuauUserData<PlayerUserdata>
             case "add":
                 if (!functionArgs.TryValidateArgumentCount(1, out string? error))
                     return LuauReturn.Error(error);
+                if (functionArgs.ArgumentCount != 1)
+                    return LuauReturn.Error("Expected exactly 1 argument.");
                 if (!functionArgs.TryReadNumber(1, out int amount, out error))
                     return LuauReturn.Error(error);
 
@@ -110,6 +112,8 @@ _ = playerRef.TryGetManaged(out PlayerUserdata? resolvedPlayer, out string? erro
 
 The implicit conversion operator is optional but convenient. If you do not define it on your managed type, use `IntoLuau.FromUserdata(player)` at the call site instead.
 
+If you want to keep the Lua userdata wrapper itself, call `lua.GetOrCreateUserdata(player)` and hold the resulting `LuauUserdata` in a `using` block.
+
 Choose the read API that matches what you need:
 
 | Need | API |
@@ -142,7 +146,7 @@ Methods can return zero, one, or many values through `LuauReturn.Ok(...)`.
 
 Managed userdata keeps object identity:
 
-- pushing the same managed instance again reuses the same Lua userdata identity while that userdata is still alive,
+- pushing the same managed instance into the same `LuauState` again reuses the same Lua userdata identity while that userdata is still alive,
 - pushing two different managed instances creates two different Lua userdata values even if their contents match.
 
 Lifetime rules follow the normal owned-vs-borrowed model:

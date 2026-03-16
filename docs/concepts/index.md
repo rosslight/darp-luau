@@ -2,12 +2,12 @@
 
 These pages cover the mental models that matter most when using Darp.Luau.
 
-The library is not just a thin set of P/Invoke calls. It makes opinionated choices about ownership, borrowed values, typed conversion, and error reporting. Those choices are what make the API safer, but they also define how you should structure your code.
+The library is not just a thin set of P/Invoke calls. It makes opinionated choices about ownership, borrowed values, typed conversion, and error reporting. Those choices make the API safer, but they also shape how you should design your embedding surface.
 
-Start with:
+Start with these three pages:
 
 - [Lifetimes and ownership](lifetimes.md)
 - [Type mapping](type-mapping.md)
-- [Limitations and roadmap notes](limitations.md)
+- [Limitations and current boundaries](limitations.md)
 
-Together, these pages define how to think about the library before you design a larger embedding surface around it.
+Then use the feature pages for the concrete APIs built on top of those rules, especially callbacks, tables, userdata, and libraries.

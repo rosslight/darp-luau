@@ -65,7 +65,13 @@ using LuauFunction save = root.GetLuauFunction("save");
 
 These methods return owned references. Keep them in `using` blocks like any other `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, or `LuauUserdata`.
 
-For fully dynamic code, `table[key]` and `GetLuauValue(...)` let you inspect a raw `LuauValue`. Missing keys come back as `LuauValueType.Nil`.
+For fully dynamic code, use one of these raw-value options:
+
+- `table[key]` returns a `LuauValue`; missing keys come back as `LuauValueType.Nil`.
+- `GetLuauValue(...)` returns a non-`nil` `LuauValue` or throws.
+- `TryGetLuauValue(...)` returns `false` when the resolved value is `nil`.
+
+If the `LuauValue` may be reference-backed, dispose it when you are done with it.
 
 The `TryGet<T>(...)` table extension is a convenient wrapper over raw `LuauValue` conversion, but the explicit `Get*` and `TryGet*` methods usually make your API contract clearer.
 

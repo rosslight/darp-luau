@@ -1,41 +1,62 @@
 # Type mapping
 
-Darp.Luau supports typed conversion between Luau values and managed types in both directions. Read-side conversions happen when you fetch values from tables, globals, or callback arguments. Write-side conversions happen when managed code pushes values into Luau, usually through `IntoLuau`.
+Darp.Luau supports typed conversion between Luau values and managed types, but the exact conversion rules depend on which API surface you are using.
 
-## Core mappings
+That distinction matters. A type that works when reading from a table does not automatically work in a `CreateFunction(...)` delegate signature, and a borrowed callback view does not behave like an owned reference.
 
-| Lua type | Common managed mappings | Notes |
+## Core value families
+
+| Luau value | Common managed forms | Notes |
 | --- | --- | --- |
-| `nil` | `LuauNil`, `null` in supported nullable cases, `void` returns | `nil` support depends on the target API surface |
-| `string` | `string`, `ReadOnlySpan<char>`, `ReadOnlySpan<byte>`, `LuauString`, `LuauStringView` | `ReadOnlySpan<byte>` and borrowed views point at Luau memory; copy if you need an independent lifetime |
-| `number` | `double`, integer types, floating-point types, enums | narrowing and truncation rules still apply |
+| `nil` | `LuauNil`, `null` in supported nullable cases | `nil` support depends on the API surface |
+| `string` | `string`, `ReadOnlySpan<byte>`, `LuauString`, `LuauStringView` | spans and views can alias Luau memory |
+| `number` | `double`, integral types, floating-point types, enums | narrowing and truncation rules still apply |
 | `boolean` | `bool` | straightforward mapping |
 | `table` | `LuauTable`, `LuauTableView` | owned vs borrowed distinction matters |
-| `function` | `LuauFunction`, `LuauFunctionView`, delegates | delegate support goes through generator-backed `CreateFunction(...)`; borrowed views are callback-scoped |
-| `userdata` | `LuauUserdata`, `LuauUserdataView`, managed classes implementing `ILuauUserData<T>` | managed userdata is a core extensibility point |
-| `buffer` | `byte[]`, `ReadOnlySpan<byte>`, `LuauBufferView` | `ReadOnlySpan<byte>` and borrowed views point at Luau memory; copy if you need an independent lifetime |
+| `function` | `LuauFunction`, `LuauFunctionView` | owned vs borrowed distinction matters |
+| `userdata` | `LuauUserdata`, `LuauUserdataView`, managed `ILuauUserData<T>` instances | managed userdata is library-defined userdata |
+| `buffer` | `byte[]`, `ReadOnlySpan<byte>`, `LuauBuffer`, `LuauBufferView` | spans and views can alias Luau memory |
 
-## Pushing values with `IntoLuau`
+Vector and thread values are not currently documented as managed interop surfaces.
 
-`IntoLuau` is the temporary carrier used by APIs that push managed values into Luau. Most of the time you do not construct it yourself; you rely on implicit conversions at the call site.
+## Push values into Luau with `IntoLuau`
 
-You encounter it when:
+`IntoLuau` is the temporary carrier used by APIs that push managed values into Luau.
 
-- setting table or global values,
-- passing arguments to `LuauFunction.Invoke(...)`,
-- returning values from `LuauReturn.Ok(...)` or `LuauReturnSingle.Ok(...)`.
+You usually rely on implicit conversions at the call site:
 
 ```csharp
 table.Set("name", "Ada");
+table.Set("enabled", true);
+table.Set("bytes", new byte[] { 1, 2, 3 });
 
 double result = add.Invoke<double>(1, 2);
 
 return LuauReturn.Ok("ok", 42);
 ```
 
-`IntoLuau` is a `ref struct` and intentionally temporary. Treat it as a call-site conversion type, not something to cache or store.
+You see it most often when:
 
-### Custom conversions
+- setting globals or table fields,
+- passing arguments to `LuauFunction.Invoke(...)`,
+- returning values from `LuauReturn.Ok(...)` or `LuauReturnSingle.Ok(...)`.
+
+`IntoLuau` is a `ref struct` and intentionally temporary. Treat it as a call-site conversion type, not something to cache.
+
+### Common write-side rules
+
+- `string` uses `null` to mean `nil`.
+- `string.Empty` pushes an empty Luau string.
+- `ReadOnlySpan<char>` currently treats an empty span as `nil`, so prefer `string` when empty string and `nil` need to stay distinct.
+- Passing `byte[]` copies managed data into a Luau buffer.
+- Passing owned wrappers such as `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, or `LuauUserdata` reuses the existing Luau-backed value without creating a second owned wrapper.
+- A reference-backed `LuauValue` does the same when you pass it back into Luau.
+- Passing borrowed `*View` values keeps the same callback-frame lifetime constraints.
+- Reference-backed values are bound to one `LuauState`; cross-state usage is invalid.
+
+`ReadOnlySpan<char>` is mainly a write-side and callback-signature shape. Normal table and global string reads use `string`, `ReadOnlySpan<byte>`, `LuauString`, or `LuauStringView` instead.
+
+### Custom write-side conversions
 
 Your own types can participate by defining `implicit operator IntoLuau`.
 
@@ -50,62 +71,109 @@ public readonly record struct UserId(int Value)
 
 For managed userdata, forward to `IntoLuau.FromUserdata(...)`.
 
-### Ownership and lifetime when pushing
+## Read values from tables and globals
 
-- Plain managed values such as `string`, `bool`, `int`, `double`, and `byte[]` push copied data.
-- Passing `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, `LuauUserdata`, or `LuauValue` reuses the existing Luau-backed value instead of creating another tracked reference.
-- Passing borrowed `*View` values into `IntoLuau` keeps the same callback-frame lifetime constraints. See [lifetimes and ownership](lifetimes.md).
-- Reference-backed values still belong to one `LuauState`; cross-state usage is invalid.
+Tables and globals use a family of typed read methods:
 
-### String and nil behavior
+- `Get*` for required values,
+- `TryGet*` for optional or external data,
+- `*OrNil` when `nil` is a valid result,
+- `GetLuau*` and `TryGetLuau*` when you want an owned Luau wrapper instead of an immediate managed copy.
 
-- `string` uses `null` to mean `nil`.
-- `string.Empty` pushes an empty Luau string.
-- `ReadOnlySpan<char>` currently treats an empty span as `nil`, so prefer `string` when empty string and `nil` need to stay distinct.
+Examples:
+
+```csharp
+string name = lua.Globals.GetUtf8String("name");
+bool hasScore = lua.Globals.TryGetNumber("score", out int score);
+byte[]? maybeBuffer = lua.Globals.GetBufferOrNil("payload");
+using LuauTable nested = lua.Globals.GetLuauTable("config");
+```
+
+Important distinctions:
+
+- `GetUtf8String(...)` and `GetBuffer(...)` return managed copies.
+- Span-based overloads such as `TryGetUtf8String(..., out ReadOnlySpan<byte>)` and `TryGetBuffer(..., out ReadOnlySpan<byte>)` expose Luau-owned memory and should be consumed immediately.
+- `GetLuauTable(...)`, `GetLuauFunction(...)`, `GetLuauString(...)`, `GetLuauBuffer(...)`, and `GetLuauUserdata(...)` return owned references that need disposal.
+- `TryGetUserdata<T>(...)` resolves directly back to your managed userdata instance when the value is managed userdata created by this library and matches `T`.
+
+## Read callback arguments with `LuauArgs`
+
+`CreateFunctionBuilder(...)` and userdata hooks expose callback arguments through `LuauArgs` or `LuauArgsSingle`.
+
+These APIs mirror the same broad conversion families, but with callback-focused shapes:
+
+- `TryReadNumber(...)`, `TryReadBoolean(...)`, `TryReadUtf8String(...)`, and `TryReadBuffer(...)`
+- `TryRead*OrNil(...)` variants for supported nullable cases
+- `TryReadLuauTable(...)`, `TryReadLuauFunction(...)`, `TryReadLuauString(...)`, `TryReadLuauBuffer(...)`, `TryReadLuauUserdata(...)` for borrowed views
+- `TryReadUserdata<T>(...)` and `TryReadUserdataOrNil<T>(...)` for direct managed userdata resolution
+- `TryReadLuauValue(...)` for dynamic inspection
+
+```csharp
+if (!args.TryReadNumber(1, out int amount, out string? error))
+    return LuauReturn.Error(error);
+
+if (!args.TryReadLuauTable(2, out LuauTableView table, out error))
+    return LuauReturn.Error(error);
+```
+
+Borrowed `*View` values and any spans returned here are callback-scoped. Convert them to owned references with `ToOwned()` if they must outlive the current callback frame.
+
+## Use `CreateFunction(...)` for supported delegate signatures
+
+`CreateFunction(...)` uses a narrower set of conversions than the library as a whole.
+
+It is a good fit for fixed signatures built from common primitives, supported nullable value types, enums, strings, span-based string or buffer parameters, `LuauValue`, and borrowed callback views.
+
+It is not the catch-all conversion surface for every wrapper type. If your desired delegate shape is rejected, use `CreateFunctionBuilder(...)` and read `LuauArgs` manually.
+
+## Use `LuauValue` for dynamic code
+
+`LuauValue` is the raw dynamic value wrapper used when you want to inspect or forward values without committing to a specific managed type up front.
+
+You get it from APIs such as:
+
+- `table[key]`,
+- `TryGetLuauValue(...)`,
+- `TryReadLuauValue(...)`.
+
+Then reinterpret it with `TryGet<T>(...)`:
+
+```csharp
+if (lua.Globals.TryGetLuauValue("payload", out LuauValue value))
+{
+    using (value)
+    {
+        if (value.TryGet(out string? text))
+        {
+            // use text
+        }
+    }
+}
+```
+
+Important `LuauValue` rules:
+
+- reference-backed values such as strings, tables, functions, userdata, and buffers can own registry references and should be disposed,
+- converting a reference-backed `LuauValue` to an owned wrapper clones ownership, so the resulting wrapper must also be disposed,
+- `LuauValueType.Nil` is the default value and represents `nil`.
 
 ## Numeric conversions
 
-Luau numbers are flexible, but your target managed type may not be.
+Luau numbers are stored as numbers, but your target managed type may be narrower.
 
 - Converting to integral types can truncate values.
 - Converting to smaller floating-point types can lose precision.
-- Enum conversion is supported through the underlying numeric value.
+- Enum conversion uses the underlying numeric value.
 
-If numeric range and precision matter in your application, document that in your own higher-level API instead of relying on implicit assumptions.
-
-## Nullability
-
-Some nullable managed types map naturally to `nil`, but support is not universal across every type shape or callback surface.
-
-For delegate-based callbacks, the generator validates direct `CreateFunction(...)` usages and reports unsupported type combinations at compile time where possible. If you need a shape it does not support, use `CreateFunctionBuilder(...)` and read `LuauArgs` manually.
-
-On the write side, supported nullable `IntoLuau` conversions also use `nil` when the managed value is `null`.
-
-## Choosing between rich wrappers and plain values
-
-Use plain managed values when you want convenience and stability:
-
-- `string`
-- `int`
-- `double`
-- `bool`
-- `byte[]`
-
-Use Luau wrapper types when you want control over lifetime, delayed reads, or direct interaction with Luau values:
-
-- `LuauTable`
-- `LuauFunction`
-- `LuauUserdata`
-- `LuauString`
-- `LuauValue`
+If numeric precision or range matters in your application, make that part of your higher-level API contract instead of relying on implicit assumptions.
 
 ## Failure modes
 
 Conversions can fail when:
 
-- the Lua value has the wrong runtime type,
-- the target managed type is unsupported,
-- a borrowed value is used after its frame ends,
-- a reference-backed value is pushed into the wrong `LuauState`.
+- the Luau runtime value has the wrong type,
+- the target managed type is not supported on that particular API surface,
+- a borrowed value is used after its callback frame ends,
+- a reference-backed value is used with the wrong `LuauState`.
 
-Prefer explicit, narrow APIs in your own code instead of exposing many implicit conversion paths at once.
+Use narrow, intentional conversions in your own host API instead of exposing every possible mapping at once.

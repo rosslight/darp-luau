@@ -57,7 +57,7 @@ If you use a borrowed view after the callback frame ends, the library throws `Ob
 
 ## Borrowed spans are still borrowed
 
-Not every temporary value has a `View` suffix. `ReadOnlySpan<byte>` returned from APIs such as `TryReadUtf8String`, `TryReadBuffer`, `LuauString.TryGet(out ReadOnlySpan<byte>)`, or `LuauBuffer.TryGet(out ReadOnlySpan<byte>)` aliases Luau memory.
+Not every temporary value has a `View` suffix. `ReadOnlySpan<byte>` returned from APIs such as `TryGetUtf8String`, `TryGetBuffer`, `TryReadUtf8String`, `TryReadBuffer`, `LuauString.TryGet(out ReadOnlySpan<byte>)`, or `LuauBuffer.TryGet(out ReadOnlySpan<byte>)` aliases Luau memory.
 
 Consume those spans immediately. If you need an independent lifetime, copy into a managed `string` or `byte[]`.
 
