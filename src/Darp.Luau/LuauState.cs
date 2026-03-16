@@ -210,12 +210,24 @@ public sealed unsafe class LuauState : IDisposable
         return new LuauTable(this, reference);
     }
 
-    /// <summary> The delegate type that maps Lua arguments to a single return or error </summary>
+    /// <summary>
+    /// Manual callback delegate used by <see cref="CreateFunctionBuilder(LuauFunctionBuilder)"/>.
+    /// </summary>
+    /// <remarks>
+    /// Use this low-level shape when you need direct access to <see cref="LuauArgs"/>, multiple return values,
+    /// or custom validation and error handling.
+    /// </remarks>
     public delegate LuauReturn LuauFunctionBuilder(LuauArgs args);
 
-    /// <summary> Create a new LuaFunction and get the reference to it </summary>
-    /// <param name="onCalled">The callback returning either a value or an error</param>
-    /// <returns> The LuaFunction with the reference to the lua memory </returns>
+    /// <summary>
+    /// Creates a Luau function from a manual callback builder.
+    /// </summary>
+    /// <param name="onCalled">Callback that reads its inputs from <see cref="LuauArgs"/> and returns a <see cref="LuauReturn"/>.</param>
+    /// <returns>The created <see cref="LuauFunction"/>.</returns>
+    /// <remarks>
+    /// Prefer <see cref="CreateFunction{T}(T)"/> for normal typed delegates.
+    /// Use this method when you need manual argument parsing, multiple return values, or a callback shape that the generator-backed path does not support.
+    /// </remarks>
     public LuauFunction CreateFunctionBuilder(LuauFunctionBuilder onCalled)
     {
         this.ThrowIfDisposed();
@@ -274,11 +286,18 @@ public sealed unsafe class LuauState : IDisposable
         }
     }
 
-    /// <summary> Creates a new luau function and returns the reference to it </summary>
-    /// <param name="value"> The delegate to register </param>
-    /// <typeparam name="T"> The type of the delegate. This will be used by the interceptor to retrieve the parameters </typeparam>
-    /// <returns> The <see cref="LuauFunction"/> with the reference </returns>
-    /// <remarks> THIS METHOD IS SUPPOSED TO BE INTERCEPTED AND WILL NOT WORK OTHERWISE </remarks>
+    /// <summary>
+    /// Creates a Luau function from a supported managed delegate signature.
+    /// </summary>
+    /// <param name="value">Delegate to expose to Luau.</param>
+    /// <typeparam name="T">Concrete delegate type used for compile-time signature analysis.</typeparam>
+    /// <returns>The created <see cref="LuauFunction"/>.</returns>
+    /// <remarks>
+    /// This method must be invoked directly so the generator can intercept the call site and emit a marshalling adapter.
+    /// The runtime stub always throws if interception does not happen.
+    /// Use <see cref="CreateFunctionBuilder(LuauFunctionBuilder)"/> when you need manual argument handling,
+    /// multiple return values, or a delegate shape that is not supported by the generator.
+    /// </remarks>
     public LuauFunction CreateFunction<T>(T value)
         where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");
 
