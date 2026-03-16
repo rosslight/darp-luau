@@ -6,8 +6,10 @@
     <AnalysisLevel>latest-all</AnalysisLevel>
     <WarningsAsErrors>Nullable</WarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
     <!-- Version applied to published packages. Automatically updated by release-please -->
     <Version>0.1.0</Version>
+
     <!-- Nuget Package -->
     <Authors>rosslight GmbH</Authors>
     <PackageProjectUrl>https://github.com/rosslight/darp-luau</PackageProjectUrl>
@@ -15,8 +17,11 @@
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">True</ContinuousIntegrationBuild>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsPackable)' != 'false'">

@@ -1,12 +1,12 @@
-# Darp.Luau
+Darp.Luau
+======
+
+[![Darp.Results](https://img.shields.io/nuget/v/Darp.Luau.svg)](https://www.nuget.org/packages/Darp.Luau)
+[![Downloads](https://img.shields.io/nuget/dt/Darp.Luau)](https://www.nuget.org/packages/Darp.Luau)
+![License](https://img.shields.io/github/license/rosslight/darp-luau)
+![.NET](https://img.shields.io/badge/version-.NET10-blue)
 
 `Darp.Luau` is a .NET wrapper around [Luau](https://luau.org/) focused on native AOT compatibility, typed value access, and explicit ownership for Luau-backed references.
-
-## Install
-
-```bash
-dotnet add package Darp.Luau
-```
 
 ## What it gives you today
 
@@ -23,7 +23,7 @@ dotnet add package Darp.Luau
 ```csharp
 using Darp.Luau;
 
-using var lua = new LuauState(LuauLibraries.Math | LuauLibraries.String);
+using var lua = new LuauState();
 
 using LuauFunction log = lua.CreateFunction((string message) => Console.WriteLine(message));
 lua.Globals.Set("log", log);
@@ -47,7 +47,7 @@ lua.DoString(
 double result = lua.Globals.GetNumber("result");
 ```
 
-## Call Luau functions from C#
+## Call Lua functions from C#
 
 ```csharp
 using LuauFunction add = lua.Globals.GetLuauFunction("add");
@@ -143,13 +143,3 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 - `CreateFunction(...)` is generator-backed and has no runtime fallback.
 - `LuauState` is not thread-safe.
 - A documented module system and higher-level async/thread orchestration are not part of the current surface yet.
-
-## Documentation
-
-- [Getting started](docs/index.md)
-- [Lifetimes and ownership](docs/concepts/lifetimes.md)
-- [Type mapping](docs/concepts/type-mapping.md)
-- [Functions](docs/features/functions.md)
-- [Tables](docs/features/tables.md)
-- [Userdata](docs/features/userdata.md)
-- [Libraries](docs/features/libraries.md)
