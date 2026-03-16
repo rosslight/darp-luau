@@ -11,7 +11,7 @@ This documentation is organized around the way you use the library in practice:
 
 - create a `LuauState` and choose built-in libraries,
 - run Luau source with `DoString(...)`,
-- move values between Luau and C# through tables, functions, buffers, and userdata,
+- move values between Luau and C# through strings, tables, functions, buffers, and userdata,
 - understand which values are owned references and which values are borrowed callback views.
 
 ## Concepts
@@ -37,7 +37,7 @@ dotnet add package Darp.Luau
 ```csharp
 using Darp.Luau;
 
-using var lua = new LuauState(LuauLibraries.Math | LuauLibraries.String);
+using var lua = new LuauState();
 ```
 
 `LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
@@ -78,6 +78,28 @@ bool? enabled = roundTripped.GetBooleanOrNil("enabled");
 ```
 
 See [Tables](features/tables.md) for `Get*`, `TryGet*`, `*OrNil`, dense-array helpers, and raw Luau wrappers.
+
+## Work with strings
+
+```csharp
+lua.Globals.Set("name", "Ada");
+
+string roundTripped = lua.Globals.GetUtf8String("name");
+```
+
+Use `string` for managed text, `ReadOnlySpan<byte>` for immediate borrowed UTF-8 bytes, `LuauString` for owned Luau-backed string values, and `LuauStringView` inside callbacks. See [Strings](features/strings.md).
+
+## Work with buffers
+
+```csharp
+byte[] payload = [0x01, 0x02, 0x03];
+
+lua.Globals.Set("payload", payload);
+
+byte[] roundTripped = lua.Globals.GetBuffer("payload");
+```
+
+Use `byte[]` for managed copies, `ReadOnlySpan<byte>` for immediate borrowed reads, `LuauBuffer` for owned Luau-backed values, and `LuauBufferView` inside callbacks. See [Buffers](features/buffers.md).
 
 ## Expose a callback
 
@@ -132,6 +154,8 @@ lua.DoString("result = game.add(game.answer, 8)");
 - [Lifetimes and ownership](concepts/lifetimes.md)
 - [Type mapping](concepts/type-mapping.md)
 - [Functions](features/functions.md)
+- [Strings](features/strings.md)
+- [Buffers](features/buffers.md)
 - [Tables](features/tables.md)
 - [Userdata](features/userdata.md)
 - [Libraries](features/libraries.md)

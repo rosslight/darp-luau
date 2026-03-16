@@ -61,6 +61,8 @@ Not every temporary value has a `View` suffix. `ReadOnlySpan<byte>` returned fro
 
 Consume those spans immediately. If you need an independent lifetime, copy into a managed `string` or `byte[]`.
 
+For the string- and buffer-specific API shapes that produce those spans, see [Strings](../features/strings.md) and [Buffers](../features/buffers.md).
+
 ## Promotion and move semantics
 
 - `ToOwned()` creates a new owned registry reference from a borrowed view.

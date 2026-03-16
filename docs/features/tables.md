@@ -65,6 +65,10 @@ using LuauFunction save = root.GetLuauFunction("save");
 
 These methods return owned references. Keep them in `using` blocks like any other `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, or `LuauUserdata`.
 
+For string-specific guidance around managed text, borrowed UTF-8 bytes, and `GetLuauString(...)`, see [Strings](strings.md).
+
+For the buffer-specific API split between `byte[]`, `ReadOnlySpan<byte>`, `LuauBuffer`, and `LuauBufferView`, see [Buffers](buffers.md).
+
 For fully dynamic code, use one of these raw-value options:
 
 - `table[key]` returns a `LuauValue`; missing keys come back as `LuauValueType.Nil`.

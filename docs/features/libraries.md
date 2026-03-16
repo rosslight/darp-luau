@@ -32,6 +32,7 @@ Important details:
 - `LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
 - `EnabledLibraries` shows the effective built-in library set for the state.
 - Built-in libraries are loaded when the state is created, not later.
+- `LuauLibraries.Buffer` enables Luau's script-side `buffer` library. Host-side buffer interop such as `CreateBuffer(...)`, `GetBuffer(...)`, or passing `byte[]` does not depend on that flag.
 
 ## Register a custom library with `OpenLibrary(...)`
 

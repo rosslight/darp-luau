@@ -59,6 +59,8 @@ nav = [
     { "Functions" = "features/functions.md" },
     { "Tables" = "features/tables.md" },
     { "Userdata" = "features/userdata.md" },
+    { "Buffers" = "features/buffers.md" },
+    { "Strings" = "features/strings.md" },
     { "Libraries" = "features/libraries.md" },
   ]},
 ]

@@ -19,6 +19,8 @@ That distinction matters. A type that works when reading from a table does not a
 
 Vector and thread values are not currently documented as managed interop surfaces.
 
+For concrete string and buffer API matrices and examples, see [Strings](../features/strings.md) and [Buffers](../features/buffers.md).
+
 ## Push values into Luau with `IntoLuau`
 
 `IntoLuau` is the temporary carrier used by APIs that push managed values into Luau.

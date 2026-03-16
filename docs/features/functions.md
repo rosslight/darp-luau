@@ -7,7 +7,7 @@ You usually work in two directions:
 - call an existing Luau function from C#,
 - expose a managed callback so Luau can call into your code.
 
-## Call Luau functions from C#
+## Call Luau functions from C\#
 
 Get an owned `LuauFunction` from globals or a table, keep it for as long as needed, and invoke it with typed arguments:
 
@@ -113,6 +113,7 @@ using LuauFunction invokeCallback = lua.CreateFunctionBuilder(static args =>
 ```
 
 Borrowed views are valid only while the current callback frame is active. See [Lifetimes and ownership](../concepts/lifetimes.md).
+For string- and buffer-specific callback shapes and ownership rules, see [Strings](strings.md) and [Buffers](buffers.md).
 
 ## Error behavior
 
