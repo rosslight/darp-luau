@@ -48,13 +48,12 @@ Copyright &copy; 2026 rosslight GmbH
 #
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
-  { "Overview" = "index.md" },
-  { "Getting Started" = "getting-started.md" },
+  { "Home" = "index.md" },
   { "Concepts" = [
     { "Overview" = "concepts/index.md" },
     { "Lifetimes and ownership" = "concepts/lifetimes.md" },
     { "Type mapping" = "concepts/type-mapping.md" },
-    { "Limitations" = "limitations.md" },
+    { "Limitations" = "concepts/limitations.md" },
   ]},
   { "Features" = [
     { "Functions" = "features/functions.md" },

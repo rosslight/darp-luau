@@ -8,6 +8,6 @@ Start with:
 
 - [Lifetimes and ownership](lifetimes.md)
 - [Type mapping](type-mapping.md)
-- [Limitations and roadmap notes](../limitations.md)
+- [Limitations and roadmap notes](limitations.md)
 
 Together, these pages define how to think about the library before you design a larger embedding surface around it.

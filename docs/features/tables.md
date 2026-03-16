@@ -1,45 +1,134 @@
 # Tables
 
-Tables are the main general-purpose data structure in Luau, and Darp.Luau gives you both convenient accessors and direct wrappers for them.
+Tables are Luau's general-purpose container type. In Darp.Luau you usually work with them in three forms:
 
-## Create a table
+- `LuauTable`: an owned table reference that you can keep and dispose.
+- `LuauTableView`: a borrowed callback-scoped table view.
+- dense-array helpers such as `CreateTable(ReadOnlySpan<double>)`, `ListCount`, and `IPairs()`.
+
+## Create and populate
 
 ```csharp
-using LuauTable table = state.CreateTable();
-table.Set("name", "Ada");
-table.Set("score", 42);
+using LuauTable config = lua.CreateTable();
+config.Set("name", "Ada");
+config.Set("score", 42);
+config.Set("enabled", true);
+
+lua.Globals.Set("config", config);
 ```
 
-You can then store that table in globals or inside other tables.
+`Set` accepts any `IntoLuau` key and value, so strings, numbers, buffers, tables, functions, userdata, and other Luau wrappers all work.
 
-## Read values
+`LuauState.Globals` is just another `LuauTable`, so the same patterns apply there too.
 
-The API provides both throwing and non-throwing access patterns.
+## Choose a read API
+
+Pick the read family that matches how strict the table contract is:
+
+| API | Missing key | Wrong type | Returns | Best for |
+| --- | --- | --- | --- | --- |
+| `GetNumber("score")` | throws | throws | managed value | required fields |
+| `TryGetNumber("score", out int score)` | `false` | `false` | managed value | optional or external data |
+| `GetNumberOrNil("score")` | `null` | throws | nullable managed value | absent or `nil` is valid |
+| `TryGetNumberOrNil("score", out int? score)` | `true` with `null` | `false` | nullable managed value | optional fields with validation |
+| `GetLuauTable("nested")` | throws | throws | owned `LuauTable` | nested table access |
+| `TryGetLuauTable("nested", out LuauTable nested)` | `false` | `false` | owned `LuauTable` | nested table access without exceptions |
+
+The same split exists across booleans, strings, buffers, functions, userdata, and the other `GetLuau*` wrapper APIs.
 
 ```csharp
-string name = table.GetUtf8String("name");
-_ = table.TryGetNumber("score", out int score);
+using LuauTable config = lua.Globals.GetLuauTable("config");
 
-if (table.TryGetBoolean("enabled", out bool enabled))
+string name = config.GetUtf8String("name");
+
+if (config.TryGetNumber("score", out int score))
 {
-    // use enabled
+    // use score
+}
+
+bool? enabled = config.GetBooleanOrNil("enabled");
+```
+
+Normal table lookup returns `nil` for both missing keys and keys explicitly set to `nil`, so the `*OrNil` methods treat both cases the same.
+
+If you use span-based overloads such as `TryGetUtf8StringOrNil(..., out ReadOnlySpan<byte> value, out bool isNil)` or `TryGetBufferOrNil(..., out ReadOnlySpan<byte> value, out bool isNil)`, `isNil` tells you whether the lookup resolved to `nil`.
+
+## Raw and nested values
+
+When you want another Luau wrapper instead of an immediate managed copy, use `GetLuau*` or `TryGetLuau*`:
+
+```csharp
+using LuauTable root = lua.Globals.GetLuauTable("config");
+using LuauTable graphics = root.GetLuauTable("graphics");
+using LuauFunction save = root.GetLuauFunction("save");
+```
+
+These methods return owned references. Keep them in `using` blocks like any other `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, or `LuauUserdata`.
+
+For fully dynamic code, `table[key]` and `GetLuauValue(...)` let you inspect a raw `LuauValue`. Missing keys come back as `LuauValueType.Nil`.
+
+The `TryGet<T>(...)` table extension is a convenient wrapper over raw `LuauValue` conversion, but the explicit `Get*` and `TryGet*` methods usually make your API contract clearer.
+
+## Presence checks
+
+`ContainsKey` tells you whether normal table lookup resolves to a non-`nil` value:
+
+```csharp
+if (config.ContainsKey("save"))
+{
+    // includes values provided through __index
 }
 ```
 
-Use `Get*` methods when a value is required and missing data should fail fast. Use `TryGet*` methods when the data shape is optional or external.
+This is metamethod-aware. A `__index` lookup can make a key appear present, and a key whose resolved value is `nil` counts as missing.
 
-## Global table
+## Dense arrays and list-like tables
 
-`LuauState.Globals` is just a table wrapper over the Lua global environment, so the same table patterns apply there too.
+If a table is really a dense 1-based array, the list helpers are convenient:
 
-## List-like behavior
+```csharp
+using LuauTable values = lua.CreateTable([1, 4, 9]);
 
-Some table APIs treat a table as a list. That can be useful, but remember that sparse tables and tables with holes can behave differently than dense arrays.
+int count = values.ListCount;
+
+foreach ((int index, double value) in values.IPairs<double>())
+{
+    Console.WriteLine($"{index}: {value}");
+}
+```
+
+`CreateTable(ReadOnlySpan<double>)` writes numeric keys starting at `1`.
+
+`IPairs()` returns raw `LuauValue` entries, while `IPairs<T>()` converts each value to `T` and stops at the first `nil` or type mismatch.
+
+`ListCount`, `IPairs()`, and `IPairs<T>()` are only reliable for dense arrays. Sparse tables and tables with holes can shorten enumeration and make the reported length misleading.
+
+You can also enumerate the whole table with `foreach`, but key order is not guaranteed and the key/value entries are `LuauValue`s that may need disposal.
 
 ## Borrowed table views
 
-`LuauTableView` is a borrowed wrapper used inside callback scenarios. It follows the same lifetime rules as other `*View` types.
+`LuauTableView` shows up in callback APIs such as `CreateFunctionBuilder(...)` and `LuauArgs.TryReadLuauTable(...)`:
 
-## Recommendation
+```csharp
+using LuauFunction readValue = lua.CreateFunctionBuilder(static args =>
+{
+    if (!args.TryReadLuauTable(1, out LuauTableView table, out string? error))
+        return LuauReturn.Error(error);
 
-Use tables for script-facing configuration and state, but keep your public managed API more structured than your raw Lua table layout. That makes versioning and validation easier.
+    using LuauTable owned = table.ToOwned();
+    return LuauReturn.Ok(owned.GetNumber("value"));
+});
+```
+
+`LuauTableView` does not own a registry reference. It is valid only while the current callback frame is active, so call `ToOwned()` before storing it or using it after the callback returns.
+
+## Lifetime notes
+
+- `GetUtf8String(...)` and `GetBuffer(...)` return managed copies.
+- `TryGetUtf8String(..., out ReadOnlySpan<byte>)` and `TryGetBuffer(..., out ReadOnlySpan<byte>)` expose Luau-owned memory. Consume it immediately and copy it if you need a longer lifetime.
+- Owned wrappers returned by `GetLuau*` need disposal.
+- `LuauTableView` follows the same callback-scoped lifetime rules as the other `*View` types.
+
+## Guidance
+
+Use tables for script-facing configuration and state, but keep your higher-level managed API more structured than your raw Luau table layout. That usually gives you better validation, versioning, and error messages.

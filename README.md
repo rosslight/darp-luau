@@ -2,13 +2,13 @@
 
 Luau bindings and a higher level wrapper
 
-## Why an other library
+## Why another library
 - Fully Native AOT compatible
 - Execution of sync scripts
 - Generation of type definitions (TODO)
-- Support for UserData
+- Support for userdata
 - Clean, safe and performant API with ref structs for Lifetime management of references
-- Managed and typed function callbacks by using interceptors (TODO)
+- Managed and typed function callbacks through generator-backed `CreateFunction(...)`
 - Confidence through high unit test coverage (TODO)
 - Proper error management (TODO)
 - Module support (TODO)
@@ -21,11 +21,11 @@ Luau bindings and a higher level wrapper
 Create a `LuauState`, optionally configure built-in libraries and custom libraries, then run Luau code from file or inline strings.
 
 ```csharp
-using var state = new LuauState();
+using var lua = new LuauState();
 
 // Execute a script
-state.DoFile("path/to_my_file.lua");
-state.DoString(
+lua.DoFile("path/to_my_file.lua");
+lua.DoString(
     """
     function add(a, b)
       return a + b
@@ -40,35 +40,36 @@ state.DoString(
 Get a Luau function reference from globals and call it with typed arguments and return values.
 
 ```csharp
-// Add typed callbacks
-state.Globals.Set("log", (string s) => Console.WriteLine(s));
+// Register a typed callback
+using LuauFunction log = lua.CreateFunction((string s) => Console.WriteLine(s));
+lua.Globals.Set("log", log);
 
 // Get existing lua functions
-using LuauFunction add = state.Globals.GetLuauFunction("add");
+using LuauFunction add = lua.Globals.GetLuauFunction("add");
 
 // Call
 double result = add.Invoke<double>(1, 2);
 ```
 
+Use `CreateFunction(...)` for supported delegate signatures. If you need manual argument parsing, explicit user-facing errors, or multiple return values, use `CreateFunctionBuilder(...)`.
+
 ### Tables
 
-Create and populate tables, then read values via `Get*` (throwing) or `TryGet*` (non-throwing).
+Create and populate tables, then pick the read API that matches your contract: `Get*` for required fields, `TryGet*` for optional or external data, and `*OrNil` when absent or `nil` is valid.
 
 ```csharp
 // Create a new table
-LuauTable myTable = state.CreateTable();
+using LuauTable myTable = lua.CreateTable();
 
 // Set values on the table
 myTable.Set("my_number", 1);
 myTable.Set("my_boolean", true);
 myTable.Set("my_buffer", new byte[] { 1, 2, 3 });
 
-// Access the global table
-state.Globals.Set("my_string", "value");
-state.Globals.Set("my_number", 1);
-state.Globals.Set("my_table", myTable);
+// Store the table in globals
+lua.Globals.Set("my_table", myTable);
 
-using LuauTable table = state.Globals.GetLuauTable("my_table");
+using LuauTable table = lua.Globals.GetLuauTable("my_table");
 
 // Get values from the table
 double myNumber = table.GetNumber("my_number");
@@ -76,19 +77,25 @@ bool myBool = table.GetBoolean("my_boolean");
 byte[] myBuffer = table.GetBuffer("my_buffer");
 double? maybeNumber = table.GetNumberOrNil("maybe_number");
 
-// Get values savely
+// Get values safely
 _ = table.TryGetNumber("my_number", out int numberAsInt);
 _ = table.TryGetUtf8StringOrNil("optional_name", out string? optionalName);
 _ = table.TryGetBoolean("missing_flag", out _);
+
+if (table.ContainsKey("my_number"))
+{
+    // normal lookup resolved to a non-nil value
+}
 ```
 
 ### Userdata
 
 Store managed objects as userdata, expose selected fields to Luau, and resolve them back in C#.
-Lua will interact with the managed object through the callbacks overwritten on the `ILuauUserData<T>` interface.
+Lua interacts with the managed object through the static callback hooks defined on `ILuauUserData<T>`.
 
 ```csharp
 // Create new userdata and link it to lua
+using LuauTable table = lua.CreateTable();
 var player = new PlayerUserdata { Name = "Ada", Score = 42 };
 table.Set("player", player);
 
@@ -105,7 +112,7 @@ internal sealed class PlayerUserdata : ILuauUserData<PlayerUserdata>
     public required string Name { get; init; }
     public int Score { get; set; }
 
-    public static LuauReturnSingle OnIndex(PlayerUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName)
+    public static LuauReturnSingle OnIndex(PlayerUserdata self, in LuauState lua, in ReadOnlySpan<char> fieldName)
     {
         return fieldName switch
         {
@@ -143,16 +150,18 @@ internal sealed class PlayerUserdata : ILuauUserData<PlayerUserdata>
 `LuauState` supports both built-in and custom libraries.
 
 - Configure built-in Luau libraries via `LuauLibraries` in the constructor.
-- Register custom libraries via `RegisterLibrary(...)`.
+- Register custom libraries via `OpenLibrary(...)`.
 - `LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
 
 ```csharp
-using var state = new LuauState(LuauLibraries.Math | LuauLibraries.String);
+using var lua = new LuauState(LuauLibraries.Math | LuauLibraries.String);
 
-state.OpenLibrary("game", static (_, in lib) =>
+lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 {
     lib.Set("answer", 42);
-    lib.Set("add", (int a, int b) => a + b);
+
+    using LuauFunction add = state.CreateFunction((int a, int b) => a + b);
+    lib.Set("add", add);
 });
 ```
 
@@ -165,7 +174,7 @@ state.OpenLibrary("game", static (_, in lib) =>
 | `number` | `double`; `byte`, `sbyte`, `ushort`, `short`, `uint`, `int`, `ulong`, `long`, `UInt128`, `Int128`; `Half`, `float`, `decimal`; enums | Integer types are truncated, floating types may lose precision |
 | `boolean` | `bool` | - |
 | `table` | `LuauTable` | - |
-| `function` | `LuauFunction`, `LuauFunctionView`, delegates | `LuauFunctionView` is callback-scoped |
+| `function` | `LuauFunction`, `LuauFunctionView`, delegates | Delegates go through generator-backed `CreateFunction(...)`; `LuauFunctionView` is callback-scoped |
 | `thread` | - | Unsupported for now |
 | `userdata` | `LuauUserdataView`, any `class` implementing `ILuauUserData<T>` | `LuauUserdataView` is callback-scoped |
 | `buffer` | `ReadOnlySpan<byte>`, `byte[]`, `LuauBufferView` | `LuauBufferView` is callback-scoped |

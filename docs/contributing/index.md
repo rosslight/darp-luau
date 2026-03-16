@@ -7,7 +7,7 @@ It mirrors the contributor navigation in the docs and is meant to answer a simpl
 The project currently consists of two main areas:
 
 - `src/Darp.Luau` for the runtime wrapper and public API.
-- `src/Darp.Luau.Generator` for analyzer and generator support around callback creation.
+- `src/Darp.Luau.Generator` for analyzer and generator support around generator-backed callback creation through `CreateFunction(...)`.
 
 ## Start here
 

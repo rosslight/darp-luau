@@ -7,7 +7,7 @@
 Use `LuauLibraries` flags to choose which standard libraries to load:
 
 ```csharp
-using var state = new LuauState(LuauLibraries.Math | LuauLibraries.String);
+using var lua = new LuauState(LuauLibraries.Math | LuauLibraries.String);
 ```
 
 The available flags include:
@@ -31,10 +31,12 @@ The available flags include:
 Use `OpenLibrary` to create a table in globals and populate it from managed code:
 
 ```csharp
-state.OpenLibrary("game", static (_, in LuauTable lib) =>
+lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 {
     lib.Set("answer", 42);
-    lib.Set("add", (int a, int b) => a + b);
+
+    using LuauFunction add = state.CreateFunction((int a, int b) => a + b);
+    lib.Set("add", add);
 });
 ```
 

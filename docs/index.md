@@ -1,6 +1,12 @@
-# Darp.Luau
+# Getting started
 
-Darp.Luau is a .NET wrapper around Luau with a strong focus on native AOT compatibility, typed access to Lua values, and predictable reference lifetimes.
+Darp.Luau is a .NET wrapper around [Luau](https://luau.org/) with a strong focus on native AOT compatibility, typed access to Lua values, and predictable reference lifetimes while introducing minimal overhead.
+
+!!! info
+
+    Darp.Luau is still under active development. Expect breaking API changes and documentation updates as the project evolves.
+    See [Limitations and roadmap notes](limitations.md) for the current boundaries and planned expansion areas.
+
 
 This documentation is organized around the way you use the library in practice:
 
@@ -15,38 +21,102 @@ This documentation is organized around the way you use the library in practice:
 - The API is typed and tries to surface conversion failures clearly.
 - Lifetime-sensitive values are modeled explicitly instead of hiding ownership rules.
 - Custom userdata and custom libraries let you expose managed behavior to Luau.
+- Source generators improve the developer experience.
 
-## Read this first
+## Add the package
 
-- [Getting started](getting-started.md) for the shortest path to a working script.
-- [Concepts](concepts/index.md) for the mental models behind ownership, conversion, and current boundaries.
-- [Functions](features/functions.md) for the first major API area.
+Add the package to your project with the normal .NET workflow:
 
-## Sections
+```bash
+dotnet add package Darp.Luau
+```
 
-### Concepts
+## Create a state
 
-- [Concepts overview](concepts/index.md)
-- [Lifetimes and ownership](concepts/lifetimes.md)
-- [Type mapping](concepts/type-mapping.md)
-- [Limitations and roadmap notes](limitations.md)
+`LuauState` owns the underlying Luau VM and acts as the main entry point.
 
-### Features
+```csharp
+using Darp.Luau;
 
-- [Functions](features/functions.md)
-- [Tables](features/tables.md)
-- [Userdata](features/userdata.md)
-- [Libraries](features/libraries.md)
-- [Generator and analyzer support](features/generator.md)
+using var lua = new LuauState();
+```
 
-### Contributing
+## Execute a script
 
-- [Contributing overview](contributing/index.md)
-- [Local development](contributing/local-development.md)
-- [Testing and validation](contributing/testing.md)
+You can execute Luau from a file or from an inline string:
 
-## Status
+```csharp
+lua.DoString("result = 1");
 
-The repository is active and already has a broad test suite, but some capabilities are still clearly marked as planned or incomplete in `README.md`.
+var result = lua.Globals.GetNumber("result");
+```
 
-See [Limitations and roadmap notes](limitations.md) for the current boundaries and planned expansion areas.
+## Create and use a table
+
+```csharp
+using LuauTable config = lua.CreateTable();
+config.Set("name", "Ada");
+config.Set("score", 42);
+config.Set("enabled", true);
+
+lua.Globals.Set("config", config);
+
+using LuauTable roundTripped = lua.Globals.GetLuauTable("config");
+string name = roundTripped.GetUtf8String("name");
+_ = roundTripped.TryGetNumber("score", out int score);
+bool? enabled = roundTripped.GetBooleanOrNil("enabled");
+```
+
+See [Tables](features/tables.md) for `*OrNil` reads, list helpers, raw Luau wrappers, and borrowed table views.
+
+## Expose a callback
+
+Register managed callbacks with `CreateFunction(...)` and store the resulting `LuauFunction` in globals or tables:
+
+```csharp
+using var log = lua.CreateFunction((string message) => Console.WriteLine(message));
+lua.Globals.Set("log", log);
+
+lua.DoString("""log("hello from lua")""");
+```
+
+For supported fixed signatures, `CreateFunction(...)` is the normal choice. If you need manual argument parsing, explicit error shaping, or multiple return values, use `CreateFunctionBuilder(...)`. See [Functions](features/functions.md).
+
+## Expose userdata
+
+If a class implements `ILuauUserData<T>`, it can be exposed to Luau as userdata:
+
+```csharp
+var player = new PlayerUserdata { Name = "Ada", Score = 42 };
+
+lua.Globals.Set("player", IntoLuau.FromUserdata(player));
+
+lua.DoString(
+    """
+    log(player.name)
+    player.score = 100
+    """
+);
+```
+
+See [Userdata](features/userdata.md) for hook behavior, retrieval APIs, and lifetime rules.
+
+## Register a custom library
+
+
+
+```csharp
+lua.OpenLibrary("game", static (state, in LuauTable lib) =>
+{
+    lib.Set("answer", 42);
+    using var addFunc = state.CreateFunction((int a, int b) => a + b);
+    lib.Set("add", addFunc);
+});
+
+lua.DoString(
+    """
+    result = game.add(game.answer, 8)
+    log(result)
+    """
+);
+```

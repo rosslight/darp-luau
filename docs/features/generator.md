@@ -1,10 +1,10 @@
 # Generator and analyzer support
 
-The repository includes `Darp.Luau.Generator`, a Roslyn component that supports the higher-level callback experience.
+The repository includes `Darp.Luau.Generator`, a Roslyn component that powers the higher-level `CreateFunction(...)` callback experience.
 
 ## What it does
 
-The generator and analyzer layer exists to validate and optimize `CreateFunction` usage.
+`LuauState.CreateFunction(...)` is a compile-time surface, not a normal runtime implementation. The generator rewrites supported direct invocations into generated adapters that call `CreateFunctionBuilder(...)`.
 
 In particular, the analyzer checks for unsupported usage patterns around `CreateFunction<TDelegate>(...)`, and the generator emits interceptor-related code to avoid problematic runtime paths.
 
@@ -14,7 +14,11 @@ Callback-heavy APIs are easy to make convenient but hard to keep safe and AOT-fr
 
 ## Practical expectation
 
-As a library consumer, you should treat diagnostics from this package as guidance that your delegate shape or invocation pattern needs to be adjusted.
+As a library consumer:
+
+- call `CreateFunction(...)` directly at the call site,
+- use `CreateFunctionBuilder(...)` when you need manual argument parsing, multiple return values, or a shape the generator does not support,
+- treat diagnostics from this package as guidance that your delegate shape or invocation pattern needs to be adjusted.
 
 If you are working on the library itself, this part of the codebase is where callback signature mapping and compile-time validation live.
 
