@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Darp.Luau.Native;
+using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 [assembly: DisableRuntimeMarshalling]
@@ -179,70 +180,78 @@ public static unsafe partial class LuauRequireByString
         var pCtxData = (Context.SData*)ctx;
         pCtxData->Reset();
 
+        int nResults = 1; // default number of results pushed onto stack
+
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: nResults);
+#endif
+
         string? strContent = ReadFile(strLoadName);
         if (strContent is null)
         {
-            ReportLoadError(L, pCtxData, $"could not read file '{strChunkName}'");
-            return 1;
+            nResults = ReportLoadError(L, pCtxData, $"could not read file '{strChunkName}'");
         }
-
-        // module needs to run in a new thread, isolated from the rest
-        // note: we create ML on main thread so that it doesn't inherit environment of L
-        lua_State* GL = lua_mainthread(L);
-        lua_State* ML = lua_newthread(GL);
-        lua_xmove(GL, L, 1);
-
-        // new thread needs to have the globals sandboxed
-        luaL_sandboxthread(ML);
-
-        bool bOk = false;
-        ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes(strContent);
-        fixed (byte* pSource = spanSource)
+        else
         {
-            nuint nByteCodeSize = 0;
-            byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nByteCodeSize);
-            int nStatus = luau_load(ML, chunkname, pByteCode, nByteCodeSize, 0);
-            bOk = nStatus == 0;
-        }
+            // module needs to run in a new thread, isolated from the rest
+            // note: we create ML on main thread so that it doesn't inherit environment of L
+            lua_State* GL = lua_mainthread(L);
+            lua_State* ML = lua_newthread(GL);
+            lua_xmove(GL, L, 1);
 
-        if (bOk)
-        {
-            int nResults = 1; // number of results pushed onto stack
-            int nStatus = lua_resume(ML, L, 0);
-            if (nStatus == (int)lua_Status.LUA_OK)
+            // new thread needs to have the globals sandboxed
+            luaL_sandboxthread(ML);
+
+            bool bOk = false;
+            ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes(strContent);
+            fixed (byte* pSource = spanSource)
             {
-                if (lua_gettop(ML) != 1)
+                nuint nByteCodeSize = 0;
+                byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nByteCodeSize);
+                int nStatus = luau_load(ML, chunkname, pByteCode, nByteCodeSize, 0);
+                bOk = nStatus == 0;
+            }
+
+            if (bOk)
+            {
+                int nStatus = lua_resume(ML, L, 0);
+                if (nStatus == (int)lua_Status.LUA_OK)
                 {
-                    // empty stack
-                    while (lua_gettop(ML) > 0)
-                        lua_pop(ML, 1);
+                    if (lua_gettop(ML) != 1)
+                    {
+                        // empty stack
+                        while (lua_gettop(ML) > 0)
+                            lua_pop(ML, 1);
 
-                    nResults = ReportLoadError(ML, pCtxData, $"module '{strPath}' must return a single value");
+                        nResults = ReportLoadError(ML, pCtxData, $"module '{strPath}' must return a single value");
+                    }
                 }
-            }
-            else if (nStatus == (int)lua_Status.LUA_YIELD)
-            {
-                nResults = ReportLoadError(ML, pCtxData, $"module '{strPath}' can not yield");
-            }
-            else if (lua_isstring(ML, -1) == 0)
-            {
-                nResults = ReportLoadError(ML, pCtxData, $"unknown error while running module '{strPath}'");
-            }
-            else
-            {
-                string strMsg = new((sbyte*)lua_tostring(ML, -1));
-                nResults = ReportLoadError(ML, pCtxData, $"error while running module '{strPath}': {strMsg}");
+                else if (nStatus == (int)lua_Status.LUA_YIELD)
+                {
+                    nResults = ReportLoadError(ML, pCtxData, $"module '{strPath}' can not yield");
+                }
+                else if (lua_isstring(ML, -1) == 0)
+                {
+                    nResults = ReportLoadError(ML, pCtxData, $"unknown error while running module '{strPath}'");
+                }
+                else
+                {
+                    string strMsg = new((sbyte*)lua_tostring(ML, -1));
+                    nResults = ReportLoadError(ML, pCtxData, $"error while running module '{strPath}': {strMsg}");
+                }
+
+                // add ML results to L stack
+                lua_xmove(ML, L, nResults);
             }
 
-            // add ML results to L stack
-            lua_xmove(ML, L, nResults);
+            // remove ML thread from L stack
+            lua_remove(L, -2);
         }
 
-        // remove ML thread from L stack
-        lua_remove(L, -2);
-
-        // added one value to L stack: module result
-        return 1;
+#if DEBUG
+        guard.OverwriteExpectedDelta(nResults);
+#endif
+        return nResults;
     }
 
     private static int ReportLoadError(lua_State* L, Context.SData* pCtxData, string strMsg)
