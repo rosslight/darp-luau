@@ -34,8 +34,6 @@ public static unsafe partial class LuauRequireByString
         {
             if (_handle.IsAllocated)
                 _handle.Free();
-
-            Navigators.Clear();
         }
 
         public void* ToVoidPtr()
@@ -701,14 +699,6 @@ public static unsafe partial class LuauRequireByString
                     }
                     return nav;
                 }
-            }
-        }
-
-        public void Clear()
-        {
-            lock (_dictLock)
-            {
-                _dict.Clear();
             }
         }
     }
