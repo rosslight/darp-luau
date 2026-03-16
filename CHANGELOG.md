@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/rosslight/darp-luau/compare/v0.1.0...v0.1.1) (2026-03-16)
+
+
+### Bug Fixes
+
+* Publish Generator as part of the main package ([a887f7f](https://github.com/rosslight/darp-luau/commit/a887f7fce18ae494fc74135bb6fb62bb66e2922d))
+
 ## [0.1.0](https://github.com/rosslight/darp-luau/compare/v0.0.1...v0.1.0) (2026-03-16)
 
 
