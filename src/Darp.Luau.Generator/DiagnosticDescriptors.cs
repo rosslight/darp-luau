@@ -7,7 +7,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor DirectInvocationRequiredDescriptor = new(
         id: "DLUAU0001",
         title: "CreateFunction must be invoked directly",
-        messageFormat: "CreateFunction must be invoked directly so the compiler can intercept it. {0}.",
+        messageFormat: "CreateFunction must be invoked directly so the compiler can intercept it; {0}",
         category: "Darp.Luau.Generator",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true

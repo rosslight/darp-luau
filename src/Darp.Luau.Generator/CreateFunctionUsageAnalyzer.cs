@@ -53,7 +53,7 @@ public sealed class CreateFunctionUsageAnalyzer : DiagnosticAnalyzer
         var diagnostic = Diagnostic.Create(
             DiagnosticDescriptors.DirectInvocationRequiredDescriptor,
             operation.Syntax.GetLocation(),
-            "Converting it to a delegate would hit the runtime stub."
+            "converting it to a delegate would hit the runtime stub"
         );
         context.ReportDiagnostic(diagnostic);
     }
