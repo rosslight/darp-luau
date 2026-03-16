@@ -812,59 +812,58 @@ public sealed class RequireByStringTests
     public void StatesNavigatingIndependently()
     {
         using var state01 = new LuauState();
+        using LuauRequireByString.Context context01 = state01.EnableRequire();
+
         using var state02 = new LuauState();
+        using LuauRequireByString.Context context02 = state02.EnableRequire();
+
         using var state03 = new LuauState();
+        using LuauRequireByString.Context context03 = state03.EnableRequire();
+
         using var state04 = new LuauState();
+        using LuauRequireByString.Context context04 = state04.EnableRequire();
 
         {
             // RequireChainedAliasesFailureMissing01
-            using LuauRequireByString.Context context = state01.EnableRequire();
-
             string strPath = Path.Combine(ScriptPath, "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_missing");
             string strSource = SourceForRunProtectedRequire(strPath);
             string strChunkName = "=stdin";
             LuauValue[] results = state01.DoStringAndReturn(Encoding.UTF8.GetBytes(strSource), Encoding.UTF8.GetBytes(strChunkName));
             ResultsShouldContainAll(results, ["false", "module must return a single value"]);
-            context.LoadError.ShouldNotBeNullOrEmpty();
-            context.LoadError.ShouldContain("error requiring module \"@brokenchain\": @missing is not a valid alias");
+            context01.LoadError.ShouldNotBeNullOrEmpty();
+            context01.LoadError.ShouldContain("error requiring module \"@brokenchain\": @missing is not a valid alias");
         }
 
         {
             // RequireChainedAliasesFailureDependOnInnerAlias02
-            using LuauRequireByString.Context context = state02.EnableRequire();
-
             string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/chained_aliases/subdirectory/failing_requirer_inner_dependency");
             string strSource = SourceForRunProtectedRequire(strPath);
             string strChunkName = "=stdin";
             LuauValue[] results = state02.DoStringAndReturn(Encoding.UTF8.GetBytes(strSource), Encoding.UTF8.GetBytes(strChunkName));
             ResultsShouldContainAll(results, ["false", "module must return a single value"]);
-            context.LoadError.ShouldNotBeNullOrEmpty();
-            context.LoadError.ShouldContain("error requiring module \"@dependoninner\": @passthroughinner is not a valid alias");
+            context02.LoadError.ShouldNotBeNullOrEmpty();
+            context02.LoadError.ShouldContain("error requiring module \"@dependoninner\": @passthroughinner is not a valid alias");
         }
 
         {
             // RequireChainedAliasesFailureCyclic01
-            using LuauRequireByString.Context context = state03.EnableRequire();
-
             string strPath = Path.Combine(ScriptPath, "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_cyclic");
             string strSource = SourceForRunProtectedRequire(strPath);
             string strChunkName = "=stdin";
             LuauValue[] results = state03.DoStringAndReturn(Encoding.UTF8.GetBytes(strSource), Encoding.UTF8.GetBytes(strChunkName));
             ResultsShouldContainAll(results, ["false", "module must return a single value"]);
-            context.LoadError.ShouldNotBeNullOrEmpty();
-            context.LoadError.ShouldContain("error requiring module \"@cyclicentry\": detected alias cycle (@cyclic1 -> @cyclic2 -> @cyclic3 -> @cyclic1)");
+            context03.LoadError.ShouldNotBeNullOrEmpty();
+            context03.LoadError.ShouldContain("error requiring module \"@cyclicentry\": detected alias cycle (@cyclic1 -> @cyclic2 -> @cyclic3 -> @cyclic1)");
         }
 
         {
             // RequireChainedAliasesSuccess02
-            using LuauRequireByString.Context context = state04.EnableRequire();
-
             string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/chained_aliases/subdirectory/successful_requirer");
             string strSource = SourceForRunProtectedRequire(strPath);
             string strChunkName = "=stdin";
             LuauValue[] results = state04.DoStringAndReturn(Encoding.UTF8.GetBytes(strSource), Encoding.UTF8.GetBytes(strChunkName));
             ResultsShouldContainAll(results, ["true", "result from inner_dependency", "result from outer_dependency"]);
-            context.LoadError.ShouldBeNullOrEmpty();
+            context04.LoadError.ShouldBeNullOrEmpty();
         }
     }
 

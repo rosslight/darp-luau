@@ -26,6 +26,7 @@ public static unsafe partial class LuauRequireByString
             _handle = GCHandle.Alloc(this);
         }
 
+        internal Navigators Navigators { get; } = new();
 
         public string? LoadError { get; internal set; }
 
@@ -33,6 +34,8 @@ public static unsafe partial class LuauRequireByString
         {
             if (_handle.IsAllocated)
                 _handle.Free();
+
+            Navigators.Clear();
         }
 
         public void* ToVoidPtr()
@@ -46,8 +49,6 @@ public static unsafe partial class LuauRequireByString
             return gchCtx.Target as Context ?? throw new ArgumentException("invalid context pointer");
         }
     }
-
-    private static readonly Navigators s_navigators = new();
 
     /// <summary>Enables require-by-string for LuauState</summary>
     /// <param name="state"></param>
@@ -92,12 +93,15 @@ public static unsafe partial class LuauRequireByString
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult Reset(lua_State* L, void* ctx, byte* requirerChunkname)
     {
+        var context = Context.FromVoidPtr(ctx);
+        Navigator navigator = context.Navigators[L];
+
         string strChunkName = new((sbyte*)requirerChunkname);
         if (Equals(strChunkName, ChunkNameStdIn))
-            return s_navigators.For(L).ResetToStdIn();
+            return navigator.ResetToStdIn();
 
         if (strChunkName.StartsWith(ChunkNamePrefix))
-            return s_navigators.For(L).ResetToPath(strChunkName[1..]);
+            return navigator.ResetToPath(strChunkName[1..]);
 
         return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
     }
@@ -105,63 +109,90 @@ public static unsafe partial class LuauRequireByString
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult JumpToAlias(lua_State* L, void* ctx, byte* path)
     {
+        var context = Context.FromVoidPtr(ctx);
+        Navigator navigator = context.Navigators[L];
+
         string strPath = new((sbyte*)path);
         if (!IsAbsolutePath(strPath))
             return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
 
-        return s_navigators.For(L).ResetToPath(strPath);
+        return navigator.ResetToPath(strPath);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult ToParent(lua_State* L, void* ctx)
     {
-        return s_navigators.For(L).ToParent();
+        var context = Context.FromVoidPtr(ctx);
+        Navigator navigator = context.Navigators[L];
+
+        return navigator.ToParent();
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult ToChild(lua_State* L, void* ctx, byte* name)
     {
+        var context = Context.FromVoidPtr(ctx);
+        Navigator navigator = context.Navigators[L];
+
         string strName = new((sbyte*)name);
-        return s_navigators.For(L).ToChild(strName);
+        return navigator.ToChild(strName);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static bool IsModulePresent(lua_State* L, void* ctx)
     {
-        return FileExists(s_navigators.For(L).FilePath);
+        var context = Context.FromVoidPtr(ctx);
+        Navigator navigator = context.Navigators[L];
+
+        return FileExists(navigator.FilePath);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_WriteResult GetChunkname(lua_State* L, void* ctx, byte* buffer, nuint bufferSize, nuint* sizeOut)
     {
-        string strChunkName = ChunkNamePrefix + s_navigators.For(L).FilePath;
+        var context = Context.FromVoidPtr(ctx);
+        Navigator navigator = context.Navigators[L];
+
+        string strChunkName = ChunkNamePrefix + navigator.FilePath;
         return Write(strChunkName, buffer, bufferSize, sizeOut);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_WriteResult GetLoadname(lua_State* L, void* ctx, byte* buffer, nuint bufferSize, nuint* sizeOut)
     {
-        string strLoadName = s_navigators.For(L).AbsoluteFilePath;
+        var context = Context.FromVoidPtr(ctx);
+        Navigator navigator = context.Navigators[L];
+
+        string strLoadName = navigator.AbsoluteFilePath;
         return Write(strLoadName, buffer, bufferSize, sizeOut);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_WriteResult GetCacheKey(lua_State* L, void* ctx, byte* buffer, nuint bufferSize, nuint* sizeOut)
     {
-        string strCacheKey = s_navigators.For(L).AbsoluteFilePath;
+        var context = Context.FromVoidPtr(ctx);
+        Navigator navigator = context.Navigators[L];
+
+        string strCacheKey = navigator.AbsoluteFilePath;
         return Write(strCacheKey, buffer, bufferSize, sizeOut);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_ConfigStatus GetConfigStatus(lua_State* L, void* ctx)
     {
-        return s_navigators.For(L).GetConfigStatus();
+        var context = Context.FromVoidPtr(ctx);
+        Navigator navigator = context.Navigators[L];
+
+        return navigator.GetConfigStatus();
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_WriteResult GetConfig(lua_State* L, void* ctx, byte* buffer, nuint bufferSize, nuint* sizeOut)
     {
-        string? strConfig = s_navigators.For(L).GetConfig();
+        var context = Context.FromVoidPtr(ctx);
+        Navigator navigator = context.Navigators[L];
+
+        string? strConfig = navigator.GetConfig();
         return Write(strConfig, buffer, bufferSize, sizeOut);
     }
 
@@ -651,22 +682,33 @@ public static unsafe partial class LuauRequireByString
         }
     }
 
-    private class Navigators
+    internal class Navigators
     {
         private readonly Lock _dictLock = new();
         private readonly Dictionary<nint, Navigator> _dict = [];
 
-        public Navigator For(lua_State* L)
+        public Navigator this[lua_State* L]
+        {
+            get
+            {
+                lock (_dictLock)
+                {
+                    nint nKey = (nint)L;
+                    if (!_dict.TryGetValue(nKey, out Navigator? nav))
+                    {
+                        nav = new Navigator();
+                        _dict.Add(nKey, nav);
+                    }
+                    return nav;
+                }
+            }
+        }
+
+        public void Clear()
         {
             lock (_dictLock)
             {
-                nint nKey = (nint)L;
-                if (!_dict.TryGetValue(nKey, out Navigator? nav))
-                {
-                    nav = new Navigator();
-                    _dict.Add(nKey, nav);
-                }
-                return nav;
+                _dict.Clear();
             }
         }
     }
