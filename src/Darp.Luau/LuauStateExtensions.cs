@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace Darp.Luau;
 
 public static class LuauStateExtensions
@@ -13,33 +11,5 @@ public static class LuauStateExtensions
             table.Set(i + 1, values[i]);
         }
         return table;
-    }
-
-    public static void EnableRequire(this LuauState state, string? strScriptPath = null)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-        
-        if (string.IsNullOrWhiteSpace(strScriptPath))
-            strScriptPath = "";
-        if (Path.IsPathRooted(strScriptPath))
-            throw new ArgumentException($"Script path may not be rooted: {strScriptPath}");
-
-        state.Globals.Set("require", state.CreateFunctionBuilder(args =>
-        {
-            if (!args.TryReadUtf8String(1, out string? strPath, out string? strError))
-                throw new ArgumentException($"Missing path argument: {strError}");
-            if (!Path.IsPathRooted(strPath))
-                strPath = Path.Combine(Directory.GetCurrentDirectory(), strScriptPath, Path.GetFileName(strPath));
-            if (!Path.HasExtension(strPath))
-                strPath += ".luau";
-            if (!File.Exists(strPath))
-                throw new ArgumentException($"Script file does not exist: {strPath}");
-
-            string strChunkName = Path.GetFileNameWithoutExtension(strPath);
-            LuauValue[] results = state.DoStringAndReturn(File.ReadAllBytes(strPath), Encoding.UTF8.GetBytes(strChunkName));
-            if (results.Length != 1)
-                throw new ArgumentException($"Script must return single value: {strPath}");
-            return LuauReturn.Ok(results[0]);
-        }));
     }
 }

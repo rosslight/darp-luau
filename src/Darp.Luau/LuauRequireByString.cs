@@ -55,7 +55,7 @@ public static unsafe partial class LuauRequireByString
 
     /// <summary>Enables require-by-string for LuauState</summary>
     /// <param name="state"></param>
-    public static Context EnableRequireByString(this LuauState state)
+    public static Context EnableRequire(this LuauState state)
     {
         ArgumentNullException.ThrowIfNull(state);
 
