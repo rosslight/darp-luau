@@ -125,7 +125,7 @@ public sealed class RequireByStringTests
     public void RequireSimpleRelativePath()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/dependency");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -140,7 +140,7 @@ public sealed class RequireByStringTests
     public void RequireSimpleRelativePathWithinPcall()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/dependency");
         string strSource = $"return pcall(require, \"{strPath}\")";
@@ -155,7 +155,7 @@ public sealed class RequireByStringTests
     public void RequireRelativeToRequiringFile()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/module");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -170,7 +170,7 @@ public sealed class RequireByStringTests
     public void RequireLua()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/lua_dependency");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -185,7 +185,7 @@ public sealed class RequireByStringTests
     public void RequireInitLuau()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/luau");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -200,7 +200,7 @@ public sealed class RequireByStringTests
     public void RequireInitLua()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/lua");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -215,7 +215,7 @@ public sealed class RequireByStringTests
     public void RequireSubmoduleUsingSelfIndirectly()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/nested_module_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -230,7 +230,7 @@ public sealed class RequireByStringTests
     public void RequireSubmoduleUsingSelfDirectly()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/nested");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -245,7 +245,7 @@ public sealed class RequireByStringTests
     public void CannotRequireInitLuauDirectly()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/nested/init");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -260,7 +260,7 @@ public sealed class RequireByStringTests
     public void RequireNestedInits()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/nested_inits_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -275,7 +275,7 @@ public sealed class RequireByStringTests
     public void RequireWithFileAmbiguity()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/ambiguous_file_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -291,7 +291,7 @@ public sealed class RequireByStringTests
     public void RequireWithDirectoryAmbiguity()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/ambiguous_directory_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -307,7 +307,7 @@ public sealed class RequireByStringTests
     public void RequireAbsolutePath()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = "/an/absolute/path";
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -322,7 +322,7 @@ public sealed class RequireByStringTests
     public void RequireUnprefixedPath()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = "an/unprefixed/path";
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -337,7 +337,7 @@ public sealed class RequireByStringTests
     public void RequirePathWithAlias01()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config/src/alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -352,7 +352,7 @@ public sealed class RequireByStringTests
     public void RequirePathWithAlias02()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/src/alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -367,7 +367,7 @@ public sealed class RequireByStringTests
     public void RequirePathWithParentAlias01()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config/src/parent_alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -382,7 +382,7 @@ public sealed class RequireByStringTests
     public void RequirePathWithParentAlias02()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/src/parent_alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -397,7 +397,7 @@ public sealed class RequireByStringTests
     public void RequirePathWithAliasPointingToDirectory01()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config/src/directory_alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -412,7 +412,7 @@ public sealed class RequireByStringTests
     public void RequirePathWithAliasPointingToDirectory02()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/src/directory_alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -427,7 +427,7 @@ public sealed class RequireByStringTests
     public void RequireAliasThatDoesNotExist()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strSource = SourceForRunProtectedRequire("@this.alias.does.not.exist");
         string strChunkName = "=stdin";
@@ -441,7 +441,7 @@ public sealed class RequireByStringTests
     public void AliasHasIllegalFormat01()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strSource = SourceForRunProtectedRequire("@@");
         string strChunkName = "=stdin";
@@ -455,7 +455,7 @@ public sealed class RequireByStringTests
     public void AliasHasIllegalFormat02()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strSource = SourceForRunProtectedRequire("@.");
         string strChunkName = "=stdin";
@@ -469,7 +469,7 @@ public sealed class RequireByStringTests
     public void AliasHasIllegalFormat03()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strSource = SourceForRunProtectedRequire("@..");
         string strChunkName = "=stdin";
@@ -483,7 +483,7 @@ public sealed class RequireByStringTests
     public void AliasHasIllegalFormat04()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strSource = SourceForRunProtectedRequire("@");
         string strChunkName = "=stdin";
@@ -497,7 +497,7 @@ public sealed class RequireByStringTests
     public void AliasNotParsedIfConfigsAmbiguous()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/config_ambiguity/requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -513,7 +513,7 @@ public sealed class RequireByStringTests
     public void CannotRequireConfigLuau()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/config_cannot_be_required/requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -529,7 +529,7 @@ public sealed class RequireByStringTests
     public void RequireBoolean()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/boolean");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -544,7 +544,7 @@ public sealed class RequireByStringTests
     public void RequireBuffer()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/buffer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -559,7 +559,7 @@ public sealed class RequireByStringTests
     public void RequireFunction()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/function");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -574,7 +574,7 @@ public sealed class RequireByStringTests
     public void RequireNil()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/nil");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -589,7 +589,7 @@ public sealed class RequireByStringTests
     public void RequireNumber()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/number");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -604,7 +604,7 @@ public sealed class RequireByStringTests
     public void RequireString()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/string");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -619,7 +619,7 @@ public sealed class RequireByStringTests
     public void RequireTable()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/table");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -634,7 +634,7 @@ public sealed class RequireByStringTests
     public void RequireThread()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/thread");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -653,7 +653,7 @@ public sealed class RequireByStringTests
     public void RequireUserdata()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/userdata");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -668,7 +668,7 @@ public sealed class RequireByStringTests
     public void RequireVector()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/vector");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -687,7 +687,7 @@ public sealed class RequireByStringTests
     public void RequireChainedAliasesSuccess01()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config/chained_aliases/subdirectory/successful_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -702,7 +702,7 @@ public sealed class RequireByStringTests
     public void RequireChainedAliasesSuccess02()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/chained_aliases/subdirectory/successful_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -717,7 +717,7 @@ public sealed class RequireByStringTests
     public void RequireChainedAliasesFailureCyclic01()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_cyclic");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -733,7 +733,7 @@ public sealed class RequireByStringTests
     public void RequireChainedAliasesFailureCyclic02()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/chained_aliases/subdirectory/failing_requirer_cyclic");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -749,7 +749,7 @@ public sealed class RequireByStringTests
     public void RequireChainedAliasesFailureMissing01()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_missing");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -765,7 +765,7 @@ public sealed class RequireByStringTests
     public void RequireChainedAliasesFailureMissing02()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/chained_aliases/subdirectory/failing_requirer_missing");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -781,7 +781,7 @@ public sealed class RequireByStringTests
     public void RequireChainedAliasesFailureDependOnInnerAlias01()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_inner_dependency");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -797,7 +797,7 @@ public sealed class RequireByStringTests
     public void RequireChainedAliasesFailureDependOnInnerAlias02()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/chained_aliases/subdirectory/failing_requirer_inner_dependency");
         string strSource = SourceForRunProtectedRequire(strPath);
@@ -818,7 +818,7 @@ public sealed class RequireByStringTests
 
         {
             // RequireChainedAliasesFailureMissing01
-            LuauRequireByString.Context context = state01.EnableRequire();
+            using LuauRequireByString.Context context = state01.EnableRequire();
 
             string strPath = Path.Combine(ScriptPath, "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_missing");
             string strSource = SourceForRunProtectedRequire(strPath);
@@ -831,7 +831,7 @@ public sealed class RequireByStringTests
 
         {
             // RequireChainedAliasesFailureDependOnInnerAlias02
-            LuauRequireByString.Context context = state02.EnableRequire();
+            using LuauRequireByString.Context context = state02.EnableRequire();
 
             string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/chained_aliases/subdirectory/failing_requirer_inner_dependency");
             string strSource = SourceForRunProtectedRequire(strPath);
@@ -844,7 +844,7 @@ public sealed class RequireByStringTests
 
         {
             // RequireChainedAliasesFailureCyclic01
-            LuauRequireByString.Context context = state03.EnableRequire();
+            using LuauRequireByString.Context context = state03.EnableRequire();
 
             string strPath = Path.Combine(ScriptPath, "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_cyclic");
             string strSource = SourceForRunProtectedRequire(strPath);
@@ -857,7 +857,7 @@ public sealed class RequireByStringTests
 
         {
             // RequireChainedAliasesSuccess02
-            LuauRequireByString.Context context = state04.EnableRequire();
+            using LuauRequireByString.Context context = state04.EnableRequire();
 
             string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/chained_aliases/subdirectory/successful_requirer");
             string strSource = SourceForRunProtectedRequire(strPath);
@@ -882,7 +882,7 @@ public sealed class RequireByStringTests
     public void Result_in_globals()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strFileName = Path.Combine(ScriptPath, "main.luau");
         string strChunkName = '@' + strFileName;
@@ -897,7 +897,7 @@ public sealed class RequireByStringTests
     public void Results_as_return_values()
     {
         using var state = new LuauState();
-        LuauRequireByString.Context context = state.EnableRequire();
+        using LuauRequireByString.Context context = state.EnableRequire();
 
         string strFileName = Path.Combine(ScriptPath, "main.luau");
         string strChunkName = '@' + strFileName;

@@ -17,39 +17,34 @@ namespace Darp.Luau;
 public static unsafe partial class LuauRequireByString
 {
     /// <summary>require context</summary>
-    public class Context
+    public class Context : IDisposable
     {
-        internal struct SData
-        {
-            public byte* pLoadError;
-            public int nSizeLoadError;
-
-            public void Reset()
-            {
-                pLoadError = (byte*)0;
-                nSizeLoadError = 0;
-            }
-        }
-
-        // never access directly, always access via property Data
-        private SData _data;
-
-        internal SData* Data { get; }
+        private GCHandle _handle;
 
         internal Context()
         {
-            fixed (SData* pData = &_data)
-            {
-                Data = pData;
-            }
+            _handle = GCHandle.Alloc(this);
         }
 
-        public void Reset()
+
+        public string? LoadError { get; internal set; }
+
+        public void Dispose()
         {
-            Data->Reset();
+            if (_handle.IsAllocated)
+                _handle.Free();
         }
 
-        public string? LoadError => Data->pLoadError == (byte*)0 ? null : new((sbyte*)Data->pLoadError, 0, Data->nSizeLoadError);
+        public void* ToVoidPtr()
+        {
+            return (void*)GCHandle.ToIntPtr(_handle);
+        }
+
+        public static Context FromVoidPtr(void* pCtx)
+        {
+            var gchCtx = GCHandle.FromIntPtr((IntPtr)pCtx);
+            return gchCtx.Target as Context ?? throw new ArgumentException("invalid context pointer");
+        }
     }
 
     private static readonly Navigators s_navigators = new();
@@ -62,7 +57,7 @@ public static unsafe partial class LuauRequireByString
 
         var ctx = new Context();
 
-        luaopen_require(state.L, &InitRequireConfig, ctx.Data);
+        luaopen_require(state.L, &InitRequireConfig, ctx.ToVoidPtr());
 
         return ctx;
     }
@@ -177,8 +172,8 @@ public static unsafe partial class LuauRequireByString
         string strChunkName = new((sbyte*)chunkname);
         string strLoadName = new((sbyte*)loadname);
 
-        var pCtxData = (Context.SData*)ctx;
-        pCtxData->Reset();
+        var context = Context.FromVoidPtr(ctx);
+        context.LoadError = null;
 
         int nResults = 1; // default number of results pushed onto stack
 
@@ -189,7 +184,7 @@ public static unsafe partial class LuauRequireByString
         string? strContent = ReadFile(strLoadName);
         if (strContent is null)
         {
-            nResults = ReportLoadError(L, pCtxData, $"could not read file '{strChunkName}'");
+            nResults = ReportLoadError(L, context, $"could not read file '{strChunkName}'");
         }
         else
         {
@@ -223,21 +218,21 @@ public static unsafe partial class LuauRequireByString
                         while (lua_gettop(ML) > 0)
                             lua_pop(ML, 1);
 
-                        nResults = ReportLoadError(ML, pCtxData, $"module '{strPath}' must return a single value");
+                        nResults = ReportLoadError(ML, context, $"module '{strPath}' must return a single value");
                     }
                 }
                 else if (nStatus == (int)lua_Status.LUA_YIELD)
                 {
-                    nResults = ReportLoadError(ML, pCtxData, $"module '{strPath}' can not yield");
+                    nResults = ReportLoadError(ML, context, $"module '{strPath}' can not yield");
                 }
                 else if (lua_isstring(ML, -1) == 0)
                 {
-                    nResults = ReportLoadError(ML, pCtxData, $"unknown error while running module '{strPath}'");
+                    nResults = ReportLoadError(ML, context, $"unknown error while running module '{strPath}'");
                 }
                 else
                 {
                     string strMsg = new((sbyte*)lua_tostring(ML, -1));
-                    nResults = ReportLoadError(ML, pCtxData, $"error while running module '{strPath}': {strMsg}");
+                    nResults = ReportLoadError(ML, context, $"error while running module '{strPath}': {strMsg}");
                 }
 
                 // add ML results to L stack
@@ -254,15 +249,9 @@ public static unsafe partial class LuauRequireByString
         return nResults;
     }
 
-    private static int ReportLoadError(lua_State* L, Context.SData* pCtxData, string strMsg)
+    private static int ReportLoadError(lua_State* L, Context context, string strMsg)
     {
-        Span<byte> buf = new byte[Encoding.UTF8.GetByteCount(strMsg)];
-        int nSizeBuf = Encoding.UTF8.GetBytes(strMsg, buf);
-        fixed (byte* pStr = buf[..nSizeBuf])
-        {
-            pCtxData->pLoadError = pStr;
-            pCtxData->nSizeLoadError = nSizeBuf;
-        }
+        context.LoadError = strMsg;
 
         // push TWO objects onto stack to indicate an error. 
         // the caller of function Load reports this as error "module must return a single value".
