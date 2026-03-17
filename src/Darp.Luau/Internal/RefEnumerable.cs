@@ -25,6 +25,9 @@ public ref struct RefEnumerable<T> : IEnumerable<T>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
+            if ((uint)index >= (uint)Length)
+                throw new ArgumentOutOfRangeException(nameof(index));
+
             return index switch
             {
                 0 => _item0,

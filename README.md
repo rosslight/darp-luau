@@ -13,7 +13,7 @@ Darp.Luau
 - NativeAOT first
 - Typed reads and writes for tables, functions, userdata, strings, and buffers
 - Clear lifetime guarantees both API stability and performance
-- Simple API through source generated interceptors
+- Simple API through source-generated interceptors
 - Custom libraries and managed userdata
 
 ## Quick start

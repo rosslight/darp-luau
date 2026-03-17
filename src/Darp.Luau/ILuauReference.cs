@@ -20,6 +20,6 @@ internal interface ILuauView<out TOwned>
     where TOwned : ILuauReference
 {
     /// <summary> Creates a tracked owned reference for this borrowed value. </summary>
-    /// <returns> The newly created owned reference </returns>>
+    /// <returns> The newly created owned reference </returns>
     TOwned ToOwned();
 }
