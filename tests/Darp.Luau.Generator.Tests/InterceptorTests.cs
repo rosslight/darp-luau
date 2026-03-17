@@ -144,7 +144,7 @@ public class InterceptorTests
                 public static void DoSomething(LuauState state)
                 {
                     state.CreateFunction((LuauValue p1) => {});
-                    state.CreateFunction((LuauTable p1, LuauString p2, LuauFunction p3) => {});
+                    state.CreateFunction((LuauTableView p1, LuauStringView p2, LuauFunctionView p3) => {});
                 }
             }
             """;
@@ -274,5 +274,47 @@ public class InterceptorTests
             }
             """;
         await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
+    public async Task MethodGroupEscapeHatch_ShouldFailClosed()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    Func<Action, LuauFunction> create = state.CreateFunction;
+                    create(() => {});
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorAndAnalyzerWithErrors(code, new CreateFunctionUsageAnalyzer());
+    }
+
+    [Fact]
+    public async Task CustomDelegateEscapeHatch_ShouldFailClosed()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public delegate LuauFunction CreateAction(Action callback);
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    CreateAction create = state.CreateFunction;
+                    create(OnCall);
+                }
+
+                private static void OnCall() { }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorAndAnalyzerWithErrors(code, new CreateFunctionUsageAnalyzer());
     }
 }

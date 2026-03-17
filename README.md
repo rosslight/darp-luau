@@ -1,210 +1,145 @@
-# Darp.Luau
+Darp.Luau
+======
 
-Luau bindings and a higher level wrapper
+[![Darp.Results](https://img.shields.io/nuget/v/Darp.Luau.svg)](https://www.nuget.org/packages/Darp.Luau)
+[![Downloads](https://img.shields.io/nuget/dt/Darp.Luau)](https://www.nuget.org/packages/Darp.Luau)
+![License](https://img.shields.io/github/license/rosslight/darp-luau)
+![.NET](https://img.shields.io/badge/version-.NET10-blue)
 
-## Why an other library
-- Fully Native AOT compatible
-- Execution of sync scripts
-- Generation of type definitions (TODO)
-- Support for UserData
-- Clean, safe and performant API with ref structs for Lifetime management of references
-- Managed and typed function callbacks by using interceptors (TODO)
-- Confidence through high unit test coverage (TODO)
-- Proper error management (TODO)
-- Module support (TODO)
-- Async (Thread and Coroutines) support (MAYBE)
+`Darp.Luau` is a .NET wrapper around [Luau](https://luau.org/) focused on native AOT compatibility, typed value access, and explicit ownership for Luau-backed references.
 
-## Mapping of data types
+## What it gives you today
 
-### `nil`
+- `LuauState` with configurable built-in libraries
+- `DoString(...)` for running Luau source from managed code
+- typed reads and writes for tables, functions, userdata, strings, and buffers
+- explicit owned wrappers such as `LuauTable` and `LuauFunction`
+- callback-scoped borrowed views such as `LuauTableView` and `LuauFunctionView`
+- managed callbacks through `CreateFunction(...)` and `CreateFunctionBuilder(...)`
+- custom libraries and managed userdata hooks through `ILuauUserData<T>`
 
-- `LuauNil`
-- `null` for parameters
-- `void` for return types
-
-### `string`
-
-- `ReadOnlySpan<byte>`
-- `ReadOnlySpan<char>`, `string` using UTF8 Encoding
-
-### `number`
-
-- `double`
-- `byte, sbyte, ushort, short, uint, int, ulong, long, UInt128, Int128` are converted (cut off)
-- `Half`, `float`, `decimal` are converted (loss of precision)
-- Any user defined enum
-
-### `boolean`
-
-- `bool`
-
-### `table`
-
-- `LuauTable`
-
-### `function`
-
-- `LuauFunction`
-- Delegates that with parameters of the primitives listed here
-
-### `thread`
-
-Unsupported for now
-
-### `userdata`
-
-Any `class` that implements `ILuauUserData<T>`
-
-### `buffer`
-
-- `ReadOnlySpan<byte>`
-- `byte[]`
-
-### `vector`
-
-Unsupported for now. Planned:
-
-- `System.Numerics.Vector4`
-- `System.Numerics.Vector3` (loss of fourth dimension)
-
-## Usage
-
-### Script execution
-
-Create a `LuauState`, optionally configure built-in libraries and custom libraries, then run Luau code from file or inline strings.
+## Quick start
 
 ```csharp
-using var state = new LuauState();
+using Darp.Luau;
 
-// Execute a script
-state.DoFile("path/to_my_file.lua");
-state.DoString(
+using var lua = new LuauState();
+
+using LuauFunction log = lua.CreateFunction((string message) => Console.WriteLine(message));
+lua.Globals.Set("log", log);
+
+using LuauTable config = lua.CreateTable();
+config.Set("name", "Ada");
+config.Set("enabled", true);
+lua.Globals.Set("config", config);
+
+lua.DoString(
     """
     function add(a, b)
       return a + b
     end
-    log("hello from lua")
+
+    log(config.name)
+    result = add(20, 22)
     """
 );
+
+double result = lua.Globals.GetNumber("result");
 ```
 
-### Functions
-
-Get a Luau function reference from globals and call it with typed arguments and return values.
+## Call Lua functions from C#
 
 ```csharp
-// Add typed callbacks
-state.Globals.Set("log", (string s) => Console.WriteLine(s));
+using LuauFunction add = lua.Globals.GetLuauFunction("add");
 
-// Get existing lua functions
-using LuauFunction add = state.Globals.GetLuauFunction("add");
-
-// Call
-double result = add.Call<double>(1, 2);
+double sum = add.Invoke<double>(1, 2);
 ```
 
-### Tables
+`Invoke<TR>(...)` converts the Luau return value to the managed type you ask for. The current API provides overloads for zero, one, or two arguments.
 
-Create and populate tables, then read values via `Get*` (throwing) or `TryGet*` (non-throwing).
+## Expose managed callbacks
+
+Use `CreateFunction(...)` for supported fixed delegate signatures:
 
 ```csharp
-// Create a new table
-LuauTable myTable = state.CreateTable();
-
-// Set values on the table
-myTable.Set("my_number", 1);
-myTable.Set("my_boolean", true);
-myTable.Set("my_buffer", new byte[] { 1, 2, 3 });
-
-// Access the global table
-state.Globals.Set("my_string", "value");
-state.Globals.Set("my_number", 1);
-state.Globals.Set("my_table", myTable);
-
-using LuauTable table = state.Globals.GetLuauTable("my_table");
-
-// Get values from the table
-double myNumber = table.GetNumber("my_number");
-bool myBool = table.GetBoolean("my_boolean");
-byte[] myBuffer = table.GetBuffer("my_buffer");
-double? maybeNumber = table.GetNumberOrNil("maybe_number");
-
-// Get values savely
-_ = table.TryGetNumber("my_number", out int numberAsInt);
-_ = table.TryGetUtf8StringOrNil("optional_name", out string? optionalName);
-_ = table.TryGetBoolean("missing_flag", out _);
+using LuauFunction sum = lua.CreateFunction((int a, int b) => a + b);
+lua.Globals.Set("sum", sum);
 ```
 
-### Userdata
-
-Store managed objects as userdata, expose selected fields to Luau, and resolve them back in C#.
-Lua will interact with the managed object through the callbacks overwritten on the `ILuauUserData<T>` interface.
+Use `CreateFunctionBuilder(...)` when you need manual argument parsing, multiple return values, or explicit user-facing errors:
 
 ```csharp
-// Create new userdata and link it to lua
-var player = new PlayerUserdata { Name = "Ada", Score = 42 };
-table.Set("player", player);
-
-// Retrieve userdata from lua
-PlayerUserdata samePlayer = table.GetUserdata<PlayerUserdata>("player");
-_ = table.TryGetUserdataOrNil("maybe_player", out PlayerUserdata? maybePlayer);
-
-using LuauUserdata playerRef = table.GetLuauUserdata("player");
-_ = playerRef.TryGetManaged(out PlayerUserdata? resolvedPlayer, out string? error);
-
-// Example definition of a userdata
-internal sealed class PlayerUserdata : ILuauUserData<PlayerUserdata>
+using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
 {
-    public required string Name { get; init; }
-    public int Score { get; set; }
+    if (!args.TryValidateArgumentCount(2, out string? error))
+        return LuauReturn.Error(error);
+    if (args.ArgumentCount != 2)
+        return LuauReturn.Error("Expected exactly 2 arguments.");
+    if (!args.TryReadNumber(1, out int a, out error) || !args.TryReadNumber(2, out int b, out error))
+        return LuauReturn.Error(error);
 
-    public static LuauReturnSingle OnIndex(PlayerUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName)
-    {
-        return fieldName switch
-        {
-            "name" => LuauReturnSingle.Ok(self.Name),
-            "score" => LuauReturnSingle.Ok(self.Score),
-            _ => LuauReturnSingle.NotHandled,
-        };
-    }
-
-    public static LuauOutcome OnSetIndex(PlayerUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName)
-    {
-        switch (fieldName)
-        {
-            case "score":
-            {
-                if (!args.TryReadNumber(out int score, out string? error))
-                    return LuauOutcome.Error(error);
-                self.Score = score;
-                return LuauOutcome.Ok();
-            }
-            default:
-                return LuauOutcome.NotHandledError;
-        }
-    }
-
-    public static LuauReturn OnMethodCall(PlayerUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) =>
-        LuauReturn.NotHandledError;
-
-    public static implicit operator IntoLuau(PlayerUserdata value) => IntoLuau.FromUserdata(value);
-}
-```
-
-### Library configuration
-
-`LuauState` supports both built-in and custom libraries.
-
-- Configure built-in Luau libraries via `LuauLibraries` in the constructor.
-- Register custom libraries via `RegisterLibrary(...)`.
-- `LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
-
-```csharp
-using var state = new LuauState(LuauLibraries.Math | LuauLibraries.String);
-
-state.OpenLibrary("game", static (_, in lib) =>
-{
-    lib.Set("answer", 42);
-    lib.Set("add", (int a, int b) => a + b);
+    return LuauReturn.Ok(a + b, a - b);
 });
 ```
+
+`CreateFunction(...)` must be called directly at the call site so the generator can intercept it. If you need a shape that is not supported there, use `CreateFunctionBuilder(...)`.
+
+## Work with tables
+
+```csharp
+using LuauTable settings = lua.CreateTable();
+settings.Set("volume", 0.8);
+settings.Set("muted", false);
+settings.Set("blob", new byte[] { 1, 2, 3 });
+
+lua.Globals.Set("settings", settings);
+
+using LuauTable roundTripped = lua.Globals.GetLuauTable("settings");
+double volume = roundTripped.GetNumber("volume");
+bool muted = roundTripped.GetBoolean("muted");
+byte[] blob = roundTripped.GetBuffer("blob");
+```
+
+Use `Get*` for required values, `TryGet*` for optional or external data, and `*OrNil` when `nil` is part of the contract.
+
+## Work with userdata
+
+```csharp
+var player = new PlayerUserdata { Name = "Ada" };
+
+lua.Globals.Set("player", IntoLuau.FromUserdata(player));
+
+PlayerUserdata samePlayer = lua.Globals.GetUserdata<PlayerUserdata>("player");
+
+using LuauUserdata playerRef = lua.Globals.GetLuauUserdata("player");
+_ = playerRef.TryGetManaged(out PlayerUserdata? resolvedPlayer, out string? error);
+```
+
+Managed userdata types implement `ILuauUserData<T>` to expose script-facing fields, setters, and methods. See [Userdata](docs/features/userdata.md) for the full hook model.
+
+## Register custom libraries
+
+```csharp
+lua.OpenLibrary("game", static (state, in LuauTable lib) =>
+{
+    lib.Set("answer", 42);
+
+    using LuauFunction add = state.CreateFunction((int a, int b) => a + b);
+    lib.Set("add", add);
+});
+```
+
+`OpenLibrary(...)` registers a global table. It is a convenient way to expose host-provided APIs, but it is not a `require(...)`-style module loader by itself.
+
+## Ownership and lifetime
+
+- `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, `LuauUserdata`, and reference-backed `LuauValue` are owned references and should be disposed.
+- `LuauTableView`, `LuauFunctionView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, and `LuauArgs` are borrowed callback-scoped values.
+- Reference-backed values belong to one `LuauState`; cross-state usage is invalid.
+
+## Current boundaries
+
+- `DoString(...)` is the script execution API today. If you want file-based execution, read the file yourself and pass its contents in.
+- `CreateFunction(...)` is generator-backed and has no runtime fallback.
+- `LuauState` is not thread-safe.
+- A documented module system and higher-level async/thread orchestration are not part of the current surface yet.

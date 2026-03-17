@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsAotCompatible>true</IsAotCompatible>
+    <NoWarn>CA2225;CA1031</NoWarn>
+
+    <Description>A .NET wrapper around Luau focused on native AOT compatibility, typed value access, and explicit ownership.</Description>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="$(AssemblyName).Tests" />
@@ -19,6 +22,13 @@
       Include="..\Darp.Luau.Generator\Darp.Luau.Generator.csproj"
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="false"
+      PrivateAssets="all"
+    />
+    <None
+      Include="..\Darp.Luau.Generator\bin\$(Configuration)\netstandard2.0\Darp.Luau.Generator.dll"
+      Pack="true"
+      PackagePath="analyzers/dotnet/cs"
+      Visible="false"
     />
   </ItemGroup>
 </Project>

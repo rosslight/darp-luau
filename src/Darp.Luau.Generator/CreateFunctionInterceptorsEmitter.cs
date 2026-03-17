@@ -265,17 +265,20 @@ internal static class CreateFunctionInterceptorsEmitter
             case "global::Darp.Luau.LuauValue":
                 luauType = LuauValueType.LuauValue;
                 return true;
-            case "global::Darp.Luau.LuauTable":
-                luauType = LuauValueType.LuauTable;
+            case "global::Darp.Luau.LuauTableView":
+                luauType = LuauValueType.LuauTableView;
                 return true;
-            case "global::Darp.Luau.LuauFunction":
-                luauType = LuauValueType.LuauFunction;
+            case "global::Darp.Luau.LuauFunctionView":
+                luauType = LuauValueType.LuauFunctionView;
                 return true;
-            case "global::Darp.Luau.LuauString":
-                luauType = LuauValueType.LuauString;
+            case "global::Darp.Luau.LuauStringView":
+                luauType = LuauValueType.LuauStringView;
                 return true;
-            case "global::Darp.Luau.LuauBuffer":
-                luauType = LuauValueType.LuauBuffer;
+            case "global::Darp.Luau.LuauBufferView":
+                luauType = LuauValueType.LuauBufferView;
+                return true;
+            case "global::Darp.Luau.LuauUserdataView":
+                luauType = LuauValueType.LuauUserdataView;
                 return true;
         }
 
@@ -377,10 +380,11 @@ internal static class CreateFunctionInterceptorsEmitter
             or LuauValueType.NumberDecimal
             or LuauValueType.Enum => "TryReadNumber",
             LuauValueType.LuauValue => "TryReadLuauValue",
-            LuauValueType.LuauString => "TryReadLuauString",
-            LuauValueType.LuauTable => "TryReadLuauTable",
-            LuauValueType.LuauFunction => "TryReadLuauFunction",
-            LuauValueType.LuauBuffer => "TryReadLuauBuffer",
+            LuauValueType.LuauStringView => "TryReadLuauString",
+            LuauValueType.LuauTableView => "TryReadLuauTable",
+            LuauValueType.LuauFunctionView => "TryReadLuauFunction",
+            LuauValueType.LuauBufferView => "TryReadLuauBuffer",
+            LuauValueType.LuauUserdataView => "TryReadLuauUserdata",
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not get the TryRead function"),
         };
     }
@@ -471,10 +475,11 @@ internal static class CreateFunctionInterceptorsEmitter
                     {dotnetType} a{parameterIndex} = ({param.OriginalTypeName})a{parameterIndex}Raw;
                     """,
             LuauValueType.LuauValue
-            or LuauValueType.LuauTable
-            or LuauValueType.LuauString
-            or LuauValueType.LuauFunction
-            or LuauValueType.LuauBuffer => $"""
+            or LuauValueType.LuauTableView
+            or LuauValueType.LuauStringView
+            or LuauValueType.LuauFunctionView
+            or LuauValueType.LuauBufferView
+            or LuauValueType.LuauUserdataView => $"""
                 if (!args.{tryFunctionName}(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 """,
@@ -550,8 +555,29 @@ internal static class CreateFunctionInterceptorsEmitter
         {
             var syntax = (InvocationExpressionSyntax)calledMethod.Syntax;
             InterceptableLocation? location = calledMethod.SemanticModel.GetInterceptableLocation(syntax);
-            if (location is null || calledMethod.SemanticModel is null)
+            if (calledMethod.SemanticModel is null)
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.InterceptableLocationUnavailableDescriptor,
+                        syntax.GetLocation(),
+                        "the semantic model was unavailable"
+                    )
+                );
                 continue;
+            }
+
+            if (location is null)
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.InterceptableLocationUnavailableDescriptor,
+                        syntax.GetLocation(),
+                        "the compiler did not provide an interceptable location for this invocation"
+                    )
+                );
+                continue;
+            }
 
             if (!TryExtractSignature(calledMethod, out var key, diagnostics))
                 continue;

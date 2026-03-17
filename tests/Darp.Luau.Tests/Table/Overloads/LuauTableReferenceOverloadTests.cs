@@ -29,13 +29,11 @@ public sealed class LuauTableReferenceOverloadTests
         LuauTable table = lua.CreateTable();
 
         table.TryGetLuauTable("missing", out LuauTable missingValue).ShouldBeFalse();
-        missingValue.State.ShouldBeNull();
-        missingValue.Reference.ShouldBe(0);
+        missingValue.IsDisposed.ShouldBe(true);
 
         table.Set("wrong", 1);
         table.TryGetLuauTable("wrong", out LuauTable wrongTypeValue).ShouldBeFalse();
-        wrongTypeValue.State.ShouldBeNull();
-        wrongTypeValue.Reference.ShouldBe(0);
+        wrongTypeValue.IsDisposed.ShouldBe(true);
     }
 
     [Fact]
@@ -72,7 +70,7 @@ public sealed class LuauTableReferenceOverloadTests
         table.TryGetLuauFunction("function", out LuauFunction found).ShouldBeTrue();
         using (found)
         {
-            found.Call<int>().ShouldBe(7);
+            found.Invoke<int>().ShouldBe(7);
         }
     }
 
@@ -83,13 +81,11 @@ public sealed class LuauTableReferenceOverloadTests
         LuauTable table = lua.CreateTable();
 
         table.TryGetLuauFunction("missing", out LuauFunction missingValue).ShouldBeFalse();
-        missingValue.State.ShouldBeNull();
-        missingValue.Reference.ShouldBe(0);
+        missingValue.ShouldBe(default);
 
         table.Set("wrong", 1);
         table.TryGetLuauFunction("wrong", out LuauFunction wrongTypeValue).ShouldBeFalse();
-        wrongTypeValue.State.ShouldBeNull();
-        wrongTypeValue.Reference.ShouldBe(0);
+        wrongTypeValue.ShouldBe(default);
     }
 
     [Fact]
@@ -101,7 +97,7 @@ public sealed class LuauTableReferenceOverloadTests
         table.Set("function", function);
 
         using LuauFunction found = table.GetLuauFunction("function");
-        found.Call<int>().ShouldBe(7);
+        found.Invoke<int>().ShouldBe(7);
     }
 
     [Fact]
@@ -182,13 +178,11 @@ public sealed class LuauTableReferenceOverloadTests
         LuauTable table = lua.CreateTable();
 
         table.TryGetLuauBuffer("missing", out LuauBuffer missingValue).ShouldBeFalse();
-        missingValue.State.ShouldBeNull();
-        missingValue.Reference.ShouldBe(0);
+        missingValue.ShouldBe(default);
 
         table.Set("wrong", 1);
         table.TryGetLuauBuffer("wrong", out LuauBuffer wrongTypeValue).ShouldBeFalse();
-        wrongTypeValue.State.ShouldBeNull();
-        wrongTypeValue.Reference.ShouldBe(0);
+        wrongTypeValue.ShouldBe(default);
     }
 
     [Fact]

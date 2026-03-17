@@ -1,78 +1,65 @@
-using Darp.Luau.Native;
+using System.Diagnostics.CodeAnalysis;
+using Darp.Luau.Internal;
 using Darp.Luau.Utils;
-using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-public struct LuauBuffer : ILuauReference
+public readonly struct LuauBuffer : ILuauReference
 {
-    /// <inheritdoc />
-    public LuauState? State { get; }
+    private readonly LuauState? _state;
+    private readonly ulong _handle;
 
-    /// <inheritdoc />
-    public int Reference { get; private set; }
+    /// <inheritdoc/>
+    public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
     [Obsolete("Do not initialize the LuauBuffer. Create using the LuauState instead", true)]
-    public LuauBuffer() => State = null;
+    public LuauBuffer() { }
 
-    internal LuauBuffer(LuauState? state, int reference) => (State, Reference) = (state, reference);
-
-    public static implicit operator IntoLuau(LuauBuffer value) => (LuauValue)value;
-
-    public unsafe bool TryGet(out ReadOnlySpan<byte> span)
+    internal LuauBuffer(LuauState state, ulong handle)
     {
-        State.ThrowIfDisposed();
-        span = ReadOnlySpan<byte>.Empty;
-
-        lua_State* L = State.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        _ = lua_getref(L, Reference);
-        try
-        {
-            nuint nLength = 0;
-            void* pBuf = lua_tobuffer(L, -1, &nLength);
-            if (pBuf is null)
-                return false;
-
-            span = new ReadOnlySpan<byte>(pBuf, (int)nLength);
-            return true;
-        }
-        finally
-        {
-            lua_pop(L, 1);
-        }
+        _state = state;
+        _handle = handle;
     }
 
-    public bool TryGet(out byte[] bytes)
+    /// <summary>
+    /// Attempts to get a read-only span over the underlying Luau buffer bytes.
+    /// </summary>
+    /// <param name="bytes">Receives a span over Luau-owned memory when successful.</param>
+    /// <returns><c>true</c> when the buffer is still valid; otherwise <c>false</c>.</returns>
+    /// <remarks>
+    /// The returned span aliases Luau memory and should be consumed immediately.
+    /// Copy the data if it must outlive the callback frame.
+    /// </remarks>
+    public bool TryGet(out ReadOnlySpan<byte> bytes)
     {
-        if (TryGet(out ReadOnlySpan<byte> span))
-        {
-            bytes = span.ToArray();
-            return true;
-        }
-
-        bytes = [];
-        return false;
+        bytes = default;
+        return _state.TryGetTrackedReference(_handle, out RegistryReferenceTracker.TrackedReference? reference)
+            && LuauBufferAccessCore.TryGet(reference, out bytes);
     }
+
+    /// <summary>
+    /// Attempts to copy the underlying Luau buffer bytes into a managed array.
+    /// </summary>
+    /// <param name="bytes">Receives the copied bytes when successful; otherwise an empty array.</param>
+    /// <returns><c>true</c> when the copy succeeded; otherwise <c>false</c>.</returns>
+    public bool TryGet([NotNullWhen(true)] out byte[]? bytes)
+    {
+        bytes = null;
+        return _state.TryGetTrackedReference(_handle, out RegistryReferenceTracker.TrackedReference? reference)
+            && LuauBufferAccessCore.TryGet(reference, out bytes);
+    }
+
+    /// <summary> Ability for <see cref="LuauBuffer"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
+    /// <param name="value"> The buffer </param>
+    /// <returns> The converted value </returns>
+    public static implicit operator IntoLuau(LuauBuffer value) => IntoLuau.Borrow(value._state, value._handle);
+
+    /// <inheritdoc/>
+    public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Buffer);
 
     /// <inheritdoc />
-    public override string ToString()
-    {
-        if (!TryGet(out ReadOnlySpan<byte> span))
-            return "<nil>";
-
-        return Convert.ToHexString(span);
-    }
+    public override string ToString() => TryGet(out ReadOnlySpan<byte> span) ? Convert.ToHexString(span) : "<nil>";
 
     /// <summary> Remove the reference from the lua state </summary>
-    public unsafe void Dispose()
-    {
-        if (State is null || Reference is 0)
-            return;
-
-        lua_unref(State.L, Reference);
-        Reference = 0;
-    }
+    public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
 }

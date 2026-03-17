@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -49,6 +50,31 @@ public static class VerifyHelper
         );
     }
 
+    public static Task VerifyGeneratorAndAnalyzerWithErrors(
+        string source,
+        DiagnosticAnalyzer analyzer,
+        [CallerFilePath] string? callerFilePath = null
+    )
+    {
+        string fileName =
+            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        AddReferenceAssemblyMarker<LuauState>();
+        AddReferenceAssemblyMarker<ILogger>();
+        return VerifyGenerator<DarpLuauInterceptor>(
+            [source],
+            [],
+            "DLUAU",
+            fileName,
+            task => task.ScrubGeneratedCodeAttribute(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string> { { "InterceptorsNamespaces", "Darp.Luau.Generator" } },
+            LanguageVersion.CSharp13,
+            allowCompilationErrors: true,
+            analyzers: ImmutableArray.Create(analyzer),
+            verifyDiagnosticsSnapshot: true
+        );
+    }
+
     /// <summary>
     /// This functions ensures that the assembly is referenced and <see cref="AppDomain.GetAssemblies()"/> of the <see cref="AppDomain.CurrentDomain"/> contains this assembly
     /// </summary>
@@ -88,7 +114,9 @@ public static class VerifyHelper
         IReadOnlyDictionary<string, string> features,
         LanguageVersion languageVersion = LanguageVersion.Default,
         NullableContextOptions nullableContextOptions = NullableContextOptions.Enable,
-        bool allowCompilationErrors = false
+        bool allowCompilationErrors = false,
+        ImmutableArray<DiagnosticAnalyzer> analyzers = default,
+        bool verifyDiagnosticsSnapshot = false
     )
         where TGenerator : IIncrementalGenerator, new()
     {
@@ -132,20 +160,56 @@ public static class VerifyHelper
             optionsProvider: provider
         );
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation newCompilation, out _);
-        SettingsTask settingsTask = Verify(driver).UseDirectory(Path.Join("Snapshots", directory));
+        ImmutableArray<Diagnostic> analyzerDiagnostics = analyzers.IsDefaultOrEmpty
+            ? []
+            : await newCompilation.WithAnalyzers(analyzers).GetAllDiagnosticsAsync();
+
+        object verificationTarget = verifyDiagnosticsSnapshot
+            ? new
+            {
+                Diagnostics = analyzerDiagnostics
+                    .Where(x => x.Id is not "CS5001")
+                    .Select(ToSerializableDiagnostic)
+                    .ToArray(),
+            }
+            : driver;
+        SettingsTask settingsTask = Verify(verificationTarget).UseDirectory(Path.Join("Snapshots", directory));
         await configureSettingsTask(settingsTask);
         // Assert that there are no compilation errors (except for CS5001 which informs about the missing program entry)
         newCompilation
             .GetDiagnostics()
+            .Concat(analyzerDiagnostics)
             .ShouldNotContain(
                 x => IsDiagnosticInvalid(allowedDiagnosticCode, x),
                 string.Join(
                     "\n",
-                    newCompilation.GetDiagnostics().Select(x => $"[{x.Location.GetLineSpan()}]: {x.GetMessage()}")
+                    newCompilation
+                        .GetDiagnostics()
+                        .Concat(analyzerDiagnostics)
+                        .Select(x => $"[{x.Location.GetLineSpan()}]: {x.GetMessage()}")
                 )
                     + "\n"
                     + string.Join("\n", driver.GetRunResult().ToReadableString())
             );
+    }
+
+    private static object ToSerializableDiagnostic(Diagnostic diagnostic)
+    {
+        return new
+        {
+            Location = diagnostic.Location.ToString(),
+            Message = diagnostic.GetMessage(),
+            Severity = diagnostic.Severity.ToString(),
+            Descriptor = new
+            {
+                diagnostic.Descriptor.Id,
+                diagnostic.Descriptor.Title,
+                diagnostic.Descriptor.MessageFormat,
+                diagnostic.Descriptor.Category,
+                DefaultSeverity = diagnostic.Descriptor.DefaultSeverity.ToString(),
+                diagnostic.Descriptor.IsEnabledByDefault,
+            },
+        };
     }
 
     private static string ToReadableString(this GeneratorDriverRunResult result)

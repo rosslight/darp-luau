@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Darp.Luau.Native;
+using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau.Utils;
 
@@ -98,12 +99,12 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             int numberOfParameters;
             if (LuauStateMarshal.TryGetNameCall(L, out ReadOnlySpan<byte> utf8MethodName))
             {
-                numberOfParameters = Math.Max(0, LuauNative.lua_gettop(L) - 1);
+                numberOfParameters = Math.Max(0, lua_gettop(L) - 1);
                 firstParameterStackIndex = 2;
             }
             else if (LuauStateMarshal.TryGetString(L, 2, out utf8MethodName))
             {
-                numberOfParameters = Math.Max(0, LuauNative.lua_gettop(L) - 2);
+                numberOfParameters = Math.Max(0, lua_gettop(L) - 2);
                 firstParameterStackIndex = 3;
             }
             else
@@ -111,19 +112,27 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
                 return "userdata method call requires a string method name";
             }
 
-            int topBeforeInvoke = LuauNative.lua_gettop(L);
+            int topBeforeInvoke = lua_gettop(L);
             var functionArgs = new LuauArgs(lua, numberOfParameters, firstParameterStackIndex);
             Span<char> methodName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MethodName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MethodName, methodName);
             ReadOnlySpan<char> resolvedMethodName = methodName[..memberNameLength];
-            LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
-            LuauNative.lua_settop(L, topBeforeInvoke);
+            try
+            {
+                LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
+                lua_settop(L, topBeforeInvoke);
 
-            if (result.TryPushValues(lua, out int outputCount, out string? error))
-                return outputCount;
-            if (error == LuauReturn.NotHandled)
-                return (string)$"attempt to call unknown userdata method '{resolvedMethodName}'";
-            return error;
+                if (result.TryPushValues(lua, out int outputCount, out string? error))
+                    return outputCount;
+                if (error == LuauReturn.NotHandled)
+                    return (string)$"attempt to call unknown userdata method '{resolvedMethodName}'";
+                return error;
+            }
+            catch
+            {
+                lua_settop(L, topBeforeInvoke);
+                throw;
+            }
         }
     }
 
@@ -138,32 +147,35 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
 
-        if (TryGetCachedUserdataReference(L, identity, out int cachedReference))
+        if (TryGetCachedUserdataHandle(L, identity, out ulong cachedHandle))
         {
-            return new LuauUserdata(_state, cachedReference);
+            return new LuauUserdata(_state, cachedHandle);
         }
 
         GCHandle registrationHandle = Register<T>();
-        var ptr = (LuauUserdataNative*)
-            LuauNative.lua_newuserdatataggedwithmetatable(L, (nuint)sizeof(LuauUserdataNative), LuauUserdataNative.Tag);
+        var ptr = (LuauUserdataNative*)lua_newuserdatataggedwithmetatable(
+            L,
+            (nuint)sizeof(LuauUserdataNative),
+            LuauUserdataNative.Tag
+        );
         ptr->UserdataHandle = GCHandle.Alloc(userdata, GCHandleType.Normal);
         ptr->RegistryValueHandle = registrationHandle;
 
         // stack: [userdata]
-        LuauNative.lua_getref(L, _identityMapReference); // [userdata, identityMap]
-        LuauNative.lua_pushinteger(L, identity); // [userdata, identityMap, identity]
-        LuauNative.lua_pushvalue(L, -3); // [userdata, identityMap, identity, userdata]
-        LuauNative.lua_settable(L, -3); // [userdata, identityMap]
-        LuauNative.lua_pop(L, 1); // [userdata]
+        lua_getref(L, _identityMapReference); // [userdata, identityMap]
+        lua_pushinteger(L, identity); // [userdata, identityMap, identity]
+        lua_pushvalue(L, -3); // [userdata, identityMap, identity, userdata]
+        lua_settable(L, -3); // [userdata, identityMap]
+        lua_pop(L, 1); // [userdata]
 
-        int reference = LuauNativeMethods.luaL_ref(L, LuauNative.LUA_REGISTRYINDEX);
+        ulong reference = _state.ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauUserdata(_state, reference);
     }
 
     public unsafe void Dispose()
     {
         if (!_state.IsDisposed && _identityMapReference != 0)
-            LuauNative.lua_unref(_state.L, _identityMapReference);
+            lua_unref(_state.L, _identityMapReference);
 
         foreach (GCHandle handle in _registrations.Values)
         {
@@ -179,43 +191,46 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        LuauNative.lua_newtable(L); // cache
-        LuauNative.lua_newtable(L); // metatable
+        lua_newtable(L); // cache
+        lua_newtable(L); // metatable
 
         fixed (byte* pModeName = "__mode\0"u8)
         fixed (byte* pWeakValues = "v"u8)
         {
-            LuauNative.lua_pushlstring(L, pWeakValues, 1);
-            LuauNative.lua_setfield(L, -2, pModeName);
+            lua_pushlstring(L, pWeakValues, 1);
+            lua_setfield(L, -2, pModeName);
         }
 
-        _ = LuauNative.lua_setmetatable(L, -2);
-        return LuauNativeMethods.luaL_ref(L, LuauNative.LUA_REGISTRYINDEX);
+        _ = lua_setmetatable(L, -2);
+        return LuauNativeMethods.luaL_ref(L, LUA_REGISTRYINDEX);
     }
 
-    private unsafe bool TryGetCachedUserdataReference(lua_State* L, int identity, out int reference)
+    private unsafe bool TryGetCachedUserdataHandle(lua_State* L, int identity, out ulong handle)
     {
-        LuauNative.lua_getref(L, _identityMapReference); // [cache]
-        LuauNative.lua_pushinteger(L, identity); // [cache, identity]
-        _ = LuauNative.lua_gettable(L, -2); // [cache, value]
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        lua_getref(L, _identityMapReference); // [cache]
+        lua_pushinteger(L, identity); // [cache, identity]
+        _ = lua_gettable(L, -2); // [cache, value]
 
-        if ((lua_Type)LuauNative.lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)
+        if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TUSERDATA)
         {
-            reference = 0;
-            LuauNative.lua_pop(L, 2);
+            handle = 0;
+            lua_pop(L, 2);
             return false;
         }
 
-        var native = (LuauUserdataNative*)LuauNative.lua_touserdatatagged(L, -1, LuauUserdataNative.Tag);
+        var native = (LuauUserdataNative*)lua_touserdatatagged(L, -1, LuauUserdataNative.Tag);
         if (native is null || !native->UserdataHandle.IsAllocated)
         {
-            reference = 0;
-            LuauNative.lua_pop(L, 2);
+            handle = 0;
+            lua_pop(L, 2);
             return false;
         }
 
-        reference = LuauNative.lua_ref(L, -1);
-        LuauNative.lua_pop(L, 2);
+        handle = _state.ReferenceTracker.TrackRef(L, -1);
+        lua_pop(L, 2);
         return true;
     }
 
@@ -225,34 +240,34 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             return;
 
         lua_State* L = _state.L;
-        int initialTop = LuauNative.lua_gettop(L);
+        int initialTop = lua_gettop(L);
         try
         {
-            LuauNative.lua_newtable(L);
+            lua_newtable(L);
 
             fixed (byte* pIndexName = "__index\0"u8)
             {
                 _state.PushWrappedCallback(&IndexCallback, pIndexName);
-                LuauNative.lua_setfield(L, -2, pIndexName);
+                lua_setfield(L, -2, pIndexName);
             }
             fixed (byte* pNewIndexName = "__newindex\0"u8)
             {
                 _state.PushWrappedCallback(&NewIndexCallback, pNewIndexName);
-                LuauNative.lua_setfield(L, -2, pNewIndexName);
+                lua_setfield(L, -2, pNewIndexName);
             }
             fixed (byte* pNameCallName = "__namecall\0"u8)
             {
                 _state.PushWrappedCallback(&MethodCallback, pNameCallName);
-                LuauNative.lua_setfield(L, -2, pNameCallName);
+                lua_setfield(L, -2, pNameCallName);
             }
 
-            LuauNative.lua_setuserdatametatable(L, LuauUserdataNative.Tag);
-            LuauNative.lua_setuserdatadtor(L, LuauUserdataNative.Tag, &UserdataDestructor);
+            lua_setuserdatametatable(L, LuauUserdataNative.Tag);
+            lua_setuserdatadtor(L, LuauUserdataNative.Tag, &UserdataDestructor);
             _userdataCallbacksRegistered = true;
         }
         finally
         {
-            LuauNative.lua_settop(L, initialTop);
+            lua_settop(L, initialTop);
         }
     }
 
@@ -325,7 +340,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         userdata = null;
         errorMessage = default;
 
-        var native = (LuauUserdataNative*)LuauNative.lua_touserdatatagged(L, 1, LuauUserdataNative.Tag);
+        var native = (LuauUserdataNative*)lua_touserdatatagged(L, 1, LuauUserdataNative.Tag);
         if (native is null)
         {
             errorMessage = "invalid userdata value"u8;

@@ -3,51 +3,50 @@ using Shouldly;
 
 namespace Darp.Luau.Tests;
 
-public sealed class UserdataIdentityCacheTests
+public sealed class UserdataIdentityCacheTests : IDisposable
 {
+    private readonly LuauState _state = new();
+
     [Fact]
     public void Cache_SameManagedInstance_ShouldReuseIdentity()
     {
-        using var state = new LuauState();
         var value = new ValueUserdata { Value = 11 };
 
-        using LuauUserdata first = state.GetOrCreateUserdata(value);
-        using LuauUserdata second = state.GetOrCreateUserdata(value);
+        using LuauUserdata first = _state.GetOrCreateUserdata(value);
+        using LuauUserdata second = _state.GetOrCreateUserdata(value);
 
-        state.Globals.Set("first", first);
-        state.Globals.Set("second", second);
-        state.DoString("sameIdentity = first == second");
+        _state.Globals.Set("first", first);
+        _state.Globals.Set("second", second);
+        _state.DoString("sameIdentity = first == second");
 
-        state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
+        _state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
         sameIdentity.ShouldBeTrue();
     }
 
     [Fact]
     public void Cache_DifferentManagedInstances_ShouldNotReuseIdentity()
     {
-        using var state = new LuauState();
         var firstValue = new ValueUserdata();
         var secondValue = new ValueUserdata();
 
-        using LuauUserdata first = state.GetOrCreateUserdata(firstValue);
-        using LuauUserdata second = state.GetOrCreateUserdata(secondValue);
+        using LuauUserdata first = _state.GetOrCreateUserdata(firstValue);
+        using LuauUserdata second = _state.GetOrCreateUserdata(secondValue);
 
-        state.Globals.Set("first", first);
-        state.Globals.Set("second", second);
-        state.DoString("sameIdentity = first == second");
+        _state.Globals.Set("first", first);
+        _state.Globals.Set("second", second);
+        _state.DoString("sameIdentity = first == second");
 
-        state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
+        _state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
         sameIdentity.ShouldBeFalse();
     }
 
     [Fact]
     public void Cache_DisposingOneWrapper_ShouldNotInvalidateOtherWrapper()
     {
-        using var state = new LuauState();
         var value = new ValueUserdata { Value = 44 };
 
-        using LuauUserdata first = state.GetOrCreateUserdata(value);
-        using LuauUserdata second = state.GetOrCreateUserdata(value);
+        using LuauUserdata first = _state.GetOrCreateUserdata(value);
+        using LuauUserdata second = _state.GetOrCreateUserdata(value);
 
         first.Dispose();
         second.TryGetManaged(out ValueUserdata? resolved, out string? error).ShouldBeTrue(error);
@@ -57,33 +56,31 @@ public sealed class UserdataIdentityCacheTests
     [Fact]
     public void Cache_StrongLuaReference_ShouldKeepIdentityReusable()
     {
-        using var state = new LuauState();
         var value = new ValueUserdata();
 
-        using LuauUserdata keepAlive = state.GetOrCreateUserdata(value);
-        state.Globals.Set("keepAlive", keepAlive);
+        using LuauUserdata keepAlive = _state.GetOrCreateUserdata(value);
+        _state.Globals.Set("keepAlive", keepAlive);
 
         keepAlive.Dispose();
 
-        using LuauUserdata recreated = state.GetOrCreateUserdata(value);
-        state.Globals.Set("recreated", recreated);
-        state.DoString("sameIdentity = keepAlive == recreated");
+        using LuauUserdata recreated = _state.GetOrCreateUserdata(value);
+        _state.Globals.Set("recreated", recreated);
+        _state.DoString("sameIdentity = keepAlive == recreated");
 
-        state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
+        _state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
         sameIdentity.ShouldBeTrue();
     }
 
     [Fact]
     public void Cache_WhenUserdataCollected_ShouldCreateNewIdentity()
     {
-        using var state = new LuauState();
         var value = new ValueUserdata();
 
-        LuauUserdata oldUserdata = state.GetOrCreateUserdata(value);
-        state.Globals.Set("oldUserdata", oldUserdata);
+        LuauUserdata oldUserdata = _state.GetOrCreateUserdata(value);
+        _state.Globals.Set("oldUserdata", oldUserdata);
         oldUserdata.Dispose();
 
-        state.DoString(
+        _state.DoString(
             """
             weakKeys = setmetatable({}, { __mode = "k" })
             weakKeys[oldUserdata] = true
@@ -96,37 +93,42 @@ public sealed class UserdataIdentityCacheTests
             """
         );
 
-        state.Globals.TryGet("hasCollectGarbage", out bool hasCollectGarbage).ShouldBeTrue();
+        _state.Globals.TryGet("hasCollectGarbage", out bool hasCollectGarbage).ShouldBeTrue();
         if (!hasCollectGarbage)
             return;
 
-        state.Globals.TryGet("oldCollected", out bool oldCollected).ShouldBeTrue();
+        _state.Globals.TryGet("oldCollected", out bool oldCollected).ShouldBeTrue();
         oldCollected.ShouldBeTrue();
 
-        using LuauUserdata newUserdata = state.GetOrCreateUserdata(value);
-        state.Globals.Set("newUserdata", newUserdata);
-        state.DoString("reusedAfterCollect = weakKeys[newUserdata] == true");
+        using LuauUserdata newUserdata = _state.GetOrCreateUserdata(value);
+        _state.Globals.Set("newUserdata", newUserdata);
+        _state.DoString("reusedAfterCollect = weakKeys[newUserdata] == true");
 
-        state.Globals.TryGet("reusedAfterCollect", out bool reusedAfterCollect).ShouldBeTrue();
+        _state.Globals.TryGet("reusedAfterCollect", out bool reusedAfterCollect).ShouldBeTrue();
         reusedAfterCollect.ShouldBeFalse();
     }
 
     [Fact]
     public void Cache_ShouldStayStableUnderRepeatedLookups()
     {
-        using var state = new LuauState();
         var value = new ValueUserdata();
 
-        using LuauUserdata baseline = state.GetOrCreateUserdata(value);
-        state.Globals.Set("baseline", baseline);
+        using LuauUserdata baseline = _state.GetOrCreateUserdata(value);
+        _state.Globals.Set("baseline", baseline);
 
         for (int i = 0; i < 1000; i++)
         {
-            using LuauUserdata current = state.GetOrCreateUserdata(value);
-            state.Globals.Set("current", current);
-            state.DoString("sameIdentity = baseline == current");
-            state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
+            using LuauUserdata current = _state.GetOrCreateUserdata(value);
+            _state.Globals.Set("current", current);
+            _state.DoString("sameIdentity = baseline == current");
+            _state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
             sameIdentity.ShouldBeTrue();
         }
+    }
+
+    public void Dispose()
+    {
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2UL);
+        _state.Dispose();
     }
 }

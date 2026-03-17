@@ -1,129 +1,93 @@
-using System.Diagnostics.CodeAnalysis;
-using Darp.Luau.Native;
+using Darp.Luau.Internal;
 using Darp.Luau.Utils;
-using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-public struct LuauFunction : ILuauReference
+public readonly struct LuauFunction : ILuauReference
 {
-    /// <inheritdoc />
-    public LuauState? State { get; }
+    private readonly LuauState? _state;
+    private readonly ulong _handle;
 
-    /// <inheritdoc />
-    public int Reference { get; private set; }
+    /// <inheritdoc/>
+    public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
     /// <summary> Do (not) initialize a new LuauFunction </summary>
     [Obsolete("Do not initialize the LuauFunction. Create using the LuauState instead", false)]
-    public LuauFunction() => State = null;
+    public LuauFunction() { }
 
-    internal LuauFunction(LuauState? state, int reference) => (State, Reference) = (state, reference);
+    internal LuauFunction(LuauState? state, ulong handle)
+    {
+        _state = state;
+        _handle = handle;
+    }
 
-    public readonly unsafe TR Call<TR>()
+    /// <summary> Invokes the borrowed function with no arguments and converts the result. </summary>
+    /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
+    /// <returns>The converted return value.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
+    /// <exception cref="InvalidCastException">
+    /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
+    /// </exception>
+    public TR Invoke<TR>()
         where TR : allows ref struct
     {
-        ThrowIfDisposed();
-        lua_State* L = State.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        lua_getref(L, Reference);
-
-        int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
-        int status = lua_pcall(L, nargs: 0, nresults, 0);
-        LuaException.ThrowIfNotOk(L, status, "lua_pcall");
-
-        if (nresults == 0)
-            return default!;
-
-        var luaReturn = LuauValue.ToValue(State);
-        lua_pop(L, 1);
-        if (luaReturn.TryGet(out TR? result, acceptNil: true))
-            return result;
-
-        throw new InvalidCastException(
-            $"Could not convert Lua return value of type '{luaReturn.Type}' to '{typeof(TR).FullName}'."
+        return LuauFunctionInvokeCore.Invoke0<RegistryReferenceTracker.TrackedReference, TR>(
+            _state.GetTrackedReferenceOrThrow(_handle)
         );
     }
 
-    public readonly unsafe TR Call<TR>(IntoLuau p1)
+    /// <summary> Invokes the borrowed function with one argument and converts the result. </summary>
+    /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
+    /// <param name="p1">First argument passed to the Luau function.</param>
+    /// <returns>The converted return value.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
+    /// <exception cref="InvalidCastException">
+    /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
+    /// </exception>
+    public TR Invoke<TR>(scoped in IntoLuau p1)
         where TR : allows ref struct
     {
-        ThrowIfDisposed();
-        lua_State* L = State.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        lua_getref(L, Reference);
-
-        p1.Push(State);
-
-        int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
-        int status = lua_pcall(L, nargs: 1, nresults, 0);
-        LuaException.ThrowIfNotOk(L, status, "lua_pcall");
-
-        if (nresults == 0)
-            return default!;
-
-        var luaReturn = LuauValue.ToValue(State);
-        lua_pop(L, 1);
-        if (luaReturn.TryGet(out TR? result, acceptNil: true))
-            return result;
-
-        throw new InvalidCastException(
-            $"Could not convert Lua return value of type '{luaReturn.Type}' to '{typeof(TR).FullName}'."
+        return LuauFunctionInvokeCore.Invoke1<RegistryReferenceTracker.TrackedReference, TR>(
+            _state.GetTrackedReferenceOrThrow(_handle),
+            p1
         );
     }
 
-    public readonly unsafe TR Call<TR>(IntoLuau p1, IntoLuau p2)
+    /// <summary> Invokes the borrowed function with two arguments and converts the result. </summary>
+    /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
+    /// <param name="p1">First argument passed to the Luau function.</param>
+    /// <param name="p2">Second argument passed to the Luau function.</param>
+    /// <returns>The converted return value.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
+    /// <exception cref="InvalidCastException">
+    /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
+    /// </exception>
+    public TR Invoke<TR>(scoped in IntoLuau p1, scoped in IntoLuau p2)
         where TR : allows ref struct
     {
-        ThrowIfDisposed();
-        lua_State* L = State.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-
-        lua_getref(L, Reference);
-        p1.Push(State);
-        p2.Push(State);
-
-        int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
-        int status = lua_pcall(L, nargs: 2, nresults, 0);
-        LuaException.ThrowIfNotOk(L, status, "lua_pcall");
-
-        if (nresults == 0)
-            return default!;
-
-        var luaReturn = LuauValue.ToValue(State);
-        lua_pop(L, 1);
-        if (luaReturn.TryGet(out TR? result, acceptNil: true))
-            return result;
-
-        throw new InvalidCastException(
-            $"Could not convert Lua return value of type '{luaReturn.Type}' to '{typeof(TR).FullName}'."
+        return LuauFunctionInvokeCore.Invoke2<RegistryReferenceTracker.TrackedReference, TR>(
+            _state.GetTrackedReferenceOrThrow(_handle),
+            p1,
+            p2
         );
     }
 
-    public static implicit operator IntoLuau(LuauFunction value) => (LuauValue)value;
+    /// <summary>
+    /// Converts this function to an <see cref="IntoLuau"/> value without creating an owned reference.
+    /// </summary>
+    /// <param name="value">The borrowed function view.</param>
+    /// <returns>A temporary representation with the same callback-frame lifetime constraints.</returns>
+    public static implicit operator IntoLuau(LuauFunction value) => IntoLuau.Borrow(value._state, value._handle);
+
+    /// <inheritdoc/>
+    public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Function);
 
     /// <inheritdoc />
-    public override readonly string ToString() => State is null ? "<nil>" : Helpers.RefToString(State, Reference);
+    public override string ToString() => Helpers.HandleToString(_state, _handle);
 
     /// <summary> Remove the reference from the lua state </summary>
-    public unsafe void Dispose()
-    {
-        if (State is null || Reference is 0)
-            return;
-        lua_unref(State.L, Reference);
-        Reference = 0;
-    }
-
-    [MemberNotNull(nameof(State))]
-    private readonly void ThrowIfDisposed()
-    {
-        State.ThrowIfDisposed();
-        if (Reference is 0)
-            throw new ObjectDisposedException(nameof(LuauTable), "The reference to the LuauTable is invalid");
-    }
+    public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
 }

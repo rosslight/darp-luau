@@ -16,12 +16,6 @@ public readonly unsafe ref partial struct LuauArgs
     /// <summary> Gets the number of arguments supplied by the Lua caller. </summary>
     public int ArgumentCount { get; }
 
-    /// <summary> Initializes a new argument view that starts at stack index <c>1</c>. </summary>
-    /// <param name="state">Owning Lua state.</param>
-    /// <param name="argumentCount">Number of arguments available in this call frame.</param>
-    internal LuauArgs(LuauState state, int argumentCount)
-        : this(state, argumentCount, firstParameterStackIndex: 1) { }
-
     /// <summary>
     /// Initializes a new argument view over a specific call-frame window.
     /// </summary>
@@ -323,112 +317,120 @@ public readonly unsafe ref partial struct LuauArgs
     }
 
     /// <summary>
-    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauTable"/>.
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauTableView"/>.
     /// </summary>
     /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
-    /// <param name="value">Receives a referenced <see cref="LuauTable"/> when successful.</param>
+    /// <param name="value">Receives a borrowed <see cref="LuauTableView"/> when successful.</param>
     /// <param name="error">Receives a descriptive error when the read fails.</param>
     /// <returns>
     /// <c>true</c> when the parameter exists and has type <see cref="lua_Type.LUA_TTABLE"/>; otherwise <c>false</c>.
     /// </returns>
-    public bool TryReadLuauTable(int parameterIndex, out LuauTable value, [NotNullWhen(false)] out string? error)
+    public bool TryReadLuauTable(int parameterIndex, out LuauTableView value, [NotNullWhen(false)] out string? error)
     {
         value = default;
+        _state.ThrowIfDisposed();
         if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TTABLE, out error))
             return false;
 
-        int reference = lua_ref(L, stackIndex);
-        value = new LuauTable(_state, reference);
+        value = new LuauTableView(_state, stackIndex);
         return true;
     }
 
     /// <summary>
-    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauFunction"/>.
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauFunctionView"/>.
     /// </summary>
     /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
-    /// <param name="value">Receives a referenced <see cref="LuauFunction"/> when successful.</param>
+    /// <param name="value">Receives a borrowed <see cref="LuauFunctionView"/> when successful.</param>
     /// <param name="error">Receives a descriptive error when the read fails.</param>
     /// <returns>
     /// <c>true</c> when the parameter exists and has type <see cref="lua_Type.LUA_TFUNCTION"/>; otherwise <c>false</c>.
     /// </returns>
-    public bool TryReadLuauFunction(int parameterIndex, out LuauFunction value, [NotNullWhen(false)] out string? error)
+    public bool TryReadLuauFunction(
+        int parameterIndex,
+        out LuauFunctionView value,
+        [NotNullWhen(false)] out string? error
+    )
     {
         value = default;
-        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
+        _state.ThrowIfDisposed();
+        if (!TryGetParameterContext(parameterIndex, out _, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TFUNCTION, out error))
             return false;
 
-        int reference = lua_ref(L, stackIndex);
-        value = new LuauFunction(_state, reference);
+        value = new LuauFunctionView(_state, stackIndex);
         return true;
     }
 
     /// <summary>
-    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauString"/>.
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauStringView"/>.
     /// </summary>
     /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
-    /// <param name="value">Receives a referenced <see cref="LuauString"/> when successful.</param>
+    /// <param name="value">Receives a borrowed <see cref="LuauStringView"/> when successful.</param>
     /// <param name="error">Receives a descriptive error when the read fails.</param>
     /// <returns>
     /// <c>true</c> when the parameter exists and has type <see cref="lua_Type.LUA_TSTRING"/>; otherwise <c>false</c>.
     /// </returns>
-    public bool TryReadLuauString(int parameterIndex, out LuauString value, [NotNullWhen(false)] out string? error)
+    public bool TryReadLuauString(int parameterIndex, out LuauStringView value, [NotNullWhen(false)] out string? error)
     {
         value = default;
-        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
+        _state.ThrowIfDisposed();
+        if (!TryGetParameterContext(parameterIndex, out _, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TSTRING, out error))
             return false;
 
-        int reference = lua_ref(L, stackIndex);
-        value = new LuauString(_state, reference);
+        value = new LuauStringView(_state, stackIndex);
         return true;
     }
 
     /// <summary>
-    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauBuffer"/>.
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauBufferView"/>.
     /// </summary>
     /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
-    /// <param name="value">Receives a referenced <see cref="LuauBuffer"/> when successful.</param>
+    /// <param name="value">Receives a borrowed <see cref="LuauBufferView"/> when successful.</param>
     /// <param name="error">Receives a descriptive error when the read fails.</param>
     /// <returns>
     /// <c>true</c> when the parameter exists and has type <see cref="lua_Type.LUA_TBUFFER"/>; otherwise <c>false</c>.
     /// </returns>
-    public bool TryReadLuauBuffer(int parameterIndex, out LuauBuffer value, [NotNullWhen(false)] out string? error)
+    public bool TryReadLuauBuffer(int parameterIndex, out LuauBufferView value, [NotNullWhen(false)] out string? error)
     {
         value = default;
-        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
+        _state.ThrowIfDisposed();
+        if (!TryGetParameterContext(parameterIndex, out _, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TBUFFER, out error))
             return false;
 
-        int reference = lua_ref(L, stackIndex);
-        value = new LuauBuffer(_state!, reference);
+        value = new LuauBufferView(_state, stackIndex);
         return true;
     }
 
     /// <summary>
-    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauUserdata"/>.
+    /// Attempts to read the parameter at <paramref name="parameterIndex"/> as a <see cref="LuauUserdataView"/>.
     /// </summary>
     /// <param name="parameterIndex">1-based parameter index in the range <c>1..ArgumentCount</c>.</param>
-    /// <param name="value">Receives a referenced <see cref="LuauUserdata"/> when successful.</param>
+    /// <param name="value">Receives a borrowed <see cref="LuauUserdataView"/> when successful.</param>
     /// <param name="error">Receives a descriptive error when the read fails.</param>
     /// <returns>
     /// <c>true</c> when the parameter exists and has type <see cref="lua_Type.LUA_TUSERDATA"/>; otherwise <c>false</c>.
     /// </returns>
-    public bool TryReadLuauUserdata(int parameterIndex, out LuauUserdata value, [NotNullWhen(false)] out string? error)
+    public bool TryReadLuauUserdata(
+        int parameterIndex,
+        out LuauUserdataView value,
+        [NotNullWhen(false)] out string? error
+    )
     {
         value = default;
-        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
+        _state.ThrowIfDisposed();
+        if (!TryGetParameterContext(parameterIndex, out _, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TUSERDATA, out error))
             return false;
 
-        int reference = lua_ref(L, stackIndex);
-        value = new LuauUserdata(_state!, reference);
+        value = new LuauUserdataView(_state, stackIndex);
         return true;
     }
 
@@ -480,7 +482,7 @@ public readonly unsafe ref partial struct LuauArgs
     public bool TryReadUserdataOrNil<T>(int parameterIndex, out T? value, [NotNullWhen(false)] out string? error)
         where T : class, ILuauUserData<T>
     {
-        value = default;
+        value = null;
         if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireTypeOrNil(parameterIndex, type, lua_Type.LUA_TUSERDATA, out bool isNil, out error))
@@ -520,7 +522,7 @@ public readonly unsafe ref partial struct LuauArgs
         error = null;
 
         // Throw exceptions for exceptional state. This should not be able to happen
-        ArgumentOutOfRangeException.ThrowIfLessThan(parameterIndex, 0);
+        ArgumentOutOfRangeException.ThrowIfLessThan(parameterIndex, 1);
         _state.ThrowIfDisposed();
 
         if (parameterIndex > ArgumentCount)
