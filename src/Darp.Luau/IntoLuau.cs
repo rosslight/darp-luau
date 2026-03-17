@@ -87,8 +87,10 @@ public readonly ref struct IntoLuau
 
     internal static IntoLuau Borrow(LuauState? state, ulong handle)
     {
-        if (!state.TryGetTrackedReference(handle, out var reference))
+        if (state is null)
             return default;
+        if (!state.TryGetTrackedReference(handle, out var reference))
+            throw new ObjectDisposedException(nameof(handle), "Tried to access a reference that is no longer tracked.");
         return new IntoLuau(reference);
     }
 
