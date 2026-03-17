@@ -214,8 +214,8 @@ public sealed unsafe class LuauState : IDisposable
     /// Manual callback delegate used by <see cref="CreateFunctionBuilder(LuauFunctionBuilder)"/>.
     /// </summary>
     /// <remarks>
-    /// Use this low-level shape when you need direct access to <see cref="LuauArgs"/>, multiple return values,
-    /// or custom validation and error handling.
+    /// Use this low-level shape when you need direct access to <see cref="LuauArgs"/>,
+    /// custom validation or error handling, or a callback shape that the generator-backed path does not support.
     /// </remarks>
     public delegate LuauReturn LuauFunctionBuilder(LuauArgs args);
 
@@ -226,7 +226,7 @@ public sealed unsafe class LuauState : IDisposable
     /// <returns>The created <see cref="LuauFunction"/>.</returns>
     /// <remarks>
     /// Prefer <see cref="CreateFunction{T}(T)"/> for normal typed delegates.
-    /// Use this method when you need manual argument parsing, multiple return values, or a callback shape that the generator-backed path does not support.
+    /// Use this method when you need manual argument parsing, custom error handling, or a callback shape that the generator-backed path does not support.
     /// </remarks>
     public LuauFunction CreateFunctionBuilder(LuauFunctionBuilder onCalled)
     {
@@ -296,7 +296,7 @@ public sealed unsafe class LuauState : IDisposable
     /// This method must be invoked directly so the generator can intercept the call site and emit a marshalling adapter.
     /// The runtime stub always throws if interception does not happen.
     /// Use <see cref="CreateFunctionBuilder(LuauFunctionBuilder)"/> when you need manual argument handling,
-    /// multiple return values, or a delegate shape that is not supported by the generator.
+    /// custom error handling, or a delegate shape that is not supported by the generator.
     /// </remarks>
     public LuauFunction CreateFunction<T>(T value)
         where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");

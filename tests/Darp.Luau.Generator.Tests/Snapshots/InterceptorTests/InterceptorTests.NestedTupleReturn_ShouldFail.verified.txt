@@ -1,0 +1,23 @@
+{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction(() => ((1, 2), 3));
+                                   ^^^^^^^^^^^
+    }
+*/
+ : (6,35)-(6,46),
+      Message: Return tuple type '((int, int), int)' is not supported: nested tuple element '(int, int)' is not supported,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0005,
+        Title: Unsupported tuple return shape,
+        MessageFormat: Return tuple type '{0}' is not supported: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

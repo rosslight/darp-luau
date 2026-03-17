@@ -39,4 +39,13 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true
     );
+
+    public static readonly DiagnosticDescriptor UnsupportedReturnTupleDescriptor = new(
+        id: "DLUAU0005",
+        title: "Unsupported tuple return shape",
+        messageFormat: "Return tuple type '{0}' is not supported: {1}",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
 }

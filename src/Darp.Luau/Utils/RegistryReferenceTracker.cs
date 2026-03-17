@@ -58,7 +58,7 @@ internal sealed class RegistryReferenceTracker(LuauState state)
     public ulong CountRefOrThrow(ulong handle)
     {
         if (!_trackedReferences.TryGetValue(handle, out TrackedReference? trackedReference))
-            throw new InvalidOperationException("Tried to count a reference that was not tracked.");
+            throw new ObjectDisposedException(nameof(handle), "Tried to access a reference that is no longer tracked.");
 
         // A pinned reference is never released so there is no need to track it multiple times
         if (trackedReference.IsPinned)
