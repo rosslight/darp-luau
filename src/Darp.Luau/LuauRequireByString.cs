@@ -17,7 +17,7 @@ namespace Darp.Luau;
 public static unsafe partial class LuauRequireByString
 {
     /// <summary>require context</summary>
-    public class Context : IDisposable
+    public sealed class Context : IDisposable
     {
         private GCHandle _handle;
 
@@ -30,18 +30,19 @@ public static unsafe partial class LuauRequireByString
 
         public string? LoadError { get; internal set; }
 
+        /// <inheritdoc />
         public void Dispose()
         {
             if (_handle.IsAllocated)
                 _handle.Free();
         }
 
-        public void* ToVoidPtr()
+        internal void* ToVoidPtr()
         {
             return (void*)GCHandle.ToIntPtr(_handle);
         }
 
-        public static Context FromVoidPtr(void* pCtx)
+        internal static Context FromVoidPtr(void* pCtx)
         {
             var gchCtx = GCHandle.FromIntPtr((IntPtr)pCtx);
             return gchCtx.Target as Context ?? throw new ArgumentException("invalid context pointer");

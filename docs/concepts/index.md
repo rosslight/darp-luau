@@ -10,4 +10,4 @@ Start with these three pages:
 - [Type mapping](type-mapping.md)
 - [Limitations and current boundaries](limitations.md)
 
-Then use the feature pages for the concrete APIs built on top of those rules, especially [Strings](../features/strings.md), [Buffers](../features/buffers.md), callbacks, tables, userdata, and libraries.
+Then use the feature pages for the concrete APIs built on top of those rules, especially [Strings](../features/strings.md), [Buffers](../features/buffers.md), callbacks, tables, userdata, libraries, and [Require](../features/require.md).

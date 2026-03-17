@@ -129,17 +129,33 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 });
 ```
 
-`OpenLibrary(...)` registers a global table. It is a convenient way to expose host-provided APIs, but it is not a `require(...)`-style module loader by itself.
+`OpenLibrary(...)` registers a global table. It is a convenient way to expose host-provided APIs, but it is separate from filesystem-backed module loading.
+
+## Enable require
+
+```csharp
+using System.Text;
+
+using LuauRequireByString.Context require = lua.EnableRequire();
+
+string path = Path.GetFullPath("scripts/main.luau");
+lua.DoString(File.ReadAllBytes(path), Encoding.UTF8.GetBytes("@" + path));
+```
+
+`EnableRequire()` installs Luau's file-backed `require(...)` support. Keep the returned context alive while scripts may require modules, and pass an `@`-prefixed chunk name for file entrypoints so relative imports resolve correctly.
 
 ## Ownership and lifetime
 
 - `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, `LuauUserdata`, and reference-backed `LuauValue` are owned references and should be disposed.
 - `LuauTableView`, `LuauFunctionView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, and `LuauArgs` are borrowed callback-scoped values.
 - Reference-backed values belong to one `LuauState`; cross-state usage is invalid.
+- `LuauRequireByString.Context` owns state for `EnableRequire()` and should stay alive for as long as `require(...)` may run.
 
 ## Current boundaries
 
 - `DoString(...)` is the script execution API today. If you want file-based execution, read the file yourself and pass its contents in.
+- `EnableRequire()` provides file-backed `require(...)`, but there is no `DoFile(...)` helper yet.
 - `CreateFunction(...)` is generator-backed and has no runtime fallback.
 - `LuauState` is not thread-safe.
-- A documented module system and higher-level async/thread orchestration are not part of the current surface yet.
+- `require(...)` currently depends on explicit `EnableRequire()` setup, `@`-prefixed chunk names for file entrypoints, single-value module returns, and non-yielding module execution.
+- Higher-level async/thread orchestration is not part of the current surface yet.
