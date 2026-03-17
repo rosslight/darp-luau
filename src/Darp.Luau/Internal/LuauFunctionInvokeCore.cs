@@ -48,6 +48,27 @@ internal static unsafe class LuauFunctionInvokeCore
         return InvokeAfterPush<TR>(state, L, nargs: 2);
     }
 
+    internal static TR Invoke3<T, TR>(
+        scoped in T? source,
+        scoped in IntoLuau p1,
+        scoped in IntoLuau p2,
+        scoped in IntoLuau p3
+    )
+        where T : IReferenceSource, allows ref struct
+        where TR : allows ref struct
+    {
+        LuauState state = source.Validate();
+        lua_State* L = state.L;
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        using var _ = source.PushToTop();
+        p1.Push(state);
+        p2.Push(state);
+        p3.Push(state);
+        return InvokeAfterPush<TR>(state, L, nargs: 3);
+    }
+
     private static TR InvokeAfterPush<TR>(LuauState state, lua_State* L, int nargs)
         where TR : allows ref struct
     {
