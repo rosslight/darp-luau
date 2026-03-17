@@ -92,43 +92,10 @@ internal static class CreateFunctionInterceptorsEmitter
                 return false;
             }
 
-            parameters.Add(new ParameterTypeInfo(luauType, isNullable, originalTypeName));
+            parameters.Add(new ParameterTypeInfo(luauType, isNullable, originalTypeName, null));
         }
-        // Last is return type
-        if (invokeMethod.ReturnType.SpecialType is not SpecialType.System_Void)
-        {
-            Location returnLocation = GetReturnLocation(invocationOperation);
-            const string returnUsageDescription = "the return value";
-
-            if (
-                !TryMapTypeToLuauValueType(
-                    invokeMethod.ReturnType,
-                    returnLocation,
-                    returnUsageDescription,
-                    out LuauValueType returnType,
-                    out bool isReturnNullable,
-                    out string? returnOriginalTypeName,
-                    diagnostics
-                )
-            )
-            {
-                return false;
-            }
-
-            if (isReturnNullable && !SupportsNullableParameter(returnType))
-            {
-                var diagnostic = Diagnostic.Create(
-                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
-                    returnLocation,
-                    invokeMethod.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                    returnUsageDescription
-                );
-                diagnostics.Add(diagnostic);
-                return false;
-            }
-
-            returnTypes.Add(new ParameterTypeInfo(returnType, isReturnNullable, returnOriginalTypeName));
-        }
+        if (!TryExtractReturnParameters(invocationOperation, invokeMethod.ReturnType, returnTypes, diagnostics))
+            return false;
 
         signature = new InvocationMethodSignature(parameters.ToImmutableArray(), returnTypes.ToImmutableArray());
         return true;
@@ -358,6 +325,113 @@ internal static class CreateFunctionInterceptorsEmitter
         return delegateExpression.GetLocation();
     }
 
+    private static bool TryExtractReturnParameters(
+        IInvocationOperation invocationOperation,
+        ITypeSymbol returnType,
+        ImmutableArray<ParameterTypeInfo>.Builder returnTypes,
+        List<Diagnostic> diagnostics
+    )
+    {
+        if (returnType.SpecialType is SpecialType.System_Void)
+            return true;
+
+        Location returnLocation = GetReturnLocation(invocationOperation);
+        if (returnType is not INamedTypeSymbol { IsTupleType: true } tupleType)
+            return TryExtractSingleReturnParameter(returnType, returnLocation, "the return value", returnTypes, diagnostics);
+
+        if (tupleType.TupleElements.Length > 4)
+        {
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedReturnTupleDescriptor,
+                    returnLocation,
+                    tupleType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    "only up to 4 tuple return values are supported"
+                )
+            );
+            return false;
+        }
+
+        foreach (IFieldSymbol tupleElement in tupleType.TupleElements)
+        {
+            if (tupleElement.Type is INamedTypeSymbol { IsTupleType: true } nestedTupleType)
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.UnsupportedReturnTupleDescriptor,
+                        returnLocation,
+                        tupleType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                        $"nested tuple element '{nestedTupleType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}' is not supported"
+                    )
+                );
+                return false;
+            }
+
+            string usageDescription = tupleElement.Name is { Length: > 0 }
+                ? $"return tuple element '{tupleElement.Name}'"
+                : "a return tuple element";
+            if (
+                !TryExtractSingleReturnParameter(
+                    tupleElement.Type,
+                    returnLocation,
+                    usageDescription,
+                    returnTypes,
+                    diagnostics,
+                    tupleElement.NullableAnnotation,
+                    tupleElement.Name
+                )
+            )
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryExtractSingleReturnParameter(
+        ITypeSymbol returnType,
+        Location returnLocation,
+        string returnUsageDescription,
+        ImmutableArray<ParameterTypeInfo>.Builder returnTypes,
+        List<Diagnostic> diagnostics,
+        NullableAnnotation? nullableAnnotationOverride = null,
+        string? tupleElementName = null
+    )
+    {
+        if (
+            !TryMapTypeToLuauValueType(
+                returnType,
+                returnLocation,
+                returnUsageDescription,
+                out LuauValueType mappedReturnType,
+                out bool isReturnNullable,
+                out string? returnOriginalTypeName,
+                diagnostics
+            )
+        )
+        {
+            return false;
+        }
+
+        if (nullableAnnotationOverride is NullableAnnotation.Annotated)
+            isReturnNullable = true;
+
+        if (isReturnNullable && !SupportsNullableParameter(mappedReturnType))
+        {
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                    returnLocation,
+                    returnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    returnUsageDescription
+                )
+            );
+            return false;
+        }
+
+        returnTypes.Add(new ParameterTypeInfo(mappedReturnType, isReturnNullable, returnOriginalTypeName, tupleElementName));
+        return true;
+    }
+
     private static string GetTryFunction(LuauValueType type)
     {
         return type switch
@@ -506,36 +580,40 @@ internal static class CreateFunctionInterceptorsEmitter
         writer.WriteLine($"if (!args.TryValidateArgumentCount({signature.Parameters.Length}, out string? error))");
         writer.WriteLine("    return global::Darp.Luau.LuauReturn.Error(error);");
         writer.WriteMultiLine(string.Join("\n", paramExtractions));
-        if (!signature.ReturnParameters.IsEmpty)
-        {
-            writer.WriteLine($"var returns = {callExpression};");
-            if (
-                signature.ReturnParameters[0].Type
-                is LuauValueType.NumberDecimal
-                    or LuauValueType.NumberUInt128
-                    or LuauValueType.NumberInt128
-            )
-            {
-                string type = signature.ReturnParameters[0].IsNullable ? "double?" : "double";
-                writer.WriteLine($"return global::Darp.Luau.LuauReturn.Ok(({type})returns);");
-            }
-            else if (signature.ReturnParameters[0].Type == LuauValueType.Enum)
-            {
-                string type = signature.ReturnParameters[0].IsNullable ? "double?" : "double";
-                writer.WriteLine($"return global::Darp.Luau.LuauReturn.Ok(({type})returns);");
-            }
-            else
-            {
-                writer.WriteLine("return global::Darp.Luau.LuauReturn.Ok(returns);");
-            }
-        }
-        else
+        if (signature.ReturnParameters.IsEmpty)
         {
             writer.WriteLine($"{callExpression};");
             writer.WriteLine("return global::Darp.Luau.LuauReturn.Ok();");
         }
+        else
+        {
+            writer.WriteLine($"var returns = {callExpression};");
+            if (signature.ReturnParameters.Length == 1)
+            {
+                writer.WriteLine(
+                    $"return global::Darp.Luau.LuauReturn.Ok({FormatReturnValueExpression("returns", signature.ReturnParameters[0])});"
+                );
+            }
+            else
+            {
+                writer.WriteLine(
+                    $"return global::Darp.Luau.LuauReturn.Ok({string.Join(", ", signature.ReturnParameters.Select((x, i) => FormatReturnValueExpression($"returns.Item{i + 1}", x)))});"
+                );
+            }
+        }
         writer.Indent--;
         writer.WriteLine("}");
+    }
+
+    private static string FormatReturnValueExpression(string valueExpression, ParameterTypeInfo returnParameter)
+    {
+        return returnParameter.Type switch
+        {
+            LuauValueType.NumberDecimal or LuauValueType.NumberUInt128 or LuauValueType.NumberInt128 =>
+                returnParameter.IsNullable ? $"(double?){valueExpression}" : $"(double){valueExpression}",
+            LuauValueType.Enum => returnParameter.IsNullable ? $"(double?){valueExpression}" : $"(double){valueExpression}",
+            _ => valueExpression,
+        };
     }
 
     public static bool TryEmit(
@@ -668,7 +746,12 @@ internal static class CreateFunctionInterceptorsEmitter
 
 internal readonly record struct InterceptorLocationData(int Version, string Data);
 
-internal readonly record struct ParameterTypeInfo(LuauValueType Type, bool IsNullable, string? OriginalTypeName);
+internal readonly record struct ParameterTypeInfo(
+    LuauValueType Type,
+    bool IsNullable,
+    string? OriginalTypeName,
+    string? TupleElementName
+);
 
 internal readonly record struct InvocationMethodSignature(
     ImmutableArray<ParameterTypeInfo> Parameters,
@@ -697,6 +780,9 @@ internal sealed class InvocationSignatureComparer : IEqualityComparer<Invocation
                 hash =
                     (hash * 31)
                     + (obj.Parameters[i].OriginalTypeName is { } n ? StringComparer.Ordinal.GetHashCode(n) : 0);
+                hash =
+                    (hash * 31)
+                    + (obj.Parameters[i].TupleElementName is { } tn ? StringComparer.Ordinal.GetHashCode(tn) : 0);
             }
 
             // Separator to reduce accidental collisions between params/returns
@@ -711,6 +797,9 @@ internal sealed class InvocationSignatureComparer : IEqualityComparer<Invocation
                 hash =
                     (hash * 31)
                     + (obj.ReturnParameters[i].OriginalTypeName is { } n ? StringComparer.Ordinal.GetHashCode(n) : 0);
+                hash =
+                    (hash * 31)
+                    + (obj.ReturnParameters[i].TupleElementName is { } tn ? StringComparer.Ordinal.GetHashCode(tn) : 0);
             }
 
             return hash;

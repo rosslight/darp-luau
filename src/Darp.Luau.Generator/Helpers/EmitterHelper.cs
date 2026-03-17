@@ -11,6 +11,12 @@ internal static class EmitterHelper
         return GetDotnetType(param.Type, param.IsNullable);
     }
 
+    internal static string GetTupleReturnType(ParameterTypeInfo param, int index)
+    {
+        string type = GetDotnetType(param);
+        return param.TupleElementName is { Length: > 0 } name ? $"{type} {name}" : $"{type} Item{index}";
+    }
+
     internal static string GetDotnetType((LuauValueType Type, bool IsNullable) tuple) =>
         GetDotnetType(tuple.Type, tuple.IsNullable);
 
@@ -61,11 +67,12 @@ internal static class EmitterHelper
             (0, 0) => "global::System.Action",
             (_, 0) => $"global::System.Action<{string.Join(",", parameters.Select(GetDotnetType))}>",
             (0, 1) => $"global::System.Func<{GetDotnetType(returnParameters[0])}>",
-            (0, _) => $"global::System.Func<({string.Join("\n", returnParameters.Select(GetDotnetType))})>",
+            (0, _) =>
+                $"global::System.Func<({string.Join(", ", returnParameters.Select((x, i) => GetTupleReturnType(x, i + 1)))})>",
             (_, 1) =>
                 $"global::System.Func<{string.Join(",", parameters.Select(GetDotnetType))}, {GetDotnetType(returnParameters[0])}>",
             (_, _) =>
-                $"global::System.Func<{string.Join(",", parameters.Select(GetDotnetType))}, ({string.Join("\n", returnParameters.Select(GetDotnetType))})>",
+                $"global::System.Func<{string.Join(",", parameters.Select(GetDotnetType))}, ({string.Join(", ", returnParameters.Select((x, i) => GetTupleReturnType(x, i + 1)))})>",
         };
     }
 }

@@ -337,6 +337,82 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void Func_TwoArgs_Returns()
+    {
+        using LuauFunction f1 = _state.CreateFunction((bool x1, bool x2) => (x1, x2));
+        using LuauFunction f2 = _state.CreateFunction((sbyte x1, sbyte x2) => (x1, x2));
+        using LuauFunction f3 = _state.CreateFunction((byte x1, byte x2) => (x1, x2));
+        using LuauFunction f4 = _state.CreateFunction((short x1, short x2) => (x1, x2));
+        using LuauFunction f5 = _state.CreateFunction((ushort x1, ushort x2) => (x1, x2));
+        using LuauFunction f6 = _state.CreateFunction((int x1, int x2) => (x1, x2));
+        using LuauFunction f7 = _state.CreateFunction((uint x1, uint x2) => (x1, x2));
+        using LuauFunction f8 = _state.CreateFunction((long x1, long x2) => (x1, x2));
+        using LuauFunction f9 = _state.CreateFunction((ulong x1, ulong x2) => (x1, x2));
+        using LuauFunction f10 = _state.CreateFunction((Int128 x1, Int128 x2) => (x1, x2));
+        using LuauFunction f11 = _state.CreateFunction((UInt128 x1, UInt128 x2) => (x1, x2));
+        using LuauFunction f12 = _state.CreateFunction((string x1, string x2) => (x1, x2));
+        using LuauFunction f13 = _state.CreateFunction((Half x1, Half x2) => (x1, x2));
+        using LuauFunction f14 = _state.CreateFunction((float x1, float x2) => (x1, x2));
+        using LuauFunction f15 = _state.CreateFunction((double x1, double x2) => (x1, x2));
+        using LuauFunction f16 = _state.CreateFunction((decimal x1, decimal x2) => (x1, x2));
+
+        f1.Invoke<bool, bool>(true, false).ShouldBe((true, false));
+        f2.Invoke<sbyte, sbyte>(1, 2).ShouldBe(((sbyte)1, (sbyte)2));
+        f3.Invoke<byte, byte>(1, 2).ShouldBe(((byte)1, (byte)2));
+        f4.Invoke<short, short>(1, 2).ShouldBe(((short)1, (short)2));
+        f5.Invoke<ushort, ushort>(1, 2).ShouldBe(((ushort)1, (ushort)2));
+        f6.Invoke<int, int>(1, 2).ShouldBe((1, 2));
+        f7.Invoke<uint, uint>(1, 2).ShouldBe(((uint)1, (uint)2));
+        f8.Invoke<long, long>(1, 2).ShouldBe((1L, 2L));
+        f9.Invoke<ulong, ulong>(1, 2).ShouldBe(((ulong)1, (ulong)2));
+        f10.Invoke<Int128, Int128>(1, 2).ShouldBe((1, 2));
+        f11.Invoke<UInt128, UInt128>(1, 2).ShouldBe(((UInt128)1, (UInt128)2));
+        f12.Invoke<string, string>("1", "2").ShouldBe(("1", "2"));
+        f13.Invoke<Half, Half>((Half)1, (Half)2).ShouldBe(((Half)1, (Half)2));
+        f14.Invoke<float, float>(1f, 2f).ShouldBe((1f, 2f));
+        f15.Invoke<double, double>(1d, 2d).ShouldBe((1d, 2d));
+        f16.Invoke<decimal, decimal>(1, 2).ShouldBe((1m, 2m));
+    }
+
+    [Fact]
+    public void Func_TwoArgsNullable_Returns()
+    {
+        using LuauFunction f1 = _state.CreateFunction((bool? x1, bool? x2) => (x1, x2));
+        using LuauFunction f2 = _state.CreateFunction((sbyte? x1, sbyte? x2) => (x1, x2));
+        using LuauFunction f3 = _state.CreateFunction((byte? x1, byte? x2) => (x1, x2));
+        using LuauFunction f4 = _state.CreateFunction((short? x1, short? x2) => (x1, x2));
+        using LuauFunction f5 = _state.CreateFunction((ushort? x1, ushort? x2) => (x1, x2));
+        using LuauFunction f6 = _state.CreateFunction((int? x1, int? x2) => (x1, x2));
+        using LuauFunction f7 = _state.CreateFunction((uint? x1, uint? x2) => (x1, x2));
+        using LuauFunction f8 = _state.CreateFunction((long? x1, long? x2) => (x1, x2));
+        using LuauFunction f9 = _state.CreateFunction((ulong? x1, ulong? x2) => (x1, x2));
+        using LuauFunction f10 = _state.CreateFunction((Int128? x1, Int128? x2) => (x1, x2));
+        using LuauFunction f11 = _state.CreateFunction((UInt128? x1, UInt128? x2) => (x1, x2));
+        using LuauFunction f12 = _state.CreateFunction((string? x1, string? x2) => (x1, x2));
+        using LuauFunction f13 = _state.CreateFunction((Half? x1, Half? x2) => (x1, x2));
+        using LuauFunction f14 = _state.CreateFunction((float? x1, float? x2) => (x1, x2));
+        using LuauFunction f15 = _state.CreateFunction((double? x1, double? x2) => (x1, x2));
+        using LuauFunction f16 = _state.CreateFunction((decimal? x1, decimal? x2) => (x1, x2));
+
+        f1.Invoke<bool?, bool?>((bool?)null, (bool?)null).ShouldBe((null, null));
+        f2.Invoke<sbyte?, sbyte?>((sbyte?)null, (sbyte?)null).ShouldBe((null, null));
+        f3.Invoke<byte?, byte?>((byte?)null, (byte?)null).ShouldBe((null, null));
+        f4.Invoke<short?, short?>((short?)null, (short?)null).ShouldBe((null, null));
+        f5.Invoke<ushort?, ushort?>((ushort?)null, (ushort?)null).ShouldBe((null, null));
+        f6.Invoke<int?, int?>((int?)null, (int?)null).ShouldBe((null, null));
+        f7.Invoke<uint?, uint?>((uint?)null, (uint?)null).ShouldBe((null, null));
+        f8.Invoke<long?, long?>((long?)null, (long?)null).ShouldBe((null, null));
+        f9.Invoke<ulong?, ulong?>((ulong?)null, (ulong?)null).ShouldBe((null, null));
+        f10.Invoke<Int128?, Int128?>((long?)null, (long?)null).ShouldBe((null, null));
+        f11.Invoke<UInt128?, UInt128?>((long?)null, (long?)null).ShouldBe((null, null));
+        f12.Invoke<string?, string?>((string?)null, (string?)null).ShouldBe((null, null));
+        f13.Invoke<Half?, Half?>((Half?)null, (Half?)null).ShouldBe((null, null));
+        f14.Invoke<float?, float?>((float?)null, (float?)null).ShouldBe((null, null));
+        f15.Invoke<double?, double?>((double?)null, (double?)null).ShouldBe((null, null));
+        f16.Invoke<decimal?, decimal?>((double?)null, (double?)null).ShouldBe((null, null));
+    }
+
+    [Fact]
     public void Func_NoArgs_Returns_ULong()
     {
         const ulong expectedValue = 1;

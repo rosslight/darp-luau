@@ -171,6 +171,58 @@ public class InterceptorTests
     }
 
     [Fact]
+    public async Task TupleReturnParameters()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((int x1, int x2) => (x1, x2));
+                    state.CreateFunction((decimal x1, decimal x2) => (x1, x2));
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
+    public async Task NestedTupleReturn_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(() => ((1, 2), 3));
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
+    public async Task TooManyTupleReturns_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(() => (1, 2, 3, 4, 5));
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
     public async Task EnumParameter()
     {
         const string code = """
