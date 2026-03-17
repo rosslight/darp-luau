@@ -1,5 +1,4 @@
-Darp.Luau
-======
+# Darp.Luau
 
 [![Darp.Results](https://img.shields.io/nuget/v/Darp.Luau.svg)](https://www.nuget.org/packages/Darp.Luau)
 [![Downloads](https://img.shields.io/nuget/dt/Darp.Luau)](https://www.nuget.org/packages/Darp.Luau)
@@ -8,11 +7,11 @@ Darp.Luau
 
 `Darp.Luau` is a .NET wrapper around [Luau](https://luau.org/) focused on native AOT compatibility, typed value access, and explicit ownership for Luau-backed references.
 
-## Why an other lua library
+## Why another lua library
 
 - NativeAOT first
 - Typed reads and writes for tables, functions, userdata, strings, and buffers
-- Clear lifetime guarantees both API stability and performance
+- Clear lifetime guarantees both stability and performance
 - Simple API through source-generated interceptors
 - Custom libraries and managed userdata
 
@@ -55,7 +54,7 @@ using LuauFunction pair = lua.Globals.GetLuauFunction("pair");
 (int total, int delta) = pair.Invoke<int, int>(20, 4);
 ```
 
-`Invoke<TR>(...)` converts a single Luau return value to the managed type you ask for and ignores extras. Use `Invoke<TR1, TR2>(...)` or `Invoke<TR1, TR2, TR3>(...)` for typed multi-return calls, and `InvokeMulti(...)` for raw `LuauValue[]` access. The current argument buffer accepts up to 4 arguments per call.
+`Invoke<TR>(...)` converts a single Luau return value to the managed type you ask for and ignores extras. Use `Invoke<TR1, TR2>(...)`, ... for typed multi-return calls, and `InvokeMulti(...)` for raw `LuauValue[]` access. The current argument buffer accepts up to 4 arguments per call.
 
 ## Expose managed callbacks
 

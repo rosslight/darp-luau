@@ -17,7 +17,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
 
     internal LuauFunctionView(LuauState state, int stackIndex) => _reference = new StackReference(state, stackIndex);
 
-    /// <summary> Invokes the borrowed function with no arguments and ignores any return values. </summary>
+    /// <summary> Invokes the borrowed function with arguments and ignores any return values. </summary>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
     public void Invoke(params RefEnumerable<IntoLuau> args) => LuauFunctionInvokeCore.Invoke(_reference, args);
