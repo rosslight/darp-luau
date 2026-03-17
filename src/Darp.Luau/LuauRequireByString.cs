@@ -16,8 +16,8 @@ namespace Darp.Luau;
 /// </summary>
 public static unsafe partial class LuauRequireByString
 {
-    /// <summary>require context</summary>
-    public sealed class Context : IDisposable
+    /// <summary>internal require context</summary>
+    internal sealed class Context : IDisposable, IRequireContext
     {
         private GCHandle _handle;
 
@@ -51,15 +51,16 @@ public static unsafe partial class LuauRequireByString
 
     /// <summary>Enables require-by-string for LuauState</summary>
     /// <param name="state"></param>
-    public static Context EnableRequire(this LuauState state)
+    public static void EnableRequire(this LuauState state)
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        var ctx = new Context();
+        if (state._requireContext is null)
+        {
+            state._requireContext = new Context();
 
-        luaopen_require(state.L, &InitRequireConfig, ctx.ToVoidPtr());
-
-        return ctx;
+            luaopen_require(state.L, &InitRequireConfig, state._requireContext.ToVoidPtr());
+        }
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]

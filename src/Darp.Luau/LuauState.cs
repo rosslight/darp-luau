@@ -21,6 +21,10 @@ public sealed unsafe class LuauState : IDisposable
     private readonly ulong _callbackWrapperReference;
     private readonly UserdataRegistrationCache _cache;
 
+    internal LuauRequireByString.Context? _requireContext;
+    /// <summary>require-by-string context for state. is created if require-by-string gets enabled</summary>
+    public IRequireContext? RequireContext => _requireContext;
+
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
     [Obsolete("Used for saving delegates used in unmanaged memory to prevent them going out of scope")]
@@ -375,6 +379,8 @@ public sealed unsafe class LuauState : IDisposable
             return;
         _cache.Dispose();
         ReferenceTracker.ReleaseAll();
+        _requireContext?.Dispose();
+        _requireContext = null;
         lua_close(L);
 #pragma warning disable CS0618 // Type or member is obsolete -> This is the place we want to clear the delegates
         _delegateSave.Clear();
