@@ -109,10 +109,13 @@ Register managed callbacks with `CreateFunction(...)` and store the resulting `L
 using LuauFunction log = lua.CreateFunction((string message) => Console.WriteLine(message));
 lua.Globals.Set("log", log);
 
+using LuauFunction pair = lua.CreateFunction((int a, int b) => (a + b, a - b));
+lua.Globals.Set("pair", pair);
+
 lua.DoString("""log("hello from luau")""");
 ```
 
-Use `CreateFunction(...)` for supported fixed signatures. If you need manual argument parsing, multiple return values, or custom error shaping, use `CreateFunctionBuilder(...)`. See [Functions](features/functions.md).
+Use `CreateFunction(...)` for supported fixed signatures, including supported top-level tuple returns. If you need manual argument parsing, unsupported callback shapes, or custom error shaping, use `CreateFunctionBuilder(...)`. See [Functions](features/functions.md).
 
 ## Expose userdata
 

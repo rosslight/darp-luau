@@ -30,13 +30,14 @@ public readonly struct LuauFunction : ILuauReference
     public void Invoke(params RefEnumerable<IntoLuau> args) =>
         LuauFunctionInvokeCore.Invoke(_state.GetTrackedReferenceOrThrow(_handle), args);
 
-    /// <summary> Invokes the referenced function and converts the return values. </summary>
+    /// <summary> Invokes the referenced function and converts the first return value. </summary>
     /// <param name="args">The arguments passed to the Luau function.</param>
     /// <typeparam name="TR">Managed return type to convert to.</typeparam>
+    /// <returns> One single return value (additional values will be ignored) </returns>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
     /// <exception cref="InvalidCastException">
-    /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
+    /// Thrown when the first Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
     public TR Invoke<TR>(params RefEnumerable<IntoLuau> args)
     {
@@ -47,14 +48,15 @@ public readonly struct LuauFunction : ILuauReference
         );
     }
 
-    /// <summary> Invokes the referenced function and converts the return values. </summary>
+    /// <summary> Invokes the referenced function and converts the first two return values. </summary>
     /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <returns> Two return values (additional values will be ignored) </returns>
     /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
     /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
     /// <exception cref="InvalidCastException">
-    /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR1"/> or <typeparamref name="TR2"/>.
+    /// Thrown when the Luau return values cannot be converted to <typeparamref name="TR1"/> or <typeparamref name="TR2"/>.
     /// </exception>
     public (TR1, TR2) Invoke<TR1, TR2>(params RefEnumerable<IntoLuau> args)
     {
@@ -65,15 +67,16 @@ public readonly struct LuauFunction : ILuauReference
         );
     }
 
-    /// <summary> Invokes the referenced function and converts the return values. </summary>
+    /// <summary> Invokes the referenced function and converts the first three return values. </summary>
     /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <returns> Three return values (additional values will be ignored) </returns>
     /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
     /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
     /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
     /// <exception cref="InvalidCastException">
-    /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR1"/> or <typeparamref name="TR2"/> or <typeparamref name="TR3"/>.
+    /// Thrown when the Luau return values cannot be converted to <typeparamref name="TR1"/>, <typeparamref name="TR2"/>, or <typeparamref name="TR3"/>.
     /// </exception>
     public (TR1, TR2, TR3) Invoke<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args)
     {
@@ -84,8 +87,9 @@ public readonly struct LuauFunction : ILuauReference
         );
     }
 
-    /// <summary> Invokes the referenced function and converts the return values. </summary>
+    /// <summary> Invokes the referenced function and returns all Luau return values as raw <see cref="LuauValue"/> instances. </summary>
     /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <returns> Multiple return values (additional values will be ignored) </returns>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
     public LuauValue[] InvokeMulti(params RefEnumerable<IntoLuau> args)
