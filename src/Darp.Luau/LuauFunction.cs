@@ -23,111 +23,89 @@ public readonly struct LuauFunction : ILuauReference
         _handle = handle;
     }
 
-    /// <summary> Invokes the referenced function with no arguments and converts the first return value. </summary>
-    /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
-    /// <returns>The converted return value.</returns>
+    /// <summary> Invokes the referenced function and ignores any return values. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
+    /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
+    public void Invoke(params RefEnumerable<IntoLuau> args) =>
+        LuauFunctionInvokeCore.Invoke(_state.GetTrackedReferenceOrThrow(_handle), args);
+
+    /// <summary> Invokes the referenced function and converts the return values. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <typeparam name="TR">Managed return type to convert to.</typeparam>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
     /// <exception cref="InvalidCastException">
-    /// Thrown when the first Luau return value cannot be converted to <typeparamref name="TR"/>.
+    /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR"/>.
     /// </exception>
-    public TR Invoke<TR>()
-        where TR : allows ref struct
+    public TR Invoke<TR>(params RefEnumerable<IntoLuau> args)
     {
-        return LuauFunctionInvokeCore.Invoke0<RegistryReferenceTracker.TrackedReference, TR>(
-            _state.GetTrackedReferenceOrThrow(_handle)
-        );
-    }
-
-    /// <summary> Invokes the referenced function with no arguments and ignores any return values. </summary>
-    /// <returns>The converted return value.</returns>
-    /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
-    /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
-    public void Invoke() => Invoke<LuauNil>();
-
-    /// <summary> Invokes the referenced function with one argument and converts the first return value. </summary>
-    /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
-    /// <param name="p1">First argument passed to the Luau function.</param>
-    /// <returns>The converted return value.</returns>
-    /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
-    /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
-    /// <exception cref="InvalidCastException">
-    /// Thrown when the first Luau return value cannot be converted to <typeparamref name="TR"/>.
-    /// </exception>
-    public TR Invoke<TR>(scoped in IntoLuau p1)
-        where TR : allows ref struct
-    {
-        return LuauFunctionInvokeCore.Invoke1<RegistryReferenceTracker.TrackedReference, TR>(
+        return LuauFunctionInvokeCore.Invoke(
             _state.GetTrackedReferenceOrThrow(_handle),
-            p1
+            args,
+            static a => a.Read<TR>(1)
         );
     }
 
-    /// <summary> Invokes the referenced function with one argument and ignores any return values. </summary>
-    /// <param name="p1">First argument passed to the Luau function.</param>
-    /// <returns>The converted return value.</returns>
-    /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
-    /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
-    public void Invoke(in IntoLuau p1) => Invoke<LuauNil>(p1);
-
-    /// <summary> Invokes the referenced function with two arguments and converts the first return value. </summary>
-    /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
-    /// <param name="p1">First argument passed to the Luau function.</param>
-    /// <param name="p2">Second argument passed to the Luau function.</param>
-    /// <returns>The converted return value.</returns>
+    /// <summary> Invokes the referenced function and converts the return values. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
     /// <exception cref="InvalidCastException">
-    /// Thrown when the first Luau return value cannot be converted to <typeparamref name="TR"/>.
+    /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR1"/> or <typeparamref name="TR2"/>.
     /// </exception>
-    public TR Invoke<TR>(scoped in IntoLuau p1, scoped in IntoLuau p2)
-        where TR : allows ref struct
+    public (TR1, TR2) Invoke<TR1, TR2>(params RefEnumerable<IntoLuau> args)
     {
-        return LuauFunctionInvokeCore.Invoke2<RegistryReferenceTracker.TrackedReference, TR>(
+        return LuauFunctionInvokeCore.Invoke(
             _state.GetTrackedReferenceOrThrow(_handle),
-            p1,
-            p2
+            args,
+            static a => (a.Read<TR1>(1), a.Read<TR2>(2))
         );
     }
 
-    /// <summary> Invokes the referenced function with two arguments and ignores any return values. </summary>
-    /// <param name="p1">First argument passed to the Luau function.</param>
-    /// <param name="p2">Second argument passed to the Luau function.</param>
-    /// <returns>The converted return value.</returns>
-    /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
-    /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
-    public void Invoke(in IntoLuau p1, in IntoLuau p2) => Invoke<LuauNil>(p1, p2);
-
-    /// <summary> Invokes the referenced function with three arguments and converts the first return value. </summary>
-    /// <typeparam name="TR">Managed return type to convert to. Use <see cref="LuauNil"/> for no return value.</typeparam>
-    /// <param name="p1">First argument passed to the Luau function.</param>
-    /// <param name="p2">Second argument passed to the Luau function.</param>
-    /// <param name="p3">Third argument passed to the Luau function.</param>
-    /// <returns>The converted return value.</returns>
+    /// <summary> Invokes the referenced function and converts the return values. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
+    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
+    /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
     /// <exception cref="InvalidCastException">
-    /// Thrown when the first Luau return value cannot be converted to <typeparamref name="TR"/>.
+    /// Thrown when the Luau return value cannot be converted to <typeparamref name="TR1"/> or <typeparamref name="TR2"/> or <typeparamref name="TR3"/>.
     /// </exception>
-    public TR Invoke<TR>(scoped in IntoLuau p1, scoped in IntoLuau p2, scoped in IntoLuau p3)
-        where TR : allows ref struct
+    public (TR1, TR2, TR3) Invoke<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args)
     {
-        return LuauFunctionInvokeCore.Invoke3<RegistryReferenceTracker.TrackedReference, TR>(
+        return LuauFunctionInvokeCore.Invoke(
             _state.GetTrackedReferenceOrThrow(_handle),
-            p1,
-            p2,
-            p3
+            args,
+            static a => (a.Read<TR1>(1), a.Read<TR2>(2), a.Read<TR3>(3))
         );
     }
 
-    /// <summary> Invokes the referenced function with three arguments and ignores any return values. </summary>
-    /// <param name="p1">First argument passed to the Luau function.</param>
-    /// <param name="p2">Second argument passed to the Luau function.</param>
-    /// <param name="p3">Third argument passed to the Luau function.</param>
-    /// <returns>The converted return value.</returns>
+    /// <summary> Invokes the referenced function and converts the return values. </summary>
+    /// <param name="args">The arguments passed to the Luau function.</param>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
-    public void Invoke(in IntoLuau p1, in IntoLuau p2, in IntoLuau p3) => Invoke<LuauNil>(p1, p2, p3);
+    public LuauValue[] InvokeMulti(params RefEnumerable<IntoLuau> args)
+    {
+        return LuauFunctionInvokeCore.Invoke(
+            _state.GetTrackedReferenceOrThrow(_handle),
+            args,
+            static a =>
+            {
+                var values = new LuauValue[a.ArgumentCount];
+                for (int i = 1; i <= values.Length; i++)
+                {
+                    if (!a.TryReadLuauValue(i, out LuauValue value, out string? error))
+                        throw new ArgumentOutOfRangeException(nameof(args), error);
+                    values[i - 1] = value;
+                }
+                return values;
+            }
+        );
+    }
 
     /// <summary>
     /// Converts this function to an <see cref="IntoLuau"/> value without creating another tracked reference.

@@ -1,3 +1,6 @@
+using System.Collections;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Shouldly;
 
 namespace Darp.Luau.Tests;
@@ -162,6 +165,61 @@ public sealed class FunctionTests : IDisposable
 
         _state.Globals.TryGet("returnCount", out int returnCount).ShouldBeTrue();
         returnCount.ShouldBe(2);
+    }
+
+    [Fact]
+    public void Invoke_ScalarReturn_ShouldIgnoreAdditionalReturnValues()
+    {
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, 11));
+
+        func.Invoke<int>().ShouldBe(10);
+    }
+
+    [Fact]
+    public void Invoke_TupleReturn_ShouldReadMultipleReturnValues()
+    {
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, "hello", true));
+
+        (int number, string? text, bool flag) = func.Invoke<int, string?, bool>();
+
+        number.ShouldBe(10);
+        text.ShouldBe("hello");
+        flag.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Invoke_TupleReturn_WithOwnedReference_ShouldCloneReferenceOwnership()
+    {
+        using LuauFunction func = _state.CreateFunctionBuilder(args =>
+        {
+            if (!args.TryValidateArgumentCount(0, out string? error))
+                return LuauReturn.Error(error);
+
+            using LuauTable table = _state.CreateTable();
+            table.Set("value", 42);
+            return LuauReturn.Ok(table, 5);
+        });
+
+        ulong baselineActiveReferences = _state.MemoryStatistics.ActiveRegistryReferences;
+
+        (LuauTable table, int count) = func.Invoke<LuauTable, int>();
+        using (table)
+        {
+            count.ShouldBe(5);
+            table.GetNumber("value").ShouldBe(42);
+        }
+
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(baselineActiveReferences);
+    }
+
+    [Fact]
+    public void Invoke_TupleReturn_ShouldIgnoreAdditionalReturnValues()
+    {
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, 11, 12));
+
+        (byte first, short second) = func.Invoke<byte, short>();
+        first.ShouldBe<byte>(10);
+        second.ShouldBe<short>(11);
     }
 
     [Fact]
@@ -541,6 +599,33 @@ public sealed class FunctionTests : IDisposable
         _state.DoString("result = call_and_read(make_table)");
 
         _state.Globals.GetNumber("result").ShouldBe(99);
+    }
+
+    [Fact]
+    public void LuauFunctionView_Invoke_TupleReturn_ShouldWorkInsideManagedCallback()
+    {
+        _state.DoString(
+            """
+            function make_pair()
+              return 7, "value"
+            end
+            """
+        );
+
+        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
+                return LuauReturn.Error(error);
+
+            (int number, string? text) = function.Invoke<int, string?>();
+            return LuauReturn.Ok($"{number}:{text}");
+        });
+
+        _state.Globals.Set("call_and_read", callAndRead);
+        _state.DoString("result = call_and_read(make_pair)");
+
+        _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
+        result.ShouldBe("7:value");
     }
 
     [Fact]

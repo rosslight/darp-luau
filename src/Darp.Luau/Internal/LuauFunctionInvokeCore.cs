@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -6,85 +7,75 @@ namespace Darp.Luau.Internal;
 
 internal static unsafe class LuauFunctionInvokeCore
 {
-    internal static TR Invoke0<T, TR>(scoped in T? source)
+    private const int LuaMultRet = -1;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void Invoke<T>(scoped in T? source, scoped in RefEnumerable<IntoLuau> args)
         where T : IReferenceSource, allows ref struct
-        where TR : allows ref struct
     {
         LuauState state = source.Validate();
         lua_State* L = state.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        using var _ = source.PushToTop();
-        return InvokeAfterPush<TR>(state, L, nargs: 0);
+        int topBeforeInvoke = lua_gettop(L);
+        try
+        {
+            source.PushToTop();
+            int length = args.Length;
+            for (int i = 0; i < length; i++)
+                args[i].Push(state);
+
+            int status = lua_pcall(L, length, 0, 0);
+            LuaException.ThrowIfNotOk(L, status, "lua_pcall");
+        }
+        finally
+        {
+            lua_settop(L, topBeforeInvoke);
+        }
     }
 
-    internal static TR Invoke1<T, TR>(scoped in T? source, scoped in IntoLuau p1)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static TR Invoke<T, TR>(scoped in T? source, scoped in RefEnumerable<IntoLuau> args, Func<LuauArgs, TR> func)
         where T : IReferenceSource, allows ref struct
-        where TR : allows ref struct
     {
         LuauState state = source.Validate();
         lua_State* L = state.L;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        using var _ = source.PushToTop();
-        p1.Push(state);
-        return InvokeAfterPush<TR>(state, L, nargs: 1);
+        int topBeforeInvoke = lua_gettop(L);
+        try
+        {
+            source.PushToTop();
+            int nArgs = args.Length;
+            for (int i = 0; i < nArgs; i++)
+                args[i].Push(state);
+
+            int status = lua_pcall(L, nArgs, LuaMultRet, 0);
+            LuaException.ThrowIfNotOk(L, status, "lua_pcall");
+            var result = new LuauArgs(state, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
+            return func(result);
+        }
+        finally
+        {
+            lua_settop(L, topBeforeInvoke);
+        }
     }
 
-    internal static TR Invoke2<T, TR>(scoped in T? source, scoped in IntoLuau p1, scoped in IntoLuau p2)
-        where T : IReferenceSource, allows ref struct
-        where TR : allows ref struct
+    public static T Read<T>(this in LuauArgs args, int index)
     {
-        LuauState state = source.Validate();
-        lua_State* L = state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        using var _ = source.PushToTop();
-        p1.Push(state);
-        p2.Push(state);
-        return InvokeAfterPush<TR>(state, L, nargs: 2);
-    }
-
-    internal static TR Invoke3<T, TR>(
-        scoped in T? source,
-        scoped in IntoLuau p1,
-        scoped in IntoLuau p2,
-        scoped in IntoLuau p3
-    )
-        where T : IReferenceSource, allows ref struct
-        where TR : allows ref struct
-    {
-        LuauState state = source.Validate();
-        lua_State* L = state.L;
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        using var _ = source.PushToTop();
-        p1.Push(state);
-        p2.Push(state);
-        p3.Push(state);
-        return InvokeAfterPush<TR>(state, L, nargs: 3);
-    }
-
-    private static TR InvokeAfterPush<TR>(LuauState state, lua_State* L, int nargs)
-        where TR : allows ref struct
-    {
-        int nresults = typeof(TR) == typeof(LuauNil) ? 0 : 1;
-        int status = lua_pcall(L, nargs, nresults, 0);
-        LuaException.ThrowIfNotOk(L, status, "lua_pcall");
-
-        if (nresults == 0)
-            return default!;
-
-        using var luaReturn = LuauValue.ToValue(state);
-        if (luaReturn.TryGet(out TR? result, acceptNil: true))
-            return result;
-
-        throw new InvalidCastException(
-            $"Could not convert Lua return value of type '{luaReturn.Type}' to '{typeof(TR).FullName}'."
-        );
+        if (!args.TryReadLuauValue(index, out LuauValue value, out string? error))
+            throw new ArgumentOutOfRangeException(nameof(index), error);
+        try
+        {
+            return value.TryGet(out T? result, acceptNil: default(T) is null)
+                ? result
+                : throw new InvalidCastException(error);
+        }
+        finally
+        {
+            value.Dispose();
+        }
     }
 }

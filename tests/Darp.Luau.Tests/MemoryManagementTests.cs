@@ -202,7 +202,7 @@ public sealed class MemoryManagementTests
         using LuauTable tableA = stateA.CreateTable();
         using LuauFunction functionB = stateB.CreateFunctionBuilder(_ => LuauReturn.Ok());
 
-        Should.Throw<InvalidOperationException>(() => functionB.Invoke<LuauNil>(tableA));
+        Should.Throw<InvalidOperationException>(() => functionB.Invoke(tableA));
     }
 
     [Fact]
