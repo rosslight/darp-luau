@@ -138,20 +138,19 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 ```csharp
 using System.Text;
 
-using LuauRequireByString.Context require = lua.EnableRequire();
+lua.EnableRequire();
 
 string path = Path.GetFullPath("scripts/main.luau");
 lua.DoString(File.ReadAllBytes(path), Encoding.UTF8.GetBytes("@" + path));
 ```
 
-`EnableRequire()` installs Luau's file-backed `require(...)` support. Keep the returned context alive while scripts may require modules, and pass an `@`-prefixed chunk name for file entrypoints so relative imports resolve correctly.
+`EnableRequire()` installs Luau's file-backed `require(...)` support. The context is owned by LuauState and disposed automatically. Pass an @-prefixed chunk name for file entrypoints so relative imports resolve correctly.
 
 ## Ownership and lifetime
 
 - `LuauTable`, `LuauFunction`, `LuauString`, `LuauBuffer`, `LuauUserdata`, and reference-backed `LuauValue` are owned references and should be disposed.
 - `LuauTableView`, `LuauFunctionView`, `LuauStringView`, `LuauBufferView`, `LuauUserdataView`, and `LuauArgs` are borrowed callback-scoped values.
 - Reference-backed values belong to one `LuauState`; cross-state usage is invalid.
-- `LuauRequireByString.Context` owns state for `EnableRequire()` and should stay alive for as long as `require(...)` may run.
 
 ## Current boundaries
 

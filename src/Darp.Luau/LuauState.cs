@@ -436,17 +436,24 @@ public sealed unsafe class LuauState : IDisposable
         fixed (byte* pSource = source)
         fixed (byte* pChunkName = chunkName)
         {
-            nuint nResultSize = 0;
-            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &nResultSize);
-            int nLoadStatus = luau_load(L, pChunkName, pByteCode, nResultSize, 0);
-            LuaException.ThrowIfNotOk(L, nLoadStatus, "luau_load");
+            nuint nSizeByteCode = 0;
+            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &nSizeByteCode);
+            try
+            {
+                int nLoadStatus = luau_load(L, pChunkName, pByteCode, nSizeByteCode, 0);
+                LuaException.ThrowIfNotOk(L, nLoadStatus, "luau_load");
 
-            int iStackBefore = lua_absindex(L, lua_gettop(L));
+                int iStackBefore = lua_absindex(L, lua_gettop(L));
 
-            int nCallStatus = lua_pcall(L, 0, LUA_MULTRET, 0);
-            LuaException.ThrowIfNotOk(L, nCallStatus, "lua_pcall");
-        
-            nNumRetValues = lua_absindex(L, lua_gettop(L)) - iStackBefore + 1;
+                int nCallStatus = lua_pcall(L, 0, LUA_MULTRET, 0);
+                LuaException.ThrowIfNotOk(L, nCallStatus, "lua_pcall");
+            
+                nNumRetValues = lua_absindex(L, lua_gettop(L)) - iStackBefore + 1;
+            }
+            finally
+            {
+                luau_free(pByteCode);
+            }
         }
 
         if (nNumRetValues == 0)

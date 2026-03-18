@@ -232,10 +232,17 @@ public static unsafe partial class LuauRequireByString
             ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes(strContent);
             fixed (byte* pSource = spanSource)
             {
-                nuint nByteCodeSize = 0;
-                byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nByteCodeSize);
-                int nStatus = luau_load(ML, chunkname, pByteCode, nByteCodeSize, 0);
-                bOk = nStatus == 0;
+                nuint nSizeByteCode = 0;
+                byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nSizeByteCode);
+                try
+                {
+                    int nStatus = luau_load(ML, chunkname, pByteCode, nSizeByteCode, 0);
+                    bOk = nStatus == 0;
+                }
+                finally
+                {
+                    luau_free(pByteCode);
+                }
             }
 
             if (bOk)

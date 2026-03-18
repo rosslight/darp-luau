@@ -11,13 +11,13 @@ using System.Text;
 using Darp.Luau;
 
 using var lua = new LuauState();
-using LuauRequireByString.Context require = lua.EnableRequire();
+lua.EnableRequire();
 
 string path = Path.GetFullPath("scripts/main.luau");
 lua.DoString(File.ReadAllBytes(path), Encoding.UTF8.GetBytes("@" + path));
 ```
 
-The returned `LuauRequireByString.Context` must stay alive for as long as scripts may call `require(...)`.
+The require context is owned by `LuauState` and remains available while the state is alive.
 
 ## Entry chunk names
 
@@ -48,7 +48,7 @@ For file-backed entry scripts, pass a chunk name that starts with `@` and points
 
 If module loading fails, the Lua-visible error may be generic in some cases, such as `module must return a single value`.
 
-Check `LuauRequireByString.Context.LoadError` for the loader's detailed message after a failed `require(...)`.
+Check `lua.RequireContext?.LoadError` for the loader's detailed message after a failed `require(...)`.
 
 ## Relationship to `OpenLibrary(...)`
 
