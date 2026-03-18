@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
@@ -6,8 +7,14 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-/// <summary> A reference to a luau table </summary>
-/// <remarks> A view of the table  </remarks>
+/// <summary>
+/// Represents an owned Luau table reference stored in the registry.
+/// </summary>
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
+)]
 public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
 {
     private readonly LuauState? _state;
@@ -16,7 +23,9 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
     /// <inheritdoc/>
     public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
-    /// <summary> Do (not) initialize a new LuauTable </summary>
+    /// <summary>
+    /// Do not initialize directly. Create tables through <see cref="LuauState"/> APIs.
+    /// </summary>
     [Obsolete("Do not initialize the LuauTable. Create using the LuauState instead", true)]
     public LuauTable() { }
 
@@ -57,9 +66,11 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
         return LuauTableAccessCore.ContainsKey(trackedReference, key);
     }
 
-    /// <summary> Ability for <see cref="LuauTable"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
-    /// <param name="value"> The table </param>
-    /// <returns> The converted value </returns>
+    /// <summary>
+    /// Converts this table reference to an <see cref="IntoLuau"/> value.
+    /// </summary>
+    /// <param name="value">The table reference.</param>
+    /// <returns>A temporary Luau argument that borrows the same underlying table.</returns>
     public static implicit operator IntoLuau(LuauTable value) => IntoLuau.Borrow(value._state, value._handle);
 
     /// <inheritdoc/>
@@ -83,14 +94,23 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
 
     /// <summary> Gets the value associated with this key (or <see cref="LuauValueType.Nil"/>) </summary>
     /// <param name="key"> The key to look for </param>
+    [SuppressMessage(
+        "Design",
+        "CA1043:Use integral or string argument for indexers",
+        Justification = "Lua tables support arbitrary key types, and IntoLuau models that domain directly."
+    )]
     public LuauValue this[IntoLuau key] => TryGetLuauValue(key, out LuauValue value) ? value : default;
 
-    /// <summary> Get the values as a list in paris of index and value </summary>
-    /// <returns> An enumerable of values </returns>
-    /// <remarks> Starts at index 1 and goes as long as there is no nil value </remarks>
+    /// <summary>
+    /// Returns an <c>ipairs</c>-style enumerable over consecutive integer keys starting at <c>1</c>.
+    /// </summary>
+    /// <returns>An enumerable of index-value pairs.</returns>
+    /// <remarks>Enumeration stops at the first <c>nil</c> entry.</remarks>
     public TableIPairsEnumerable IPairs() => new(this, _state, _handle);
 
-    /// <summary> Remove the reference from the lua state </summary>
+    /// <summary>
+    /// Releases this table reference from the state registry.
+    /// </summary>
     public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
 
     /// <summary> The enumerator of the <see cref="TableIPairsEnumerable"/> </summary>
@@ -106,8 +126,9 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
 
         object IEnumerator.Current => _current;
 
-        /// <summary> The enumerator of the <see cref="TableIPairsEnumerable"/> </summary>
-        /// <param name="source"> The source of the table </param>
+        /// <summary>Initializes an enumerator over a tracked table reference.</summary>
+        /// <param name="state">The state that owns the tracked table reference.</param>
+        /// <param name="handle">The tracked table handle to enumerate.</param>
         internal Enumerator(LuauState? state, ulong handle)
         {
             _state = state;
@@ -122,7 +143,7 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
 #if DEBUG
             using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-            _ = trackedReference.PushToTop();
+            using PopDisposable tablePop = trackedReference.PushToTop();
             int t = lua_gettop(L); // table index
 
             if (_lastKeyRef == 0)
@@ -134,8 +155,6 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
             int hasNext = lua_next(L, t);
             if (hasNext == 0)
             {
-                // key already popped by lua_next; only table remains
-                lua_pop(L, 1);
                 return false;
             }
 
@@ -151,7 +170,7 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
             var value = LuauValue.ToValue(_state);
             lua_pop(L, 1); // pop value
             var key = LuauValue.ToValue(_state);
-            lua_pop(L, 2); // pop key + table
+            lua_pop(L, 1); // pop key; table is released by tablePop
 
             _current = new KeyValuePair<LuauValue, LuauValue>(key, value);
             return true;

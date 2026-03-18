@@ -5,17 +5,26 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-/// <summary> A lua exception </summary>
+/// <summary>
+/// Represents an exception reported while invoking Luau.
+/// </summary>
 public sealed class LuaException : Exception
 {
+    internal LuaException() { }
+
     internal LuaException(string message)
         : base(message) { }
 
-    /// <summary> Throws if not ok </summary>
-    /// <param name="L"> The state that holds the error </param>
-    /// <param name="status"> The status </param>
-    /// <param name="description"> Some more context about the exception </param>
-    /// <exception cref="LuaException"> The exception if the status is not ok </exception>
+    internal LuaException(string message, Exception innerException)
+        : base(message, innerException) { }
+
+    /// <summary>
+    /// Throws a <see cref="LuaException"/> when the Luau status code indicates failure.
+    /// </summary>
+    /// <param name="L">The state containing the error object on the stack.</param>
+    /// <param name="status">The Luau status code returned by the native call.</param>
+    /// <param name="description">Additional context for the failing operation.</param>
+    /// <exception cref="LuaException">Thrown when <paramref name="status"/> is not successful.</exception>
     public static unsafe void ThrowIfNotOk(lua_State* L, int status, string description)
     {
         if (status == 0)
@@ -33,4 +42,16 @@ public sealed class LuaException : Exception
     }
 }
 
-public sealed class LuaGetException(string message) : Exception(message);
+/// <summary>
+/// Thrown when a Luau value cannot be read as the requested managed type.
+/// </summary>
+public sealed class LuaGetException : Exception
+{
+    internal LuaGetException() { }
+
+    internal LuaGetException(string message)
+        : base(message) { }
+
+    internal LuaGetException(string message, Exception innerException)
+        : base(message, innerException) { }
+}

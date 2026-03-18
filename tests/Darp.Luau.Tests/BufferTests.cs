@@ -13,7 +13,8 @@ public sealed class BufferTests : IDisposable
 
         using LuauBuffer buffer = _state.CreateBuffer(expected);
 
-        buffer.TryGet(out byte[] found).ShouldBeTrue();
+        buffer.TryGet(out byte[]? found).ShouldBeTrue();
+        found.ShouldNotBeNull();
         found.ShouldBe<byte>(expected);
     }
 

@@ -6,7 +6,9 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-/// <summary> Unsafe operations to access the <see cref="lua_State"/> </summary>
+/// <summary>
+/// Provides unsafe helpers for interacting directly with <see cref="lua_State"/>.
+/// </summary>
 internal static class LuauStateMarshal
 {
     public static unsafe int ReturnResult(lua_State* state, LuaResult<int, string> result)

@@ -337,7 +337,13 @@ internal static class CreateFunctionInterceptorsEmitter
 
         Location returnLocation = GetReturnLocation(invocationOperation);
         if (returnType is not INamedTypeSymbol { IsTupleType: true } tupleType)
-            return TryExtractSingleReturnParameter(returnType, returnLocation, "the return value", returnTypes, diagnostics);
+            return TryExtractSingleReturnParameter(
+                returnType,
+                returnLocation,
+                "the return value",
+                returnTypes,
+                diagnostics
+            );
 
         if (tupleType.TupleElements.Length > 4)
         {
@@ -428,7 +434,9 @@ internal static class CreateFunctionInterceptorsEmitter
             return false;
         }
 
-        returnTypes.Add(new ParameterTypeInfo(mappedReturnType, isReturnNullable, returnOriginalTypeName, tupleElementName));
+        returnTypes.Add(
+            new ParameterTypeInfo(mappedReturnType, isReturnNullable, returnOriginalTypeName, tupleElementName)
+        );
         return true;
     }
 
@@ -611,7 +619,9 @@ internal static class CreateFunctionInterceptorsEmitter
         {
             LuauValueType.NumberDecimal or LuauValueType.NumberUInt128 or LuauValueType.NumberInt128 =>
                 returnParameter.IsNullable ? $"(double?){valueExpression}" : $"(double){valueExpression}",
-            LuauValueType.Enum => returnParameter.IsNullable ? $"(double?){valueExpression}" : $"(double){valueExpression}",
+            LuauValueType.Enum => returnParameter.IsNullable
+                ? $"(double?){valueExpression}"
+                : $"(double){valueExpression}",
             _ => valueExpression,
         };
     }

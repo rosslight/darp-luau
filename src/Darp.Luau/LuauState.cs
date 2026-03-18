@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -199,7 +200,9 @@ public sealed unsafe class LuauState : IDisposable
         RegistryReferenceTracker.TrackedReference trackedReference = this.GetTrackedReferenceOrThrow(
             _callbackWrapperReference
         );
+#pragma warning disable CA2000 // lua_pcall consumes the callback wrapper argument from the stack, so disposing the pop token here would be incorrect.
         _ = trackedReference.PushToTop();
+#pragma warning restore CA2000
         lua_pushcfunction(L, callback, debugName);
         int callStatus = lua_pcall(L, 1, 1, 0);
         LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
@@ -306,6 +309,11 @@ public sealed unsafe class LuauState : IDisposable
     /// Use <see cref="CreateFunctionBuilder(LuauFunctionBuilder)"/> when you need manual argument handling,
     /// custom error handling, or a delegate shape that is not supported by the generator.
     /// </remarks>
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "The instance method shape is required for source-generator interception and consistent LuauState API usage."
+    )]
     public LuauFunction CreateFunction<T>(T value)
         where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");
 
@@ -323,9 +331,9 @@ public sealed unsafe class LuauState : IDisposable
         return _cache.GetOrCreate(userdata);
     }
 
-    /// <summary> Creates a new luau string </summary>
-    /// <param name="value"> The string </param>
-    /// <returns> The reference to the LuauString </returns>
+    /// <summary>Creates a new Luau string from UTF-16 text.</summary>
+    /// <param name="value">The string content to encode as UTF-8.</param>
+    /// <returns>The created <see cref="LuauString"/> reference.</returns>
     public LuauString CreateString(scoped ReadOnlySpan<char> value)
     {
         Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(value)];
@@ -333,9 +341,9 @@ public sealed unsafe class LuauState : IDisposable
         return CreateString(buffer[..numberOfBytes]);
     }
 
-    /// <summary> Creates a new luau string </summary>
-    /// <param name="utf8Value"> The utf8 string </param>
-    /// <returns> The reference to the LuauString </returns>
+    /// <summary>Creates a new Luau string from UTF-8 bytes.</summary>
+    /// <param name="utf8Value">The UTF-8 encoded string content.</param>
+    /// <returns>The created <see cref="LuauString"/> reference.</returns>
     public LuauString CreateString(scoped ReadOnlySpan<byte> utf8Value)
     {
         this.ThrowIfDisposed();
@@ -353,9 +361,9 @@ public sealed unsafe class LuauState : IDisposable
         return new LuauString(this, reference);
     }
 
-    /// <summary> Creates a new luau buffer </summary>
-    /// <param name="span"> The bytes span </param>
-    /// <returns> The reference to the LuauBuffer </returns>
+    /// <summary>Creates a new Luau buffer from managed bytes.</summary>
+    /// <param name="span">The bytes to copy into the new buffer.</param>
+    /// <returns>The created <see cref="LuauBuffer"/> reference.</returns>
     public LuauBuffer CreateBuffer(scoped ReadOnlySpan<byte> span)
     {
         this.ThrowIfDisposed();

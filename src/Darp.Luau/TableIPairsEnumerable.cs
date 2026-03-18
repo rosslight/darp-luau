@@ -1,11 +1,19 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-/// <summary> An IPairs enumerable over a table </summary>
+/// <summary>
+/// Represents an <c>ipairs</c>-style enumerable over a Luau table.
+/// </summary>
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "This enumerable is a lightweight view over Lua state and handle ownership; custom value equality would imply semantics the API does not guarantee."
+)]
 public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, LuauValue>>
 {
     private readonly LuauTable _table;
@@ -19,8 +27,10 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
         _handle = handle;
     }
 
-    /// <summary> The raw length of the underlying lua table </summary>
-    /// <remarks> If a lua table has holes, this property is unreliable! Enumeration might end earlier! </remarks>
+    /// <summary>
+    /// Gets the raw array length of the underlying Luau table.
+    /// </summary>
+    /// <remarks>If the table has holes, this value can be misleading and enumeration may end earlier.</remarks>
     public int Count => _table.ListCount;
 
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator" />
@@ -49,8 +59,9 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
 
         object IEnumerator.Current => _current;
 
-        /// <summary> The enumerator of the <see cref="TableIPairsEnumerable"/> </summary>
-        /// <param name="source"> The source of the table </param>
+        /// <summary>Initializes an enumerator over a tracked table reference.</summary>
+        /// <param name="state">The state that owns the tracked table reference.</param>
+        /// <param name="handle">The tracked table handle to enumerate.</param>
         internal Enumerator(LuauState? state, ulong handle)
         {
             _state = state;
@@ -66,18 +77,18 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
 #if DEBUG
             using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-            _ = trackedReference.PushToTop();
+            using PopDisposable tablePop = trackedReference.PushToTop();
             int t = lua_gettop(L);
             _ = lua_rawgeti(L, t, _i);
             if (lua_isnil(L, -1))
             {
-                lua_pop(L, 2);
+                lua_pop(L, 1);
                 return false;
             }
 
             var value = LuauValue.ToValue(_state);
 
-            lua_pop(L, 2);
+            lua_pop(L, 1);
             _current = new KeyValuePair<int, LuauValue>(_i, value);
             return true;
         }

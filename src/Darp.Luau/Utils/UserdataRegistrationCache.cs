@@ -10,6 +10,11 @@ namespace Darp.Luau.Utils;
 
 internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 {
+    [SuppressMessage(
+        "Usage",
+        "CA2213:Disposable fields should be disposed",
+        Justification = "The cache references LuauState but does not own it; LuauState owns and disposes the cache instead."
+    )]
     private readonly LuauState _state = state;
     private readonly Dictionary<Type, GCHandle> _registrations = [];
     private readonly ConditionalWeakTable<object, ObjectIdentity> _identityByUserdata = new();

@@ -1,8 +1,17 @@
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
+/// <summary>
+/// Represents an owned Luau function reference stored in the registry.
+/// </summary>
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
+)]
 public readonly struct LuauFunction : ILuauReference
 {
     private readonly LuauState? _state;
@@ -13,7 +22,9 @@ public readonly struct LuauFunction : ILuauReference
     /// </summary>
     public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
-    /// <summary> Do (not) initialize a new LuauFunction </summary>
+    /// <summary>
+    /// Do not initialize directly. Create functions through <see cref="LuauState"/> APIs.
+    /// </summary>
     [Obsolete("Do not initialize the LuauFunction. Create using the LuauState instead", true)]
     public LuauFunction() { }
 
@@ -136,6 +147,8 @@ public readonly struct LuauFunction : ILuauReference
     /// <inheritdoc />
     public override string ToString() => Helpers.HandleToString(_state, _handle);
 
-    /// <summary> Remove the reference from the lua state </summary>
+    /// <summary>
+    /// Releases this function reference from the state registry.
+    /// </summary>
     public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
 }

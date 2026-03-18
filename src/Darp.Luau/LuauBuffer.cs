@@ -4,6 +4,14 @@ using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
+/// <summary>
+/// Represents an owned Luau buffer reference stored in the registry.
+/// </summary>
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
+)]
 public readonly struct LuauBuffer : ILuauReference
 {
     private readonly LuauState? _state;
@@ -12,6 +20,9 @@ public readonly struct LuauBuffer : ILuauReference
     /// <inheritdoc/>
     public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
+    /// <summary>
+    /// Do not initialize directly. Create buffers through <see cref="LuauState"/> APIs.
+    /// </summary>
     [Obsolete("Do not initialize the LuauBuffer. Create using the LuauState instead", true)]
     public LuauBuffer() { }
 
@@ -49,9 +60,11 @@ public readonly struct LuauBuffer : ILuauReference
             && LuauBufferAccessCore.TryGet(reference, out bytes);
     }
 
-    /// <summary> Ability for <see cref="LuauBuffer"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
-    /// <param name="value"> The buffer </param>
-    /// <returns> The converted value </returns>
+    /// <summary>
+    /// Converts this buffer reference to an <see cref="IntoLuau"/> value.
+    /// </summary>
+    /// <param name="value">The buffer reference.</param>
+    /// <returns>A temporary Luau argument that borrows the same underlying buffer.</returns>
     public static implicit operator IntoLuau(LuauBuffer value) => IntoLuau.Borrow(value._state, value._handle);
 
     /// <inheritdoc/>
@@ -60,6 +73,8 @@ public readonly struct LuauBuffer : ILuauReference
     /// <inheritdoc />
     public override string ToString() => TryGet(out ReadOnlySpan<byte> span) ? Convert.ToHexString(span) : "<nil>";
 
-    /// <summary> Remove the reference from the lua state </summary>
+    /// <summary>
+    /// Releases this buffer reference from the state registry.
+    /// </summary>
     public void Dispose() => _state?.ReferenceTracker.ReleaseRef(_handle);
 }
