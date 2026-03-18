@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -31,3 +31,31 @@ jobs:
             coverage-results/**/coverage.cobertura.xml
           update-comment: true
           show-changed-lines-only: true
+
+  test-other-platforms:
+    strategy:
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+          - name: Windows arm64
+            os: windows-11-arm
+          - name: macOS x64
+            os: macos-26-intel
+          - name: macOS ARM64
+            os: macos-26
+          - name: Linux ARM64
+            os: ubuntu-24.04-arm
+    name: Test on ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+
+      - name: Restore dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore
+      - name: Test
+        run: dotnet test --no-build --verbosity normal
