@@ -13,6 +13,9 @@ internal struct LuauUserdataNative
     public GCHandle RegistryValueHandle { get; internal set; }
 }
 
+/// <summary>
+/// Represents an owned Luau userdata reference stored in the registry.
+/// </summary>
 [SuppressMessage(
     "Performance",
     "CA1815:Override equals and operator equals on value types",
@@ -26,7 +29,10 @@ public readonly struct LuauUserdata : ILuauReference
     /// <inheritdoc/>
     public bool IsDisposed => !_state.IsReferenceValid(_handle);
 
-    [Obsolete("Do not initialize the LuauTable. Create using the LuauState instead", true)]
+    /// <summary>
+    /// Do not initialize directly. Create userdata through <see cref="LuauState"/> APIs.
+    /// </summary>
+    [Obsolete("Do not initialize the LuauUserdata. Create using the LuauState instead", true)]
     public LuauUserdata() { }
 
     internal LuauUserdata(LuauState state, ulong handle)
@@ -54,9 +60,11 @@ public readonly struct LuauUserdata : ILuauReference
             && LuauUserdataAccessCore.TryGetManaged(reference, out value, out error);
     }
 
-    /// <summary> Ability for <see cref="LuauUserdata"/> to be passed into functions that accept <see cref="IntoLuau"/> </summary>
-    /// <param name="value"> The userdata </param>
-    /// <returns> The converted value </returns>
+    /// <summary>
+    /// Converts this userdata reference to an <see cref="IntoLuau"/> value.
+    /// </summary>
+    /// <param name="value">The userdata reference.</param>
+    /// <returns>A temporary Luau argument that borrows the same underlying userdata.</returns>
     public static implicit operator IntoLuau(LuauUserdata value) => IntoLuau.Borrow(value._state, value._handle);
 
     /// <inheritdoc/>

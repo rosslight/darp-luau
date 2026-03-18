@@ -331,9 +331,9 @@ public sealed unsafe class LuauState : IDisposable
         return _cache.GetOrCreate(userdata);
     }
 
-    /// <summary> Creates a new luau string </summary>
-    /// <param name="value"> The string </param>
-    /// <returns> The reference to the LuauString </returns>
+    /// <summary>Creates a new Luau string from UTF-16 text.</summary>
+    /// <param name="value">The string content to encode as UTF-8.</param>
+    /// <returns>The created <see cref="LuauString"/> reference.</returns>
     public LuauString CreateString(scoped ReadOnlySpan<char> value)
     {
         Span<byte> buffer = stackalloc byte[Encoding.UTF8.GetByteCount(value)];
@@ -341,9 +341,9 @@ public sealed unsafe class LuauState : IDisposable
         return CreateString(buffer[..numberOfBytes]);
     }
 
-    /// <summary> Creates a new luau string </summary>
-    /// <param name="utf8Value"> The utf8 string </param>
-    /// <returns> The reference to the LuauString </returns>
+    /// <summary>Creates a new Luau string from UTF-8 bytes.</summary>
+    /// <param name="utf8Value">The UTF-8 encoded string content.</param>
+    /// <returns>The created <see cref="LuauString"/> reference.</returns>
     public LuauString CreateString(scoped ReadOnlySpan<byte> utf8Value)
     {
         this.ThrowIfDisposed();
@@ -361,9 +361,9 @@ public sealed unsafe class LuauState : IDisposable
         return new LuauString(this, reference);
     }
 
-    /// <summary> Creates a new luau buffer </summary>
-    /// <param name="span"> The bytes span </param>
-    /// <returns> The reference to the LuauBuffer </returns>
+    /// <summary>Creates a new Luau buffer from managed bytes.</summary>
+    /// <param name="span">The bytes to copy into the new buffer.</param>
+    /// <returns>The created <see cref="LuauBuffer"/> reference.</returns>
     public LuauBuffer CreateBuffer(scoped ReadOnlySpan<byte> span)
     {
         this.ThrowIfDisposed();

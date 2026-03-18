@@ -8,27 +8,43 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
+/// <summary>
+/// Identifies the kind of data represented by a <see cref="LuauValue"/>.
+/// </summary>
 public enum LuauValueType
 {
     // Nil has to be 0 to allow default(LuauValue) to not cause problems
+    /// <summary>Represents the Lua <c>nil</c> value.</summary>
     Nil = 0,
 
+    /// <summary>Represents a Lua string.</summary>
     [SuppressMessage(
         "Naming",
         "CA1720:Identifier contains type name",
         Justification = "Matches the canonical Lua value kind and preserves public API compatibility."
     )]
     String,
+    /// <summary>Represents a Lua number.</summary>
     Number,
+    /// <summary>Represents a Lua boolean.</summary>
     Boolean,
+    /// <summary>Represents a Lua table.</summary>
     Table,
+    /// <summary>Represents a Lua function.</summary>
     Function,
+    /// <summary>Represents a Lua thread.</summary>
     Thread,
+    /// <summary>Represents a Lua userdata value.</summary>
     Userdata,
+    /// <summary>Represents a Lua vector value.</summary>
     Vector,
+    /// <summary>Represents a Lua buffer.</summary>
     Buffer,
 }
 
+/// <summary>
+/// Represents a single Luau value, either inline or backed by a tracked registry reference.
+/// </summary>
 [StructLayout(LayoutKind.Sequential)]
 [SuppressMessage(
     "Performance",
@@ -37,6 +53,9 @@ public enum LuauValueType
 )]
 public readonly struct LuauValue : IDisposable
 {
+    /// <summary>
+    /// Gets the kind of value represented by this instance.
+    /// </summary>
     public LuauValueType Type { get; }
     private readonly LuauState? _state;
     private readonly LuauValueUnion _union;
@@ -67,9 +86,19 @@ public readonly struct LuauValue : IDisposable
         _union = union;
     }
 
+    /// <summary>
+    /// Creates a Luau boolean value from a managed boolean.
+    /// </summary>
+    /// <param name="value">The managed boolean value.</param>
+    /// <returns>A <see cref="LuauValue"/> representing <paramref name="value"/>.</returns>
     public static explicit operator LuauValue(bool value) =>
         new(null, LuauValueType.Boolean, new LuauValueUnion(value));
 
+    /// <summary>
+    /// Creates a Luau number value from a managed double.
+    /// </summary>
+    /// <param name="value">The managed numeric value.</param>
+    /// <returns>A <see cref="LuauValue"/> representing <paramref name="value"/>.</returns>
     public static explicit operator LuauValue(double value) =>
         new(null, LuauValueType.Number, new LuauValueUnion(value));
 
@@ -80,6 +109,13 @@ public readonly struct LuauValue : IDisposable
         return new LuauValue(state, type, new LuauValueUnion(newHandle ?? 0));
     }
 
+    /// <summary>
+    /// Attempts to convert this Luau value to the requested managed type.
+    /// </summary>
+    /// <typeparam name="T">The managed target type.</typeparam>
+    /// <param name="value">Receives the converted value when the conversion succeeds.</param>
+    /// <param name="acceptNil">Allows <c>nil</c> to map to supported optional managed representations.</param>
+    /// <returns><c>true</c> when conversion succeeds; otherwise <c>false</c>.</returns>
     public bool TryGet<T>([NotNullWhen(true)] out T? value, bool acceptNil = false)
         where T : allows ref struct
     {

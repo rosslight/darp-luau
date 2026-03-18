@@ -6,7 +6,9 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-/// <summary> An IPairs enumerable over a table </summary>
+/// <summary>
+/// Represents an <c>ipairs</c>-style enumerable over a Luau table.
+/// </summary>
 [SuppressMessage(
     "Performance",
     "CA1815:Override equals and operator equals on value types",
@@ -25,8 +27,10 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
         _handle = handle;
     }
 
-    /// <summary> The raw length of the underlying lua table </summary>
-    /// <remarks> If a lua table has holes, this property is unreliable! Enumeration might end earlier! </remarks>
+    /// <summary>
+    /// Gets the raw array length of the underlying Luau table.
+    /// </summary>
+    /// <remarks>If the table has holes, this value can be misleading and enumeration may end earlier.</remarks>
     public int Count => _table.ListCount;
 
     /// <inheritdoc cref="IEnumerable{T}.GetEnumerator" />
@@ -55,8 +59,9 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
 
         object IEnumerator.Current => _current;
 
-        /// <summary> The enumerator of the <see cref="TableIPairsEnumerable"/> </summary>
-        /// <param name="source"> The source of the table </param>
+        /// <summary>Initializes an enumerator over a tracked table reference.</summary>
+        /// <param name="state">The state that owns the tracked table reference.</param>
+        /// <param name="handle">The tracked table handle to enumerate.</param>
         internal Enumerator(LuauState? state, ulong handle)
         {
             _state = state;

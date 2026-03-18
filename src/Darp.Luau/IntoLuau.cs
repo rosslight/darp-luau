@@ -7,8 +7,12 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau;
 
-/// <summary> A helper struct to convert any value into a lua value </summary>
-/// <remarks> Contains conversions for BCL methods, custom types have to define implicit operators themselves </remarks>
+/// <summary>
+/// Represents a temporary value that knows how to push itself onto a Luau stack.
+/// </summary>
+/// <remarks>
+/// Built-in conversions are provided for common .NET types. Custom types can participate via implicit conversions.
+/// </remarks>
 public readonly ref struct IntoLuau
 {
     internal enum Kind
