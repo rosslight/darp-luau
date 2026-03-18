@@ -148,7 +148,13 @@ public static unsafe partial class LuauRequireByString
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static luarequire_WriteResult GetChunkname(lua_State* L, void* ctx, byte* buffer, nuint bufferSize, nuint* sizeOut)
+    private static luarequire_WriteResult GetChunkname(
+        lua_State* L,
+        void* ctx,
+        byte* buffer,
+        nuint bufferSize,
+        nuint* sizeOut
+    )
     {
         var context = Context.FromVoidPtr(ctx);
         Navigator navigator = context.Navigators[L];
@@ -158,7 +164,13 @@ public static unsafe partial class LuauRequireByString
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static luarequire_WriteResult GetLoadname(lua_State* L, void* ctx, byte* buffer, nuint bufferSize, nuint* sizeOut)
+    private static luarequire_WriteResult GetLoadname(
+        lua_State* L,
+        void* ctx,
+        byte* buffer,
+        nuint bufferSize,
+        nuint* sizeOut
+    )
     {
         var context = Context.FromVoidPtr(ctx);
         Navigator navigator = context.Navigators[L];
@@ -168,7 +180,13 @@ public static unsafe partial class LuauRequireByString
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static luarequire_WriteResult GetCacheKey(lua_State* L, void* ctx, byte* buffer, nuint bufferSize, nuint* sizeOut)
+    private static luarequire_WriteResult GetCacheKey(
+        lua_State* L,
+        void* ctx,
+        byte* buffer,
+        nuint bufferSize,
+        nuint* sizeOut
+    )
     {
         var context = Context.FromVoidPtr(ctx);
         Navigator navigator = context.Navigators[L];
@@ -187,7 +205,13 @@ public static unsafe partial class LuauRequireByString
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static luarequire_WriteResult GetConfig(lua_State* L, void* ctx, byte* buffer, nuint bufferSize, nuint* sizeOut)
+    private static luarequire_WriteResult GetConfig(
+        lua_State* L,
+        void* ctx,
+        byte* buffer,
+        nuint bufferSize,
+        nuint* sizeOut
+    )
     {
         var context = Context.FromVoidPtr(ctx);
         Navigator navigator = context.Navigators[L];
@@ -207,7 +231,6 @@ public static unsafe partial class LuauRequireByString
         context.LoadError = null;
 
         int nResults = 1; // default number of results pushed onto stack
-
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: nResults);
 #endif
@@ -247,7 +270,11 @@ public static unsafe partial class LuauRequireByString
                         else
                         {
                             string strMsg = new((sbyte*)lua_tostring(ML, -1));
-                            nResults = ReportLoadError(ML, context, $"error while loading module '{strPath}': {strMsg}");
+                            nResults = ReportLoadError(
+                                ML,
+                                context,
+                                $"error while loading module '{strPath}': {strMsg}"
+                            );
                         }
                     }
                 }
@@ -303,14 +330,19 @@ public static unsafe partial class LuauRequireByString
     {
         context.LoadError = strMsg;
 
-        // push TWO objects onto stack to indicate an error. 
+        // push TWO objects onto stack to indicate an error.
         // the caller of function Load reports this as error "module must return a single value".
         lua_pushnil(L);
         lua_pushnil(L);
         return 2; // number of objects pushed onto stack
     }
 
-    private static luarequire_WriteResult Write(string? strSrc, byte* bufDest, nuint nSizeBufDest, nuint* nSizeBufDestOut)
+    private static luarequire_WriteResult Write(
+        string? strSrc,
+        byte* bufDest,
+        nuint nSizeBufDest,
+        nuint* nSizeBufDestOut
+    )
     {
         if (strSrc is null)
             return luarequire_WriteResult.WRITE_FAILURE;
@@ -393,9 +425,7 @@ public static unsafe partial class LuauRequireByString
             if (FileExists(strFileName))
                 return File.ReadAllText(strFileName);
         }
-        catch
-        {
-        }
+        catch { }
 
         return null;
     }

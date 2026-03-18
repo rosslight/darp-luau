@@ -24,20 +24,28 @@ public enum LuauValueType
         Justification = "Matches the canonical Lua value kind and preserves public API compatibility."
     )]
     String,
+
     /// <summary>Represents a Lua number.</summary>
     Number,
+
     /// <summary>Represents a Lua boolean.</summary>
     Boolean,
+
     /// <summary>Represents a Lua table.</summary>
     Table,
+
     /// <summary>Represents a Lua function.</summary>
     Function,
+
     /// <summary>Represents a Lua thread.</summary>
     Thread,
+
     /// <summary>Represents a Lua userdata value.</summary>
     Userdata,
+
     /// <summary>Represents a Lua vector value.</summary>
     Vector,
+
     /// <summary>Represents a Lua buffer.</summary>
     Buffer,
 }
