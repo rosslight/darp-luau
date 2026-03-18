@@ -139,19 +139,20 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoStringMulti_WithOwnedReference_ShouldCloneReferenceOwnership()
     {
-        ulong baselineActiveReferences = _state.MemoryStatistics.ActiveRegistryReferences;
-
         LuauValue[] values = _state.DoStringMulti("return { value = 42 }, 5");
         values.Length.ShouldBe(2);
 
         using LuauValue tableValue = values[0];
         using LuauValue countValue = values[1];
 
+        ulong beforeClone = _state.MemoryStatistics.ActiveRegistryReferences;
         tableValue.TryGet(out LuauTable table).ShouldBeTrue();
         using (table)
         {
+            _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(beforeClone + 1);
             table.GetNumber("value").ShouldBe(42);
         }
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(beforeClone);
 
         countValue.TryGet(out int count, acceptNil: false).ShouldBeTrue();
         count.ShouldBe(5);

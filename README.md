@@ -14,6 +14,7 @@
 - Clear lifetime guarantees both stability and performance
 - Simple API through source-generated interceptors
 - Custom libraries and managed userdata
+- Support for `linux`,`windows`,`macos` on both `x64`,`arm64`
 
 ## Quick start
 
