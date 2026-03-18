@@ -32,6 +32,18 @@ jobs:
           update-comment: true
           show-changed-lines-only: true
 
+  warnings-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+
+      - name: Build warning-free Debug
+        run: dotnet build "Darp.Lua.Net.slnx" -c Debug /warnaserror
+      - name: Build warning-free Release
+        run: dotnet build "Darp.Lua.Net.slnx" -c Release /warnaserror
+
   test-other-platforms:
     strategy:
       matrix:
