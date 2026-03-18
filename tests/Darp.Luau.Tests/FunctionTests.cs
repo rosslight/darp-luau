@@ -25,6 +25,38 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void CSharpFunction_ShouldBeCalled()
+    {
+        string? messageToLog = null;
+
+        using LuauFunction func = _state.CreateFunction(Log);
+        _state.Globals.Set("log", func);
+
+        _state.DoString("""log("hello from lua")""");
+
+        messageToLog.ShouldBe("hello from lua");
+        return;
+
+        void Log(string message) => messageToLog = message;
+    }
+
+    [Fact]
+    public void LuaFunction_ShouldBeCalled()
+    {
+        _state.DoString(
+            """
+            function add(a, b)
+             return a + b
+            end
+            """
+        );
+
+        using LuauFunction luaFunc = _state.Globals.GetLuauFunction("add");
+
+        luaFunc.Invoke<int>(1, 2).ShouldBe(3);
+    }
+
+    [Fact]
     public void CSharpFunction_Adder_ShouldBeCalled()
     {
         using LuauFunction func = _state.CreateFunction(Add);
