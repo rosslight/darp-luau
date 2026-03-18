@@ -56,6 +56,12 @@ using LuauFunction pair = lua.Globals.GetLuauFunction("pair");
 
 `Invoke<TR>(...)` converts a single Luau return value to the managed type you ask for and ignores extras. Use `Invoke<TR1, TR2>(...)`, ... for typed multi-return calls, and `InvokeMulti(...)` for raw `LuauValue[]` access. The current argument buffer accepts up to 4 arguments per call.
 
+`DoString(...)` follows the same return-shaping pattern for chunk execution: use `DoString<TR>(...)` for the first typed return value, `DoString<TR1, TR2>(...)`, ... for typed multi-return calls, and `DoStringMulti(...)` for raw `LuauValue[]` access.
+
+```csharp
+(int total, int delta) = lua.DoString<int, int>("return 20 + 4, 20 - 4");
+```
+
 ## Expose managed callbacks
 
 Use `CreateFunction(...)` for supported fixed delegate signatures:
