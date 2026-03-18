@@ -14,7 +14,7 @@ using var lua = new LuauState();
 lua.EnableRequire();
 
 string path = Path.GetFullPath("scripts/main.luau");
-lua.DoString(File.ReadAllBytes(path), Encoding.UTF8.GetBytes("@" + path));
+lua.DoString(File.ReadAllBytes(path), "@" + path);
 ```
 
 The require context is owned by `LuauState` and remains available while the state is alive.

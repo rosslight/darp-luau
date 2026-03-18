@@ -60,9 +60,15 @@ using LuauFunction add = lua.Globals.GetLuauFunction("add");
 double result = add.Invoke<double>(1, 2);
 ```
 
+Chunks can also return values directly to managed code. Use `DoString<TR>(...)` for one typed value, `DoString<TR1, TR2>(...)`, ... for typed multi-return calls, and `DoStringMulti(...)` for raw `LuauValue[]` access:
+
+```csharp
+(int total, int delta) = lua.DoString<int, int>("return 20 + 4, 20 - 4");
+```
+
 If you want file-based execution, load the file contents yourself and pass them to `DoString(...)`. If that script should be able to call `require(...)`, first call `EnableRequire()` and use an `@`-prefixed chunk name that points at the script path.
 
-See [Require](features/require.md).
+See [Require](features/require.md), and [Execute Luau source](features/execution.md) for the full `DoString(...)` overload set, return behavior, and ownership notes.
 
 ## Move data with tables
 
@@ -157,6 +163,7 @@ lua.DoString("result = game.add(game.answer, 8)");
 
 ## Where to next
 
+- [Execute Luau source](features/execution.md)
 - [Lifetimes and ownership](concepts/lifetimes.md)
 - [Type mapping](concepts/type-mapping.md)
 - [Functions](features/functions.md)

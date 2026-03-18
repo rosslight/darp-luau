@@ -44,7 +44,7 @@ public readonly struct LuauFunction : ILuauReference
         return LuauFunctionInvokeCore.Invoke(
             _state.GetTrackedReferenceOrThrow(_handle),
             args,
-            static a => a.Read<TR>(1)
+            LuauFunctionInvokeCore.ResultSelector<TR>
         );
     }
 
@@ -63,7 +63,7 @@ public readonly struct LuauFunction : ILuauReference
         return LuauFunctionInvokeCore.Invoke(
             _state.GetTrackedReferenceOrThrow(_handle),
             args,
-            static a => (a.Read<TR1>(1), a.Read<TR2>(2))
+            LuauFunctionInvokeCore.ResultSelector<TR1, TR2>
         );
     }
 
@@ -83,7 +83,7 @@ public readonly struct LuauFunction : ILuauReference
         return LuauFunctionInvokeCore.Invoke(
             _state.GetTrackedReferenceOrThrow(_handle),
             args,
-            static a => (a.Read<TR1>(1), a.Read<TR2>(2), a.Read<TR3>(3))
+            LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>
         );
     }
 
@@ -104,7 +104,7 @@ public readonly struct LuauFunction : ILuauReference
         return LuauFunctionInvokeCore.Invoke(
             _state.GetTrackedReferenceOrThrow(_handle),
             args,
-            static a => (a.Read<TR1>(1), a.Read<TR2>(2), a.Read<TR3>(3), a.Read<TR4>(4))
+            LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>
         );
     }
 
@@ -118,17 +118,7 @@ public readonly struct LuauFunction : ILuauReference
         return LuauFunctionInvokeCore.Invoke(
             _state.GetTrackedReferenceOrThrow(_handle),
             args,
-            static a =>
-            {
-                var values = new LuauValue[a.ArgumentCount];
-                for (int i = 1; i <= values.Length; i++)
-                {
-                    if (!a.TryReadLuauValue(i, out LuauValue value, out string? error))
-                        throw new ArgumentOutOfRangeException(nameof(args), error);
-                    values[i - 1] = value;
-                }
-                return values;
-            }
+            LuauFunctionInvokeCore.ResultSelectorMulti
         );
     }
 

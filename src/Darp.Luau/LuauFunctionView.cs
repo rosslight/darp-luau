@@ -32,7 +32,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// </exception>
     public TR Invoke<TR>(params RefEnumerable<IntoLuau> args)
     {
-        return LuauFunctionInvokeCore.Invoke(_reference, args, static a => a.Read<TR>(1));
+        return LuauFunctionInvokeCore.Invoke(_reference, args, LuauFunctionInvokeCore.ResultSelector<TR>);
     }
 
     /// <summary> Invokes the borrowed function with arguments and converts the first two return values. </summary>
@@ -46,7 +46,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// </exception>
     public (TR1, TR2) Invoke<TR1, TR2>(params RefEnumerable<IntoLuau> args)
     {
-        return LuauFunctionInvokeCore.Invoke(_reference, args, static a => (a.Read<TR1>(1), a.Read<TR2>(2)));
+        return LuauFunctionInvokeCore.Invoke(_reference, args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>);
     }
 
     /// <summary> Invokes the borrowed function with arguments and converts the first three return values. </summary>
@@ -61,11 +61,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// </exception>
     public (TR1, TR2, TR3) Invoke<TR1, TR2, TR3>(params RefEnumerable<IntoLuau> args)
     {
-        return LuauFunctionInvokeCore.Invoke(
-            _reference,
-            args,
-            static a => (a.Read<TR1>(1), a.Read<TR2>(2), a.Read<TR3>(3))
-        );
+        return LuauFunctionInvokeCore.Invoke(_reference, args, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>);
     }
 
     /// <summary> Invokes the borrowed function with arguments and converts the first four return values. </summary>
@@ -84,7 +80,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
         return LuauFunctionInvokeCore.Invoke(
             _reference,
             args,
-            static a => (a.Read<TR1>(1), a.Read<TR2>(2), a.Read<TR3>(3), a.Read<TR4>(4))
+            LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>
         );
     }
 
@@ -94,21 +90,7 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
     /// <exception cref="LuaException">Thrown when Luau reports a call error.</exception>
     public LuauValue[] InvokeMulti(params RefEnumerable<IntoLuau> args)
     {
-        return LuauFunctionInvokeCore.Invoke(
-            _reference,
-            args,
-            static a =>
-            {
-                var values = new LuauValue[a.ArgumentCount];
-                for (int i = 1; i <= values.Length; i++)
-                {
-                    if (!a.TryReadLuauValue(i, out LuauValue value, out string? error))
-                        throw new ArgumentOutOfRangeException(nameof(args), error);
-                    values[i - 1] = value;
-                }
-                return values;
-            }
-        );
+        return LuauFunctionInvokeCore.Invoke(_reference, args, LuauFunctionInvokeCore.ResultSelectorMulti);
     }
 
     /// <inheritdoc/>

@@ -14,6 +14,7 @@
 - Clear lifetime guarantees both stability and performance
 - Simple API through source-generated interceptors
 - Custom libraries and managed userdata
+- Support for `linux`,`windows`,`macos` on both `x64`,`arm64`
 
 ## Quick start
 
@@ -56,6 +57,12 @@ using LuauFunction pair = lua.Globals.GetLuauFunction("pair");
 
 `Invoke<TR>(...)` converts a single Luau return value to the managed type you ask for and ignores extras. Use `Invoke<TR1, TR2>(...)`, ... for typed multi-return calls, and `InvokeMulti(...)` for raw `LuauValue[]` access. The current argument buffer accepts up to 4 arguments per call.
 
+`DoString(...)` follows the same return-shaping pattern for chunk execution: use `DoString<TR>(...)` for the first typed return value, `DoString<TR1, TR2>(...)`, ... for typed multi-return calls, and `DoStringMulti(...)` for raw `LuauValue[]` access.
+
+```csharp
+(int total, int delta) = lua.DoString<int, int>("return 20 + 4, 20 - 4");
+```
+
 ## Expose managed callbacks
 
 Use `CreateFunction(...)` for supported fixed delegate signatures:
@@ -75,10 +82,10 @@ using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
 {
     if (!args.TryValidateArgumentCount(2, out string? error))
         return LuauReturn.Error(error);
-    if (args.ArgumentCount != 2)
-        return LuauReturn.Error("Expected exactly 2 arguments.");
     if (!args.TryReadNumber(1, out int a, out error) || !args.TryReadNumber(2, out int b, out error))
         return LuauReturn.Error(error);
+    if (a <= b)
+        return LuauReturn.Error("Expected a to be greater than b");
 
     return LuauReturn.Ok(a + b, a - b);
 });
@@ -131,20 +138,7 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 });
 ```
 
-`OpenLibrary(...)` registers a global table. It is a convenient way to expose host-provided APIs, but it is separate from filesystem-backed module loading.
-
-## Enable require
-
-```csharp
-using System.Text;
-
-lua.EnableRequire();
-
-string path = Path.GetFullPath("scripts/main.luau");
-lua.DoString(File.ReadAllBytes(path), Encoding.UTF8.GetBytes("@" + path));
-```
-
-`EnableRequire()` installs Luau's file-backed `require(...)` support. The context is owned by LuauState and disposed automatically. Pass an @-prefixed chunk name for file entrypoints so relative imports resolve correctly.
+`OpenLibrary(...)` registers a global table. It is a convenient way to expose host-provided APIs, but it is not a `require(...)`-style module loader by itself.
 
 ## Ownership and lifetime
 
@@ -155,8 +149,6 @@ lua.DoString(File.ReadAllBytes(path), Encoding.UTF8.GetBytes("@" + path));
 ## Current boundaries
 
 - `DoString(...)` is the script execution API today. If you want file-based execution, read the file yourself and pass its contents in.
-- `EnableRequire()` provides file-backed `require(...)`, but there is no `DoFile(...)` helper yet.
 - `CreateFunction(...)` is generator-backed and has no runtime fallback.
 - `LuauState` is not thread-safe.
-- `require(...)` currently depends on explicit `EnableRequire()` setup, `@`-prefixed chunk names for file entrypoints, single-value module returns, and non-yielding module execution.
-- Higher-level async/thread orchestration is not part of the current surface yet.
+- A documented module system and higher-level async/thread orchestration are not part of the current surface yet.

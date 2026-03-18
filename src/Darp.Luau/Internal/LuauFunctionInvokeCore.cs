@@ -63,19 +63,26 @@ internal static unsafe class LuauFunctionInvokeCore
         }
     }
 
-    public static T Read<T>(this in LuauArgs args, int index)
+    public static TR ResultSelector<TR>(LuauArgs a) => a.Read<TR>(1);
+
+    public static (TR1, TR2) ResultSelector<TR1, TR2>(LuauArgs a) => (a.Read<TR1>(1), a.Read<TR2>(2));
+
+    public static (TR1, TR2, TR3) ResultSelector<TR1, TR2, TR3>(LuauArgs a) =>
+        (a.Read<TR1>(1), a.Read<TR2>(2), a.Read<TR3>(3));
+
+    public static (TR1, TR2, TR3, TR4) ResultSelector<TR1, TR2, TR3, TR4>(LuauArgs a) =>
+        (a.Read<TR1>(1), a.Read<TR2>(2), a.Read<TR3>(3), a.Read<TR4>(4));
+
+    public static LuauValue[] ResultSelectorMulti(LuauArgs a)
     {
-        if (!args.TryReadLuauValue(index, out LuauValue value, out string? error))
-            throw new ArgumentOutOfRangeException(nameof(index), error);
-        try
+        var values = new LuauValue[a.ArgumentCount];
+        for (int i = 1; i <= values.Length; i++)
         {
-            return value.TryGet(out T? result, acceptNil: default(T) is null)
-                ? result
-                : throw new InvalidCastException(error);
+            if (!a.TryReadLuauValue(i, out LuauValue value, out string? error))
+                throw new ArgumentOutOfRangeException(nameof(a), error);
+            values[i - 1] = value;
         }
-        finally
-        {
-            value.Dispose();
-        }
+
+        return values;
     }
 }

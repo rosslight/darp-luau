@@ -123,7 +123,10 @@ public static class VerifyHelper
         CSharpParseOptions parseOptions = CSharpParseOptions
             .Default.WithLanguageVersion(languageVersion)
             .WithFeatures(features);
-        SyntaxTree[] syntaxTrees = sources.Select(x => CSharpSyntaxTree.ParseText(x, parseOptions)).ToArray();
+        SyntaxTree[] syntaxTrees = sources
+            .Select(NormalizeLineEndings)
+            .Select(x => CSharpSyntaxTree.ParseText(x, parseOptions))
+            .ToArray();
 
         // Get all references of the currently loaded assembly
         PortableExecutableReference[] references = AppDomain
@@ -210,6 +213,11 @@ public static class VerifyHelper
                 diagnostic.Descriptor.IsEnabledByDefault,
             },
         };
+    }
+
+    private static string NormalizeLineEndings(string source)
+    {
+        return source.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
     }
 
     private static string ToReadableString(this GeneratorDriverRunResult result)
