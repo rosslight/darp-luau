@@ -12,6 +12,12 @@ public enum LuauValueType
 {
     // Nil has to be 0 to allow default(LuauValue) to not cause problems
     Nil = 0,
+
+    [SuppressMessage(
+        "Naming",
+        "CA1720:Identifier contains type name",
+        Justification = "Matches the canonical Lua value kind and preserves public API compatibility."
+    )]
     String,
     Number,
     Boolean,

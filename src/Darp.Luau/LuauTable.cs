@@ -89,6 +89,11 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
 
     /// <summary> Gets the value associated with this key (or <see cref="LuauValueType.Nil"/>) </summary>
     /// <param name="key"> The key to look for </param>
+    [SuppressMessage(
+        "Design",
+        "CA1043:Use integral or string argument for indexers",
+        Justification = "Lua tables support arbitrary key types, and IntoLuau models that domain directly."
+    )]
     public LuauValue this[IntoLuau key] => TryGetLuauValue(key, out LuauValue value) ? value : default;
 
     /// <summary> Get the values as a list in paris of index and value </summary>

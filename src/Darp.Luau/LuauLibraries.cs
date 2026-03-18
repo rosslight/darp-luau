@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Darp.Luau;
 
 /// <summary> Specifies the standard Luau libraries that can be enabled for a state. </summary>
@@ -17,6 +19,11 @@ public enum LuauLibraries
     Os = 1 << 3,
 
     /// <summary> String processing functions. </summary>
+    [SuppressMessage(
+        "Naming",
+        "CA1720:Identifier contains type name",
+        Justification = "Matches the canonical Luau library name and preserves public API compatibility."
+    )]
     String = 1 << 4,
 
     /// <summary> Mathematical functions and constants. </summary>

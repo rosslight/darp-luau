@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -308,6 +309,11 @@ public sealed unsafe class LuauState : IDisposable
     /// Use <see cref="CreateFunctionBuilder(LuauFunctionBuilder)"/> when you need manual argument handling,
     /// custom error handling, or a delegate shape that is not supported by the generator.
     /// </remarks>
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "The instance method shape is required for source-generator interception and consistent LuauState API usage."
+    )]
     public LuauFunction CreateFunction<T>(T value)
         where T : Delegate => throw new InvalidOperationException("This method should be intercepted!");
 
