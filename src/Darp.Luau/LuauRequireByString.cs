@@ -238,6 +238,18 @@ public static unsafe partial class LuauRequireByString
                 {
                     int nStatus = luau_load(ML, chunkname, pByteCode, nSizeByteCode, 0);
                     bOk = nStatus == 0;
+                    if (!bOk)
+                    {
+                        if (lua_isstring(ML, -1) == 0)
+                        {
+                            nResults = ReportLoadError(ML, context, $"unknown error while loading module '{strPath}'");
+                        }
+                        else
+                        {
+                            string strMsg = new((sbyte*)lua_tostring(ML, -1));
+                            nResults = ReportLoadError(ML, context, $"error while loading module '{strPath}': {strMsg}");
+                        }
+                    }
                 }
                 finally
                 {
@@ -272,13 +284,13 @@ public static unsafe partial class LuauRequireByString
                     string strMsg = new((sbyte*)lua_tostring(ML, -1));
                     nResults = ReportLoadError(ML, context, $"error while running module '{strPath}': {strMsg}");
                 }
-
-                // add ML results to L stack
-                lua_xmove(ML, L, nResults);
             }
 
+            // add ML results (success or reported error) to L stack
+            lua_xmove(ML, L, nResults);
+
             // remove ML thread from L stack
-            lua_remove(L, -2);
+            lua_remove(L, -(nResults + 1));
         }
 
 #if DEBUG
