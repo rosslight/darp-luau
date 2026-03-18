@@ -1,5 +1,4 @@
-Darp.Luau
-======
+# Darp.Luau
 
 [![Darp.Results](https://img.shields.io/nuget/v/Darp.Luau.svg)](https://www.nuget.org/packages/Darp.Luau)
 [![Downloads](https://img.shields.io/nuget/dt/Darp.Luau)](https://www.nuget.org/packages/Darp.Luau)
@@ -8,15 +7,13 @@ Darp.Luau
 
 `Darp.Luau` is a .NET wrapper around [Luau](https://luau.org/) focused on native AOT compatibility, typed value access, and explicit ownership for Luau-backed references.
 
-## What it gives you today
+## Why another lua library
 
-- `LuauState` with configurable built-in libraries
-- `DoString(...)` for running Luau source from managed code
-- typed reads and writes for tables, functions, userdata, strings, and buffers
-- explicit owned wrappers such as `LuauTable` and `LuauFunction`
-- callback-scoped borrowed views such as `LuauTableView` and `LuauFunctionView`
-- managed callbacks through `CreateFunction(...)` and `CreateFunctionBuilder(...)`
-- custom libraries and managed userdata hooks through `ILuauUserData<T>`
+- NativeAOT first
+- Typed reads and writes for tables, functions, userdata, strings, and buffers
+- Clear lifetime guarantees both stability and performance
+- Simple API through source-generated interceptors
+- Custom libraries and managed userdata
 
 ## Quick start
 
@@ -51,11 +48,13 @@ double result = lua.Globals.GetNumber("result");
 
 ```csharp
 using LuauFunction add = lua.Globals.GetLuauFunction("add");
-
 double sum = add.Invoke<double>(1, 2);
+
+using LuauFunction pair = lua.Globals.GetLuauFunction("pair");
+(int total, int delta) = pair.Invoke<int, int>(20, 4);
 ```
 
-`Invoke<TR>(...)` converts the Luau return value to the managed type you ask for. The current API provides overloads for zero, one, or two arguments.
+`Invoke<TR>(...)` converts a single Luau return value to the managed type you ask for and ignores extras. Use `Invoke<TR1, TR2>(...)`, ... for typed multi-return calls, and `InvokeMulti(...)` for raw `LuauValue[]` access. The current argument buffer accepts up to 4 arguments per call.
 
 ## Expose managed callbacks
 
@@ -64,9 +63,12 @@ Use `CreateFunction(...)` for supported fixed delegate signatures:
 ```csharp
 using LuauFunction sum = lua.CreateFunction((int a, int b) => a + b);
 lua.Globals.Set("sum", sum);
+
+using LuauFunction pair = lua.CreateFunction((int a, int b) => (a + b, a - b));
+lua.Globals.Set("pair", pair);
 ```
 
-Use `CreateFunctionBuilder(...)` when you need manual argument parsing, multiple return values, or explicit user-facing errors:
+Use `CreateFunctionBuilder(...)` when you need manual argument parsing, explicit user-facing errors, or a callback shape that the generator-backed path does not support:
 
 ```csharp
 using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
@@ -82,7 +84,7 @@ using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
 });
 ```
 
-`CreateFunction(...)` must be called directly at the call site so the generator can intercept it. If you need a shape that is not supported there, use `CreateFunctionBuilder(...)`.
+`CreateFunction(...)` must be called directly at the call site so the generator can intercept it. It supports fixed delegate signatures, including supported top-level tuple returns. If you need a shape that is not supported there, use `CreateFunctionBuilder(...)`.
 
 ## Work with tables
 

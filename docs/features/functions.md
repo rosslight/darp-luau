@@ -13,15 +13,20 @@ Get an owned `LuauFunction` from globals or a table, keep it for as long as need
 
 ```csharp
 using LuauFunction add = lua.Globals.GetLuauFunction("add");
-
 double result = add.Invoke<double>(1, 2);
+
+using LuauFunction pair = lua.Globals.GetLuauFunction("pair");
+(int sum, int difference) = pair.Invoke<int, int>(20, 4);
 ```
 
 The generic return type controls how the Luau return value is converted.
 
-- Use `Invoke<TR>()`, `Invoke<TR>(p1)`, or `Invoke<TR>(p1, p2)` depending on how many arguments you want to pass.
-- Use `LuauNil` when you expect no return value.
+- Use `Invoke(...)` when you want to ignore return values.
+- Use `Invoke<TR>(...)` for a single typed return value. Extra Luau return values are ignored.
+- Use `Invoke<TR1, TR2>(...)` or `Invoke<TR1, TR2, TR3>(...)` when you want multiple typed return values.
+- Use `InvokeMulti(...)` when you want all Luau return values as raw `LuauValue` instances.
 - Argument values go through the normal `IntoLuau` conversion rules.
+- The current argument buffer accepts up to 4 arguments per call.
 
 If Luau raises an error, `Invoke<TR>(...)` throws `LuaException`. If the return value cannot be converted to `TR`, it throws `InvalidCastException`.
 
@@ -35,6 +40,9 @@ lua.Globals.Set("log", log);
 
 using LuauFunction add = lua.CreateFunction((int a, int b) => a + b);
 lua.Globals.Set("add", add);
+
+using LuauFunction pair = lua.CreateFunction((int a, int b) => (a + b, a - b));
+lua.Globals.Set("pair", pair);
 ```
 
 This is the normal callback API when your callback shape is simple and static.
@@ -57,24 +65,24 @@ This is the normal callback API when your callback shape is simple and static.
 - `string` and span-based string or buffer parameters,
 - `LuauValue`,
 - borrowed callback views such as `LuauTableView` or `LuauFunctionView`,
-- `void` or one managed return value.
+- `void`, one managed return value, or a top-level tuple return whose elements are individually supported.
 
-The supported signature set is narrower than the library's overall type-conversion surface. If a delegate shape is not supported there, use `CreateFunctionBuilder(...)` instead. See [Type mapping](../concepts/type-mapping.md) for the broader conversion model.
+The supported signature set is narrower than the library's overall type-conversion surface. Generator-backed callbacks currently reject nested tuple returns and are limited to top-level tuple returns that fit the current `LuauReturn.Ok(...)` arity. If a delegate shape is not supported there, use `CreateFunctionBuilder(...)` instead. See [Type mapping](../concepts/type-mapping.md) for the broader conversion model.
 
 ## Choose between callback APIs
 
 | Capability | `CreateFunction(...)` | `CreateFunctionBuilder(...)` |
 | --- | --- | --- |
 | Input shape | typed delegate | `LuauArgs` |
-| Output shape | `void` or one managed return value | `LuauReturn.Ok(...)` / `LuauReturn.Error(...)` |
+| Output shape | `void`, one managed return value, or a supported top-level tuple return | `LuauReturn.Ok(...)` / `LuauReturn.Error(...)` |
 | Requirements | direct call, generator-backed | plain runtime API |
-| Best for | simple fixed signatures | manual validation, multiple return values, unsupported signatures |
+| Best for | simple fixed signatures, including supported tuple returns | manual validation, custom errors, unsupported signatures |
 
 Prefer `CreateFunction(...)` unless you specifically need the extra control from `CreateFunctionBuilder(...)`.
 
 ## Use `CreateFunctionBuilder(...)` for manual callbacks
 
-Use `CreateFunctionBuilder(...)` when you want to parse callback arguments yourself, return more than one value, or shape the user-facing error contract explicitly:
+Use `CreateFunctionBuilder(...)` when you want to parse callback arguments yourself, shape the user-facing error contract explicitly, or expose a callback shape the generator does not support:
 
 ```csharp
 using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
@@ -107,7 +115,7 @@ using LuauFunction invokeCallback = lua.CreateFunctionBuilder(static args =>
         return LuauReturn.Error(error);
 
     using LuauFunction owned = callback.ToOwned();
-    owned.Invoke<LuauNil>();
+    owned.Invoke();
     return LuauReturn.Ok();
 });
 ```

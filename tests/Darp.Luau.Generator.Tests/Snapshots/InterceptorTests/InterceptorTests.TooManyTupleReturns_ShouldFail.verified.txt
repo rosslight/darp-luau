@@ -1,0 +1,23 @@
+{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction(() => (1, 2, 3, 4, 5));
+                                   ^^^^^^^^^^^^^^^
+    }
+*/
+ : (6,35)-(6,50),
+      Message: Return tuple type '(int, int, int, int, int)' is not supported: only up to 4 tuple return values are supported,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0005,
+        Title: Unsupported tuple return shape,
+        MessageFormat: Return tuple type '{0}' is not supported: {1},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

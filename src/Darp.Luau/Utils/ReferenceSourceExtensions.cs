@@ -25,7 +25,7 @@ internal static class ReferenceSourceExtensions
         ArgumentNullException.ThrowIfNull(state);
         if (state.ReferenceTracker.TryGetTrackedReference(handle, out var trackedReference))
             return trackedReference;
-        throw new ObjectDisposedException("Tried to get a reference that was not tracked.");
+        throw new ObjectDisposedException(nameof(handle), "Tried to access a reference that is no longer tracked.");
     }
 
     public static bool TryGetTrackedReference(

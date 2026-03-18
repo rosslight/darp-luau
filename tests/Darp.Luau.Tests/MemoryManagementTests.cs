@@ -145,6 +145,36 @@ public sealed class MemoryManagementTests
     }
 
     [Fact]
+    public void DisposedTable_ToIntoLuau_ShouldThrowObjectDisposedException()
+    {
+        using var state = new LuauState();
+        LuauTable table = state.CreateTable();
+        table.Dispose();
+
+        Should.Throw<ObjectDisposedException>(() => state.Globals.Set("payload", table));
+    }
+
+    [Fact]
+    public void DisposedFunction_ToIntoLuau_ShouldThrowObjectDisposedException()
+    {
+        using var state = new LuauState();
+        LuauFunction function = state.CreateFunctionBuilder(_ => LuauReturn.Ok());
+        function.Dispose();
+
+        Should.Throw<ObjectDisposedException>(() => state.Globals.Set("payload", function));
+    }
+
+    [Fact]
+    public void DisposedUserdata_ToIntoLuau_ShouldThrowObjectDisposedException()
+    {
+        using var state = new LuauState();
+        LuauUserdata userdata = state.GetOrCreateUserdata(new ValueUserdata { Value = 42 });
+        userdata.Dispose();
+
+        Should.Throw<ObjectDisposedException>(() => state.Globals.Set("payload", userdata));
+    }
+
+    [Fact]
     public void CrossState_ReferenceUsage_ShouldThrowInvalidOperationException()
     {
         using var stateA = new LuauState();
@@ -172,7 +202,7 @@ public sealed class MemoryManagementTests
         using LuauTable tableA = stateA.CreateTable();
         using LuauFunction functionB = stateB.CreateFunctionBuilder(_ => LuauReturn.Ok());
 
-        Should.Throw<InvalidOperationException>(() => functionB.Invoke<LuauNil>(tableA));
+        Should.Throw<InvalidOperationException>(() => functionB.Invoke(tableA));
     }
 
     [Fact]
