@@ -42,9 +42,9 @@ jobs:
             os: windows-11-arm
           - name: macOS x64
             os: macos-26-intel
-          - name: macOS ARM64
+          - name: macOS arm64
             os: macos-26
-          - name: Linux ARM64
+          - name: Linux arm64
             os: ubuntu-24.04-arm
     name: Test on ${{ matrix.name }}
     runs-on: ${{ matrix.os }}

@@ -35,8 +35,8 @@ internal static unsafe class LuauTableAccessCore
 #endif
         using PopDisposable _ = source.PushToTop();
         key.Push(state);
-        lua_gettable(L, -2);
-        bool hasValue = !lua_isnil(L, -1);
+        var actualType = (lua_Type)lua_gettable(L, -2);
+        bool hasValue = actualType != lua_Type.LUA_TNIL;
         lua_pop(L, 1);
         return hasValue;
     }

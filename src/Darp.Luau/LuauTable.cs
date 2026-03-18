@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
@@ -8,6 +9,11 @@ namespace Darp.Luau;
 
 /// <summary> A reference to a luau table </summary>
 /// <remarks> A view of the table  </remarks>
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
+)]
 public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<KeyValuePair<LuauValue, LuauValue>>
 {
     private readonly LuauState? _state;
@@ -122,7 +128,7 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
 #if DEBUG
             using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-            _ = trackedReference.PushToTop();
+            using PopDisposable tablePop = trackedReference.PushToTop();
             int t = lua_gettop(L); // table index
 
             if (_lastKeyRef == 0)
@@ -134,8 +140,6 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
             int hasNext = lua_next(L, t);
             if (hasNext == 0)
             {
-                // key already popped by lua_next; only table remains
-                lua_pop(L, 1);
                 return false;
             }
 
@@ -151,7 +155,7 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
             var value = LuauValue.ToValue(_state);
             lua_pop(L, 1); // pop value
             var key = LuauValue.ToValue(_state);
-            lua_pop(L, 2); // pop key + table
+            lua_pop(L, 1); // pop key; table is released by tablePop
 
             _current = new KeyValuePair<LuauValue, LuauValue>(key, value);
             return true;

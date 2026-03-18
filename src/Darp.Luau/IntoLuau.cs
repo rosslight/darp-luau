@@ -162,12 +162,16 @@ public readonly ref struct IntoLuau
             case Kind.StackReference:
                 if (!ReferenceEquals(state, _stackReference.ValidateInternal()))
                     throw new InvalidOperationException("Cross-state reference usage is not allowed.");
+#pragma warning disable CA2000 // TODO: add a dedicated transfer-push helper so analyzers understand the value stays on the Lua stack.
                 _ = _stackReference.PushToTop();
+#pragma warning restore CA2000
                 break;
             case Kind.TrackedReference:
                 if (!ReferenceEquals(state, _trackedReference!.ValidateInternal()))
                     throw new InvalidOperationException("Cross-state reference usage is not allowed.");
+#pragma warning disable CA2000 // TODO: add a dedicated transfer-push helper so analyzers understand the value stays on the Lua stack.
                 _ = _trackedReference!.PushToTop();
+#pragma warning restore CA2000
                 break;
             case Kind.Nil:
             default:
@@ -202,14 +206,14 @@ public readonly ref struct IntoLuau
             case Kind.StackReference:
             {
                 LuauState state = _stackReference.ValidateInternal();
-                using var pop = _stackReference.PushToTop();
+                using PopDisposable pop = _stackReference.PushToTop();
                 return IntoLuauCopied.FromValue(LuauValue.ToValue(state));
             }
             case Kind.TrackedReference:
             {
                 Debug.Assert(_trackedReference is not null);
                 LuauState state = _trackedReference.ValidateInternal();
-                using var pop = _trackedReference.PushToTop();
+                using PopDisposable pop = _trackedReference.PushToTop();
                 return IntoLuauCopied.FromValue(LuauValue.ToValue(state));
             }
             case Kind.Nil:

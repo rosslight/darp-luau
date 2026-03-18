@@ -7,6 +7,11 @@ namespace Darp.Luau;
 /// <summary>
 /// Represents an owned Luau string reference stored in the registry.
 /// </summary>
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
+)]
 public readonly struct LuauString : ILuauReference
 {
     private readonly LuauState? _state;

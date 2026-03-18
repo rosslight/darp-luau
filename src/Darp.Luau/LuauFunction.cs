@@ -1,8 +1,14 @@
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
 
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
+)]
 public readonly struct LuauFunction : ILuauReference
 {
     private readonly LuauState? _state;

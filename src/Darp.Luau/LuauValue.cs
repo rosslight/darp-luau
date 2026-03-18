@@ -24,6 +24,11 @@ public enum LuauValueType
 }
 
 [StructLayout(LayoutKind.Sequential)]
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "This type can wrap Lua references; custom value equality would imply Lua identity semantics the API does not guarantee."
+)]
 public readonly struct LuauValue : IDisposable
 {
     public LuauValueType Type { get; }
@@ -428,10 +433,12 @@ public readonly struct LuauValue : IDisposable
                 if (_state is null)
                     throw new InvalidOperationException("No LuauState present.");
                 var trackedReference = _state.GetTrackedReferenceOrThrow(_union.ValueHandle);
+#pragma warning disable CA2000 // TODO: add a dedicated transfer-push helper so analyzers understand the value stays on the Lua stack.
                 trackedReference.PushToTop();
+#pragma warning restore CA2000
                 break;
             default:
-                throw new ArgumentOutOfRangeException();
+                throw new InvalidOperationException($"Unsupported Luau value type: {Type}.");
         }
     }
 

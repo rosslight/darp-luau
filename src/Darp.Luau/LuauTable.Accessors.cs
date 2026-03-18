@@ -318,7 +318,9 @@ public unsafe partial struct LuauTable
         _state.ThrowIfDisposed();
         L = _state.L;
         var trackedReference = _state.GetTrackedReferenceOrThrow(_handle);
+#pragma warning disable CA2000 // TODO: return an explicit stack owner from TryGet so ownership transfer is visible to analyzers.
         _ = trackedReference.PushToTop();
+#pragma warning restore CA2000
         key.Push(_state);
         _ = (lua_Type)lua_gettable(L, -2);
     }

@@ -166,7 +166,8 @@ public sealed class LuauTableReferenceOverloadTests
         table.TryGetLuauBuffer("buffer", out LuauBuffer found).ShouldBeTrue();
         using (found)
         {
-            found.TryGet(out byte[] bytes).ShouldBeTrue();
+            found.TryGet(out byte[]? bytes).ShouldBeTrue();
+            bytes.ShouldNotBeNull();
             bytes.ShouldBe(expected);
         }
     }
@@ -194,7 +195,8 @@ public sealed class LuauTableReferenceOverloadTests
         table.Set("buffer", expected);
 
         using LuauBuffer found = table.GetLuauBuffer("buffer");
-        found.TryGet(out byte[] bytes).ShouldBeTrue();
+        found.TryGet(out byte[]? bytes).ShouldBeTrue();
+        bytes.ShouldNotBeNull();
         bytes.ShouldBe(expected);
     }
 

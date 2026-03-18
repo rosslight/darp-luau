@@ -13,7 +13,12 @@ internal struct LuauUserdataNative
     public GCHandle RegistryValueHandle { get; internal set; }
 }
 
-public readonly struct LuauUserdata : ILuauReference, IEquatable<LuauUserdata>
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "This wrapper is an ownership handle; custom value equality would imply Lua identity semantics the API does not guarantee."
+)]
+public readonly struct LuauUserdata : ILuauReference
 {
     private readonly LuauState? _state;
     private readonly ulong _handle;
@@ -56,9 +61,6 @@ public readonly struct LuauUserdata : ILuauReference, IEquatable<LuauUserdata>
 
     /// <inheritdoc/>
     public LuauValue DisposeAndToLuauValue() => LuauValue.Move(_state, _handle, LuauValueType.Userdata);
-
-    /// <inheritdoc />
-    public bool Equals(LuauUserdata other) => other._state == _state && other._handle == _handle;
 
     /// <inheritdoc />
     public override string ToString() => Helpers.HandleToString(_state, _handle);

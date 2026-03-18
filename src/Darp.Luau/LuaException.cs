@@ -8,8 +8,13 @@ namespace Darp.Luau;
 /// <summary> A lua exception </summary>
 public sealed class LuaException : Exception
 {
+    internal LuaException() { }
+
     internal LuaException(string message)
         : base(message) { }
+
+    internal LuaException(string message, Exception innerException)
+        : base(message, innerException) { }
 
     /// <summary> Throws if not ok </summary>
     /// <param name="L"> The state that holds the error </param>
@@ -33,4 +38,13 @@ public sealed class LuaException : Exception
     }
 }
 
-public sealed class LuaGetException(string message) : Exception(message);
+public sealed class LuaGetException : Exception
+{
+    internal LuaGetException() { }
+
+    internal LuaGetException(string message)
+        : base(message) { }
+
+    internal LuaGetException(string message, Exception innerException)
+        : base(message, innerException) { }
+}

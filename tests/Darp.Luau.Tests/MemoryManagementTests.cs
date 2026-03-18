@@ -39,7 +39,8 @@ public sealed class MemoryManagementTests
 
         using (buffer)
         {
-            buffer.TryGet(out byte[] bytes).ShouldBeTrue();
+            buffer.TryGet(out byte[]? bytes).ShouldBeTrue();
+            bytes.ShouldNotBeNull();
             bytes.ShouldBe(expected);
         }
     }

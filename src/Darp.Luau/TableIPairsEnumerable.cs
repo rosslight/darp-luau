@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -6,6 +7,11 @@ using static Darp.Luau.Native.LuauNative;
 namespace Darp.Luau;
 
 /// <summary> An IPairs enumerable over a table </summary>
+[SuppressMessage(
+    "Performance",
+    "CA1815:Override equals and operator equals on value types",
+    Justification = "This enumerable is a lightweight view over Lua state and handle ownership; custom value equality would imply semantics the API does not guarantee."
+)]
 public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, LuauValue>>
 {
     private readonly LuauTable _table;
@@ -66,18 +72,18 @@ public readonly struct TableIPairsEnumerable : IEnumerable<KeyValuePair<int, Lua
 #if DEBUG
             using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-            _ = trackedReference.PushToTop();
+            using PopDisposable tablePop = trackedReference.PushToTop();
             int t = lua_gettop(L);
             _ = lua_rawgeti(L, t, _i);
             if (lua_isnil(L, -1))
             {
-                lua_pop(L, 2);
+                lua_pop(L, 1);
                 return false;
             }
 
             var value = LuauValue.ToValue(_state);
 
-            lua_pop(L, 2);
+            lua_pop(L, 1);
             _current = new KeyValuePair<int, LuauValue>(_i, value);
             return true;
         }
