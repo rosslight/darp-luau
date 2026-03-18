@@ -63,6 +63,7 @@ nav = [
     { "Buffers" = "features/buffers.md" },
     { "Strings" = "features/strings.md" },
     { "Libraries" = "features/libraries.md" },
+    { "Require" = "features/require.md" },
   ]},
 ]
 
