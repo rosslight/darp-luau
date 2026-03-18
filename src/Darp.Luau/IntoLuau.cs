@@ -166,14 +166,14 @@ public readonly ref struct IntoLuau
             case Kind.StackReference:
                 if (!ReferenceEquals(state, _stackReference.ValidateInternal()))
                     throw new InvalidOperationException("Cross-state reference usage is not allowed.");
-#pragma warning disable CA2000 // TODO: add a dedicated transfer-push helper so analyzers understand the value stays on the Lua stack.
+#pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
                 _ = _stackReference.PushToTop();
 #pragma warning restore CA2000
                 break;
             case Kind.TrackedReference:
                 if (!ReferenceEquals(state, _trackedReference!.ValidateInternal()))
                     throw new InvalidOperationException("Cross-state reference usage is not allowed.");
-#pragma warning disable CA2000 // TODO: add a dedicated transfer-push helper so analyzers understand the value stays on the Lua stack.
+#pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
                 _ = _trackedReference!.PushToTop();
 #pragma warning restore CA2000
                 break;

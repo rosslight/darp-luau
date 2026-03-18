@@ -200,7 +200,7 @@ public sealed unsafe class LuauState : IDisposable
         RegistryReferenceTracker.TrackedReference trackedReference = this.GetTrackedReferenceOrThrow(
             _callbackWrapperReference
         );
-#pragma warning disable CA2000 // TODO: model callback-wrapper pushes with a helper that marks the stack value as consumed by lua_pcall.
+#pragma warning disable CA2000 // lua_pcall consumes the callback wrapper argument from the stack, so disposing the pop token here would be incorrect.
         _ = trackedReference.PushToTop();
 #pragma warning restore CA2000
         lua_pushcfunction(L, callback, debugName);

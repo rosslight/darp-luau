@@ -475,7 +475,7 @@ public readonly struct LuauValue : IDisposable
                 if (_state is null)
                     throw new InvalidOperationException("No LuauState present.");
                 var trackedReference = _state.GetTrackedReferenceOrThrow(_union.ValueHandle);
-#pragma warning disable CA2000 // TODO: add a dedicated transfer-push helper so analyzers understand the value stays on the Lua stack.
+#pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
                 trackedReference.PushToTop();
 #pragma warning restore CA2000
                 break;
