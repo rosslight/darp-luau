@@ -63,7 +63,7 @@ Populate the library inside the registration callback. The temporary `lib` wrapp
 - it registers a plain global table, not a module loader,
 - it can be called after state creation for runtime registration.
 
-If you want `require(...)` semantics, caching, or a more elaborate loading model, build that on top of this primitive.
+If you want file-backed `require(...)`, use `EnableRequire()` instead. `OpenLibrary(...)` exposes host APIs; it does not load script modules.
 
 ## Guidance
 
@@ -71,3 +71,5 @@ If you want `require(...)` semantics, caching, or a more elaborate loading model
 - Group related functionality under one named table instead of scattering globals.
 - Prefer stable script-facing names over mirroring internal managed type names.
 - Register only what the script truly needs.
+
+See [Require](require.md) for filesystem-backed module loading.

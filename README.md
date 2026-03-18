@@ -131,7 +131,20 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 });
 ```
 
-`OpenLibrary(...)` registers a global table. It is a convenient way to expose host-provided APIs, but it is not a `require(...)`-style module loader by itself.
+`OpenLibrary(...)` registers a global table. It is a convenient way to expose host-provided APIs, but it is separate from filesystem-backed module loading.
+
+## Enable require
+
+```csharp
+using System.Text;
+
+lua.EnableRequire();
+
+string path = Path.GetFullPath("scripts/main.luau");
+lua.DoString(File.ReadAllBytes(path), Encoding.UTF8.GetBytes("@" + path));
+```
+
+`EnableRequire()` installs Luau's file-backed `require(...)` support. The context is owned by LuauState and disposed automatically. Pass an @-prefixed chunk name for file entrypoints so relative imports resolve correctly.
 
 ## Ownership and lifetime
 
@@ -142,6 +155,8 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 ## Current boundaries
 
 - `DoString(...)` is the script execution API today. If you want file-based execution, read the file yourself and pass its contents in.
+- `EnableRequire()` provides file-backed `require(...)`, but there is no `DoFile(...)` helper yet.
 - `CreateFunction(...)` is generator-backed and has no runtime fallback.
 - `LuauState` is not thread-safe.
-- A documented module system and higher-level async/thread orchestration are not part of the current surface yet.
+- `require(...)` currently depends on explicit `EnableRequire()` setup, `@`-prefixed chunk names for file entrypoints, single-value module returns, and non-yielding module execution.
+- Higher-level async/thread orchestration is not part of the current surface yet.

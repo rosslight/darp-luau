@@ -8,7 +8,7 @@ namespace Darp.Luau;
 /// <summary> A lua exception </summary>
 public sealed class LuaException : Exception
 {
-    private LuaException(string message)
+    internal LuaException(string message)
         : base(message) { }
 
     /// <summary> Throws if not ok </summary>
