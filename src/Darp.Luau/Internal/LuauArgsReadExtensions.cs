@@ -10,7 +10,7 @@ internal static class LuauArgsReadExtensions
         {
             return value.TryGet(out T? result, acceptNil: default(T) is null)
                 ? result
-                : throw new InvalidCastException(error);
+                : throw new InvalidCastException($"Could not cast {typeof(T).Name} to {value.Type}.");
         }
         finally
         {

@@ -89,10 +89,10 @@ using LuauFunction pair = lua.CreateFunctionBuilder(static args =>
 {
     if (!args.TryValidateArgumentCount(2, out string? error))
         return LuauReturn.Error(error);
-    if (args.ArgumentCount != 2)
-        return LuauReturn.Error("Expected exactly 2 arguments.");
     if (!args.TryReadNumber(1, out int a, out error) || !args.TryReadNumber(2, out int b, out error))
         return LuauReturn.Error(error);
+    if (a <= b)
+        return LuauReturn.Error("Expected a to be greater than b");
 
     return LuauReturn.Ok(a + b, a - b);
 });

@@ -25,6 +25,7 @@ public sealed unsafe class LuauState : IDisposable
     private readonly UserdataRegistrationCache _cache;
 
     internal LuauRequireByString.Context? _requireContext;
+
     /// <summary>require-by-string context for state. is created if require-by-string gets enabled</summary>
     public IRequireContext? RequireContext => _requireContext;
 
@@ -565,53 +566,5 @@ public sealed unsafe class LuauState : IDisposable
         {
             lua_settop(L, topBeforeInvoke);
         }
-    }
-
-    /// <summary> Do the string and return all return values</summary>
-    /// <param name="source"> The source to compile and run </param>
-    /// <param name="chunkName"> The name of the chunk to load </param>
-    public LuauValue[] DoStringAndReturn(ReadOnlySpan<byte> source, ReadOnlySpan<byte> chunkName = default)
-    {
-        this.ThrowIfDisposed();
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        if (chunkName.IsEmpty)
-            chunkName = "main"u8;
-
-        int nNumRetValues;
-        fixed (byte* pSource = source)
-        fixed (byte* pChunkName = chunkName)
-        {
-            nuint nSizeByteCode = 0;
-            byte* pByteCode = luau_compile(pSource, (nuint)source.Length, null, &nSizeByteCode);
-            try
-            {
-                int nLoadStatus = luau_load(L, pChunkName, pByteCode, nSizeByteCode, 0);
-                LuaException.ThrowIfNotOk(L, nLoadStatus, "luau_load");
-
-                int iStackBefore = lua_absindex(L, lua_gettop(L));
-
-                int nCallStatus = lua_pcall(L, 0, LUA_MULTRET, 0);
-                LuaException.ThrowIfNotOk(L, nCallStatus, "lua_pcall");
-            
-                nNumRetValues = lua_absindex(L, lua_gettop(L)) - iStackBefore + 1;
-            }
-            finally
-            {
-                luau_free(pByteCode);
-            }
-        }
-
-        if (nNumRetValues == 0)
-            return [];
-
-        var results = new LuauValue[nNumRetValues];
-        while(--nNumRetValues >= 0)
-        {
-            results[nNumRetValues] = LuauValue.ToValue(this);
-            lua_pop(L, 1);
-        }
-        return results;
     }
 }
