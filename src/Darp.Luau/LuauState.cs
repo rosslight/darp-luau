@@ -575,4 +575,30 @@ public sealed unsafe class LuauState : IDisposable
             lua_settop(L, topBeforeInvoke);
         }
     }
+
+    /// <summary>
+    /// Creates a lightweight executable chunk from source text.
+    /// </summary>
+    /// <param name="source">The source text to compile and execute.</param>
+    /// <returns>A chunk wrapper that can be executed or converted to a reusable <see cref="LuauFunction"/>.</returns>
+    /// <remarks>
+    /// The returned chunk is an ephemeral wrapper over the provided source. Executing it recompiles the source each time.
+    /// </remarks>
+    public LuauChunk Load(ReadOnlySpan<char> source)
+    {
+        return new LuauChunk(this, LuauCompiler.Default, source);
+    }
+
+    /// <summary>
+    /// Creates a lightweight executable chunk from UTF-8 source bytes.
+    /// </summary>
+    /// <param name="source">The UTF-8 encoded source text to compile and execute.</param>
+    /// <returns>A chunk wrapper that can be executed or converted to a reusable <see cref="LuauFunction"/>.</returns>
+    /// <remarks>
+    /// The returned chunk is an ephemeral wrapper over the provided source. Executing it recompiles the source each time.
+    /// </remarks>
+    public LuauChunk Load(ReadOnlySpan<byte> source)
+    {
+        return new LuauChunk(this, LuauCompiler.Default, source);
+    }
 }
