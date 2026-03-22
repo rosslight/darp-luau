@@ -9,13 +9,15 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void Simple()
     {
-        _state.DoString(
-            """
-            function get_value(message: string)
-              return message;
-            end
-            """
-        );
+        _state
+            .Load(
+                """
+                function get_value(message: string)
+                  return message;
+                end
+                """
+            )
+            .Execute();
         _ = _state.Globals.TryGet("get_value", out LuauFunction func);
         using (func)
         {
@@ -32,7 +34,7 @@ public sealed class FunctionTests : IDisposable
         using LuauFunction func = _state.CreateFunction(Log);
         _state.Globals.Set("log", func);
 
-        _state.DoString("""log("hello from lua")""");
+        _state.Load("""log("hello from lua")""").Execute();
 
         messageToLog.ShouldBe("hello from lua");
         return;
@@ -43,13 +45,15 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void LuaFunction_ShouldBeCalled()
     {
-        _state.DoString(
-            """
-            function add(a, b)
-             return a + b
-            end
-            """
-        );
+        _state
+            .Load(
+                """
+                function add(a, b)
+                 return a + b
+                end
+                """
+            )
+            .Execute();
 
         using LuauFunction luaFunc = _state.Globals.GetLuauFunction("add");
 
@@ -62,7 +66,7 @@ public sealed class FunctionTests : IDisposable
         using LuauFunction func = _state.CreateFunction(Add);
         _state.Globals.Set("add", func);
 
-        _state.DoString("result = add(1, 2)");
+        _state.Load("result = add(1, 2)").Execute();
         _state.Globals.TryGet("result", out int result).ShouldBeTrue();
 
         result.ShouldBe(3);
@@ -79,7 +83,7 @@ public sealed class FunctionTests : IDisposable
         );
         _state.Globals.Set("explode", func);
 
-        _state.DoString("ok, err = pcall(explode)");
+        _state.Load("ok, err = pcall(explode)").Execute();
 
         _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -97,7 +101,11 @@ public sealed class FunctionTests : IDisposable
         );
         _state.Globals.Set("explode", func);
 
-        LuaException exception = Should.Throw<LuaException>(() => _state.DoString("explode();"));
+        LuaException exception = Should.Throw<LuaException>(() =>
+        {
+            LuauChunk chunk = _state.Load("explode();");
+            chunk.Execute();
+        });
         exception.Message.ShouldContain("managed function callback failed");
         exception.Message.ShouldContain("Boom from managed function");
     }
@@ -114,7 +122,7 @@ public sealed class FunctionTests : IDisposable
         });
         _state.Globals.Set("add", func);
 
-        _state.DoString("result = add(1, 2)");
+        _state.Load("result = add(1, 2)").Execute();
         _state.Globals.TryGet("result", out int result).ShouldBeTrue();
         result.ShouldBe(3);
     }
@@ -125,7 +133,7 @@ public sealed class FunctionTests : IDisposable
         using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Error("user facing error"));
         _state.Globals.Set("fail", func);
 
-        _state.DoString("ok, err = pcall(fail)");
+        _state.Load("ok, err = pcall(fail)").Execute();
 
         _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -140,7 +148,7 @@ public sealed class FunctionTests : IDisposable
         using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok("hello from csharp"));
         _state.Globals.Set("greet", func);
 
-        _state.DoString("result = greet()");
+        _state.Load("result = greet()").Execute();
 
         _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
         result.ShouldBe("hello from csharp");
@@ -152,7 +160,7 @@ public sealed class FunctionTests : IDisposable
         using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Error("error from callback"));
         _state.Globals.Set("fail", func);
 
-        _state.DoString("ok, err = pcall(fail)");
+        _state.Load("ok, err = pcall(fail)").Execute();
 
         _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -167,7 +175,7 @@ public sealed class FunctionTests : IDisposable
         using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok());
         _state.Globals.Set("touch", func);
 
-        _state.DoString("returnCount = select('#', touch())");
+        _state.Load("returnCount = select('#', touch())").Execute();
 
         _state.Globals.TryGet("returnCount", out int returnCount).ShouldBeTrue();
         returnCount.ShouldBe(0);
@@ -179,12 +187,14 @@ public sealed class FunctionTests : IDisposable
         using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok(10, 11));
         _state.Globals.Set("pair", func);
 
-        _state.DoString(
-            """
-            first, second = pair()
-            returnCount = select('#', pair())
-            """
-        );
+        _state
+            .Load(
+                """
+                first, second = pair()
+                returnCount = select('#', pair())
+                """
+            )
+            .Execute();
 
         _state.Globals.TryGet("first", out int first).ShouldBeTrue();
         first.ShouldBe(10);
@@ -672,7 +682,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction func = _state.CreateFunction(() => expectedValue);
         _state.Globals.Set("f", func);
-        _state.DoString("result = f()");
+        _state.Load("result = f()").Execute();
         _state.Globals.TryGet("result", out ulong result).ShouldBeTrue();
 
         result.ShouldBe(expectedValue);
@@ -685,7 +695,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction func = _state.CreateFunction(() => expectedValue);
         _state.Globals.Set("f", func);
-        _state.DoString("result = f()");
+        _state.Load("result = f()").Execute();
         _state.Globals.TryGet("result", out bool? result).ShouldBeFalse();
 
         result.ShouldBe(expectedValue);
@@ -698,7 +708,7 @@ public sealed class FunctionTests : IDisposable
 
         using LuauFunction func = _state.CreateFunction(() => expectedValue);
         _state.Globals.Set("f", func);
-        _state.DoString("result = f()");
+        _state.Load("result = f()").Execute();
         _state.Globals.TryGet("result", out int result).ShouldBeTrue();
 
         result.ShouldBe(expectedValue);
@@ -720,7 +730,7 @@ public sealed class FunctionTests : IDisposable
 
         _state.Globals.Set("input", buffer);
         _state.Globals.Set("f", func);
-        _state.DoString("result = f(input)");
+        _state.Load("result = f(input)").Execute();
         _state.Globals.TryGet("result", out LuauBuffer bufferResult).ShouldBeTrue();
 
         using (bufferResult)
@@ -744,7 +754,7 @@ public sealed class FunctionTests : IDisposable
 
         _state.Globals.Set("input", Convert.ToHexString(expected));
         _state.Globals.Set("f", func);
-        _state.DoString("result = f(input)");
+        _state.Load("result = f(input)").Execute();
         _state.Globals.TryGet("result", out ReadOnlySpan<byte> result).ShouldBeTrue();
         result.ToArray().ShouldBe<byte>(expected);
     }
@@ -764,7 +774,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("input", expectedValue);
         _state.Globals.Set("f", func);
 
-        _state.DoString("result = f(input)");
+        _state.Load("result = f(input)").Execute();
         _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
         result.ShouldBe(expectedValue);
     }
@@ -783,7 +793,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("input", input);
         _state.Globals.Set("f", func);
 
-        _state.DoString("result = f(input)");
+        _state.Load("result = f(input)").Execute();
         _state.Globals.TryGet("result", out int result).ShouldBeTrue();
         result.ShouldBe(42);
     }
@@ -801,13 +811,15 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("input", new ArgsUserdataB());
         _state.Globals.Set("f", func);
 
-        _state.DoString(
-            """
-            ok, err = pcall(function()
-              f(input)
-            end)
-            """
-        );
+        _state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  f(input)
+                end)
+                """
+            )
+            .Execute();
 
         _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -827,10 +839,10 @@ public sealed class FunctionTests : IDisposable
         });
         _state.Globals.Set("f", func);
 
-        _state.DoString("fromNil = f(nil)");
+        _state.Load("fromNil = f(nil)").Execute();
 
         _state.Globals.Set("input", new ArgsUserdataA());
-        _state.DoString("fromUserdata = f(input)");
+        _state.Load("fromUserdata = f(input)").Execute();
 
         _state.Globals.TryGet("fromNil", out string? fromNil).ShouldBeTrue();
         fromNil.ShouldBe("nil");
@@ -851,7 +863,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("input", new ArgsUserdataA());
         _state.Globals.Set("f", func);
 
-        _state.DoString("isSame = f(input) == input");
+        _state.Load("isSame = f(input) == input").Execute();
         _state.Globals.TryGet("isSame", out bool isSame).ShouldBeTrue();
         isSame.ShouldBeTrue();
     }
@@ -859,13 +871,15 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void LuauFunction_Invoke_ReturningTable_ShouldReturnUsableTable()
     {
-        _state.DoString(
-            """
-            function mk_table()
-              return { value = 7 }
-            end
-            """
-        );
+        _state
+            .Load(
+                """
+                function mk_table()
+                  return { value = 7 }
+                end
+                """
+            )
+            .Execute();
 
         _state.Globals.TryGet("mk_table", out LuauFunction mkTable).ShouldBeTrue();
         using (mkTable)
@@ -878,13 +892,15 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void LuauFunction_Invoke_ReturningTable_ShouldKeepReferenceTrackedUntilCallerDisposes()
     {
-        _state.DoString(
-            """
-            function mk_table()
-              return { value = 11 }
-            end
-            """
-        );
+        _state
+            .Load(
+                """
+                function mk_table()
+                  return { value = 11 }
+                end
+                """
+            )
+            .Execute();
 
         _state.Globals.TryGet("mk_table", out LuauFunction mkTable).ShouldBeTrue();
         using (mkTable)
@@ -904,13 +920,15 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void LuauFunctionView_Invoke_ReturningTable_ShouldWorkInsideManagedCallback()
     {
-        _state.DoString(
-            """
-            function make_table()
-              return { value = 99 }
-            end
-            """
-        );
+        _state
+            .Load(
+                """
+                function make_table()
+                  return { value = 99 }
+                end
+                """
+            )
+            .Execute();
 
         using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
         {
@@ -925,7 +943,7 @@ public sealed class FunctionTests : IDisposable
         });
 
         _state.Globals.Set("call_and_read", callAndRead);
-        _state.DoString("result = call_and_read(make_table)");
+        _state.Load("result = call_and_read(make_table)").Execute();
 
         _state.Globals.GetNumber("result").ShouldBe(99);
     }
@@ -933,13 +951,15 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void LuauFunctionView_Invoke_TupleReturn_ShouldWorkInsideManagedCallback()
     {
-        _state.DoString(
-            """
-            function make_pair()
-              return 7, "value"
-            end
-            """
-        );
+        _state
+            .Load(
+                """
+                function make_pair()
+                  return 7, "value"
+                end
+                """
+            )
+            .Execute();
 
         using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
         {
@@ -951,7 +971,7 @@ public sealed class FunctionTests : IDisposable
         });
 
         _state.Globals.Set("call_and_read", callAndRead);
-        _state.DoString("result = call_and_read(make_pair)");
+        _state.Load("result = call_and_read(make_pair)").Execute();
 
         _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
         result.ShouldBe("7:value");
@@ -960,13 +980,15 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void LuauFunctionView_Invoke_Void_ShouldWorkInsideManagedCallback()
     {
-        _state.DoString(
-            """
-            function make_values()
-              return 1, 2
-            end
-            """
-        );
+        _state
+            .Load(
+                """
+                function make_values()
+                  return 1, 2
+                end
+                """
+            )
+            .Execute();
 
         using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
         {
@@ -978,7 +1000,7 @@ public sealed class FunctionTests : IDisposable
         });
 
         _state.Globals.Set("call_and_read", callAndRead);
-        _state.DoString("result = call_and_read(make_values)");
+        _state.Load("result = call_and_read(make_values)").Execute();
 
         _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
         result.ShouldBe("done");
@@ -987,13 +1009,15 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void LuauFunctionView_Invoke_ThreeReturn_ShouldWorkInsideManagedCallback()
     {
-        _state.DoString(
-            """
-            function make_values()
-              return 7, "value", true
-            end
-            """
-        );
+        _state
+            .Load(
+                """
+                function make_values()
+                  return 7, "value", true
+                end
+                """
+            )
+            .Execute();
 
         using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
         {
@@ -1005,7 +1029,7 @@ public sealed class FunctionTests : IDisposable
         });
 
         _state.Globals.Set("call_and_read", callAndRead);
-        _state.DoString("result = call_and_read(make_values)");
+        _state.Load("result = call_and_read(make_values)").Execute();
 
         _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
         result.ShouldBe("7:value:True");
@@ -1014,13 +1038,15 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void LuauFunctionView_Invoke_FourReturn_ShouldWorkInsideManagedCallback()
     {
-        _state.DoString(
-            """
-            function make_values()
-              return 7, "value", true, 15
-            end
-            """
-        );
+        _state
+            .Load(
+                """
+                function make_values()
+                  return 7, "value", true, 15
+                end
+                """
+            )
+            .Execute();
 
         using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
         {
@@ -1032,7 +1058,7 @@ public sealed class FunctionTests : IDisposable
         });
 
         _state.Globals.Set("call_and_read", callAndRead);
-        _state.DoString("result = call_and_read(make_values)");
+        _state.Load("result = call_and_read(make_values)").Execute();
 
         _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
         result.ShouldBe("7:value:True:15");
@@ -1041,13 +1067,15 @@ public sealed class FunctionTests : IDisposable
     [Fact]
     public void LuauFunctionView_InvokeMulti_ShouldWorkInsideManagedCallback()
     {
-        _state.DoString(
-            """
-            function make_values()
-              return 7, "value", true
-            end
-            """
-        );
+        _state
+            .Load(
+                """
+                function make_values()
+                  return 7, "value", true
+                end
+                """
+            )
+            .Execute();
 
         using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
         {
@@ -1073,7 +1101,7 @@ public sealed class FunctionTests : IDisposable
         });
 
         _state.Globals.Set("call_and_read", callAndRead);
-        _state.DoString("result = call_and_read(make_values)");
+        _state.Load("result = call_and_read(make_values)").Execute();
 
         _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
         result.ShouldBe("7:value:True");
@@ -1117,7 +1145,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("inputFunction", inputFunction);
         _state.Globals.Set("inputBuffer", inputBuffer);
         _state.Globals.Set("inputUserdata", inputUserdata);
-        _state.DoString("capture(inputTable, 'hello', inputFunction, inputBuffer, inputUserdata)");
+        _state.Load("capture(inputTable, 'hello', inputFunction, inputBuffer, inputUserdata)").Execute();
 
         using (ownedTable)
             ownedTable.GetNumber("value").ShouldBe(7);
@@ -1154,7 +1182,7 @@ public sealed class FunctionTests : IDisposable
         });
 
         _state.Globals.Set("make_table", func);
-        _state.DoString("result = make_table().value");
+        _state.Load("result = make_table().value").Execute();
 
         _state.Globals.GetNumber("result").ShouldBe(99);
     }
@@ -1173,7 +1201,7 @@ public sealed class FunctionTests : IDisposable
         });
 
         _state.Globals.Set("make_table", func);
-        _state.DoString("result = make_table().value");
+        _state.Load("result = make_table().value").Execute();
 
         _state.Globals.GetNumber("result").ShouldBe(99);
         x.GetNumber("value").ShouldBe(99);
@@ -1191,7 +1219,7 @@ public sealed class FunctionTests : IDisposable
         });
 
         _state.Globals.Set("make_buffer", func);
-        _state.DoString("result = make_buffer()");
+        _state.Load("result = make_buffer()").Execute();
 
         _state.Globals.TryGetLuauValue("result", out LuauValue result).ShouldBeTrue();
         using (result)

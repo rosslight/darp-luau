@@ -97,12 +97,12 @@ var player = new PlayerUserdata { Name = "Ada" };
 
 lua.Globals.Set("player", player);
 
-lua.DoString(
+lua.Load(
     """
     player.score = 41
     result = player:add(1)
     """
-);
+).Execute();
 
 PlayerUserdata samePlayer = lua.Globals.GetUserdata<PlayerUserdata>("player");
 

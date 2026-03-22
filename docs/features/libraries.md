@@ -47,7 +47,7 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
     lib.Set("add", add);
 });
 
-lua.DoString("result = game.add(game.answer, 8)");
+lua.Load("result = game.add(game.answer, 8)").Execute();
 ```
 
 This is a good fit for script-facing utility packages and host APIs that you want to group under a stable namespace-like table.

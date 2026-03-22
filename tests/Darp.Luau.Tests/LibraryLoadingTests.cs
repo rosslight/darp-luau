@@ -52,12 +52,14 @@ public sealed class LibraryLoadingTests : IDisposable
                 library.Set("add", add);
             }
         );
-        state.DoString(
-            """
-            sum = game.add(4, 7)
-            answer = game.answer
-            """
-        );
+        state
+            .Load(
+                """
+                sum = game.add(4, 7)
+                answer = game.answer
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("sum", out int sum).ShouldBeTrue();
         sum.ShouldBe(11);
@@ -80,7 +82,7 @@ public sealed class LibraryLoadingTests : IDisposable
         LuauState state = CreateState();
 
         state.OpenLibrary("game", static (_, in library) => library.Set("answer", 99));
-        state.DoString("answer = game.answer");
+        state.Load("answer = game.answer").Execute();
 
         state.Globals.TryGet("answer", out int answer).ShouldBeTrue();
         answer.ShouldBe(99);

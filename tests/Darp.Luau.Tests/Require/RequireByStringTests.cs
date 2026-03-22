@@ -75,7 +75,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/dependency");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -95,7 +95,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/dependency");
         string strSource = $"return pcall(require, \"{PathForRequireStringLiteral(strPath)}\")";
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -118,7 +118,7 @@ public sealed class RequireByStringTests
         string strPath = Path.Combine(ScriptPath, "without_config/dependency");
         strPath.ShouldContain('\\');
         string strSource = SourceForRunProtectedRequireLongLiteral(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -138,7 +138,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/module");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -160,7 +160,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/lua_dependency");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -180,7 +180,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/luau");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -200,7 +200,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/lua");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -220,7 +220,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/nested_module_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -240,7 +240,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/nested");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -260,7 +260,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/nested/init");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("could not resolve child component \"init\"");
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -276,7 +276,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/nested_inits_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -298,7 +298,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/ambiguous_file_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("module must return a single value");
         state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -317,7 +317,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/ambiguous_directory_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("module must return a single value");
         state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -336,7 +336,7 @@ public sealed class RequireByStringTests
 
         string strPath = "/an/absolute/path";
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("require path must start with a valid prefix: ./, ../, or @");
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -352,7 +352,7 @@ public sealed class RequireByStringTests
 
         string strPath = "an/unprefixed/path";
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("require path must start with a valid prefix: ./, ../, or @");
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -368,7 +368,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config/src/alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -388,7 +388,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/src/alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -408,7 +408,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config/src/parent_alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -428,7 +428,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/src/parent_alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -448,7 +448,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config/src/directory_alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -468,7 +468,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "config_tests/with_config_luau/src/directory_alias_requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -487,7 +487,7 @@ public sealed class RequireByStringTests
         state.RequireContext.ShouldNotBeNull();
 
         string strSource = SourceForRunProtectedRequire("@this.alias.does.not.exist");
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("@this.alias.does.not.exist is not a valid alias");
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -502,7 +502,7 @@ public sealed class RequireByStringTests
         state.RequireContext.ShouldNotBeNull();
 
         string strSource = SourceForRunProtectedRequire("@@");
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("@@ is not a valid alias");
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -517,7 +517,7 @@ public sealed class RequireByStringTests
         state.RequireContext.ShouldNotBeNull();
 
         string strSource = SourceForRunProtectedRequire("@.");
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("@. is not a valid alias");
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -532,7 +532,7 @@ public sealed class RequireByStringTests
         state.RequireContext.ShouldNotBeNull();
 
         string strSource = SourceForRunProtectedRequire("@..");
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("@.. is not a valid alias");
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -547,7 +547,7 @@ public sealed class RequireByStringTests
         state.RequireContext.ShouldNotBeNull();
 
         string strSource = SourceForRunProtectedRequire("@");
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain(" is not a valid alias");
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -563,7 +563,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "config_tests/config_ambiguity/requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("module must return a single value");
         state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -580,7 +580,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "config_tests/config_cannot_be_required/requirer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("module must return a single value");
         state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -597,7 +597,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/boolean");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, bool result) = state.DoString<bool, bool>(strSource, StdInChunkName);
+        (bool success, bool result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, bool>();
         success.ShouldBeTrue();
         result.ShouldBeFalse();
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -613,7 +613,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/buffer");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauBuffer result) = state.DoString<bool, LuauBuffer>(strSource, StdInChunkName);
+        (bool success, LuauBuffer result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauBuffer>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -633,7 +633,10 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/function");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauFunction result) = state.DoString<bool, LuauFunction>(strSource, StdInChunkName);
+        (bool success, LuauFunction result) = state
+            .Load(strSource)
+            .WithName(StdInChunkName)
+            .Execute<bool, LuauFunction>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -653,7 +656,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/nil");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauValue result) = state.DoString<bool, LuauValue>(strSource, StdInChunkName);
+        (bool success, LuauValue result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauValue>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -672,7 +675,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/number");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, int result) = state.DoString<bool, int>(strSource, StdInChunkName);
+        (bool success, int result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, int>();
         success.ShouldBeTrue();
         result.ShouldBe(12345);
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -688,7 +691,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/string");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeTrue();
         result.ShouldBe("foo");
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
@@ -704,7 +707,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/table");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -729,7 +732,7 @@ public sealed class RequireByStringTests
         // while thread is not supported
         Should.Throw<NotSupportedException>(() =>
         {
-            state.DoString<bool, LuauValue>(strSource, StdInChunkName);
+            state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauValue>();
             state.RequireContext.LoadError.ShouldBeNullOrEmpty();
         });
     }
@@ -744,7 +747,7 @@ public sealed class RequireByStringTests
 
         string strPath = Path.Combine(ScriptPath, "without_config/types/userdata");
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauValue result) = state.DoString<bool, LuauValue>(strSource, StdInChunkName);
+        (bool success, LuauValue result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauValue>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -766,7 +769,7 @@ public sealed class RequireByStringTests
         // while vector is not supported
         Should.Throw<NotSupportedException>(() =>
         {
-            state.DoString<bool, LuauValue>(strSource, StdInChunkName);
+            state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauValue>();
             state.RequireContext.LoadError.ShouldBeNullOrEmpty();
         });
     }
@@ -784,7 +787,7 @@ public sealed class RequireByStringTests
             "config_tests/with_config/chained_aliases/subdirectory/successful_requirer"
         );
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -825,7 +828,7 @@ public sealed class RequireByStringTests
             "config_tests/with_config_luau/chained_aliases/subdirectory/successful_requirer"
         );
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.DoString<bool, LuauTable>(strSource, StdInChunkName);
+        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
         success.ShouldBeTrue();
         using (result)
         {
@@ -866,7 +869,7 @@ public sealed class RequireByStringTests
             "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_cyclic"
         );
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("module must return a single value");
         state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -888,7 +891,7 @@ public sealed class RequireByStringTests
             "config_tests/with_config_luau/chained_aliases/subdirectory/failing_requirer_cyclic"
         );
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("module must return a single value");
         state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -910,7 +913,7 @@ public sealed class RequireByStringTests
             "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_missing"
         );
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("module must return a single value");
         state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -932,7 +935,7 @@ public sealed class RequireByStringTests
             "config_tests/with_config_luau/chained_aliases/subdirectory/failing_requirer_missing"
         );
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("module must return a single value");
         state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -954,7 +957,7 @@ public sealed class RequireByStringTests
             "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_inner_dependency"
         );
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("module must return a single value");
         state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -976,7 +979,7 @@ public sealed class RequireByStringTests
             "config_tests/with_config_luau/chained_aliases/subdirectory/failing_requirer_inner_dependency"
         );
         string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, string result) = state.DoString<bool, string>(strSource, StdInChunkName);
+        (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
         result.ShouldContain("module must return a single value");
         state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -1015,7 +1018,10 @@ public sealed class RequireByStringTests
                         "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_missing"
                     );
                     string strSource = SourceForRunProtectedRequire(strPath);
-                    (bool success, string result) = state01.DoString<bool, string>(strSource, StdInChunkName);
+                    (bool success, string result) = state01
+                        .Load(strSource)
+                        .WithName(StdInChunkName)
+                        .Execute<bool, string>();
                     success.ShouldBeFalse();
                     result.ShouldContain("module must return a single value");
                     state01.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -1034,7 +1040,10 @@ public sealed class RequireByStringTests
                         "config_tests/with_config_luau/chained_aliases/subdirectory/failing_requirer_inner_dependency"
                     );
                     string strSource = SourceForRunProtectedRequire(strPath);
-                    (bool success, string result) = state02.DoString<bool, string>(strSource, StdInChunkName);
+                    (bool success, string result) = state02
+                        .Load(strSource)
+                        .WithName(StdInChunkName)
+                        .Execute<bool, string>();
                     success.ShouldBeFalse();
                     result.ShouldContain("module must return a single value");
                     state02.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -1053,7 +1062,10 @@ public sealed class RequireByStringTests
                         "config_tests/with_config/chained_aliases/subdirectory/failing_requirer_cyclic"
                     );
                     string strSource = SourceForRunProtectedRequire(strPath);
-                    (bool success, string result) = state03.DoString<bool, string>(strSource, StdInChunkName);
+                    (bool success, string result) = state03
+                        .Load(strSource)
+                        .WithName(StdInChunkName)
+                        .Execute<bool, string>();
                     success.ShouldBeFalse();
                     result.ShouldContain("module must return a single value");
                     state03.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
@@ -1072,7 +1084,10 @@ public sealed class RequireByStringTests
                         "config_tests/with_config_luau/chained_aliases/subdirectory/successful_requirer"
                     );
                     string strSource = SourceForRunProtectedRequire(strPath);
-                    (bool success, LuauTable result) = state04.DoString<bool, LuauTable>(strSource, StdInChunkName);
+                    (bool success, LuauTable result) = state04
+                        .Load(strSource)
+                        .WithName(StdInChunkName)
+                        .Execute<bool, LuauTable>();
                     success.ShouldBeTrue();
                     using (result)
                     {
@@ -1141,7 +1156,7 @@ public sealed class RequireByStringTests
 
         string strFileName = Path.Combine(ScriptPath, "main.luau");
         string strChunkName = '@' + strFileName;
-        state.DoString(File.ReadAllText(strFileName), strChunkName);
+        state.Load(File.ReadAllText(strFileName)).WithName(strChunkName).Execute();
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
 
         state.Globals.TryGet("result", out int nResult).ShouldBeTrue();
@@ -1157,10 +1172,10 @@ public sealed class RequireByStringTests
 
         string strFileName = Path.Combine(ScriptPath, "main.luau");
         string strChunkName = '@' + strFileName;
-        (int nSum, int nDifference, LuauTable table) = state.DoString<int, int, LuauTable>(
-            File.ReadAllText(strFileName),
-            strChunkName
-        );
+        (int nSum, int nDifference, LuauTable table) = state
+            .Load(File.ReadAllText(strFileName))
+            .WithName(strChunkName)
+            .Execute<int, int, LuauTable>();
         state.RequireContext.LoadError.ShouldBeNullOrEmpty();
 
         nSum.ShouldBe(3);

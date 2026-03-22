@@ -31,7 +31,7 @@ config.Set("name", "Ada");
 config.Set("enabled", true);
 lua.Globals.Set("config", config);
 
-lua.DoString(
+lua.Load(
     """
     function add(a, b)
       return a + b
@@ -40,7 +40,7 @@ lua.DoString(
     log(config.name)
     result = add(20, 22)
     """
-);
+).Execute();
 
 double result = lua.Globals.GetNumber("result");
 ```
@@ -57,10 +57,10 @@ using LuauFunction pair = lua.Globals.GetLuauFunction("pair");
 
 `Invoke<TR>(...)` converts a single Luau return value to the managed type you ask for and ignores extras. Use `Invoke<TR1, TR2>(...)`, ... for typed multi-return calls, and `InvokeMulti(...)` for raw `LuauValue[]` access. The current argument buffer accepts up to 4 arguments per call.
 
-`DoString(...)` follows the same return-shaping pattern for chunk execution: use `DoString<TR>(...)` for the first typed return value, `DoString<TR1, TR2>(...)`, ... for typed multi-return calls, and `DoStringMulti(...)` for raw `LuauValue[]` access.
+`Load(...).Execute(...)` follows the same return-shaping pattern for chunk execution: use `Load(...).Execute<TR>()` for the first typed return value, `Load(...).Execute<TR1, TR2>()`, ... for typed multi-return calls, and `Load(...).ExecuteMulti()` for raw `LuauValue[]` access.
 
 ```csharp
-(int total, int delta) = lua.DoString<int, int>("return 20 + 4, 20 - 4");
+(int total, int delta) = lua.Load("return 20, 4").Execute<int, int>();
 ```
 
 ## Expose managed callbacks
@@ -148,7 +148,7 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 
 ## Current boundaries
 
-- `DoString(...)` is the script execution API today. If you want file-based execution, read the file yourself and pass its contents in.
+- `Load(...).Execute(...)` is the script execution API today. If you want file-based execution, read the file yourself and pass its contents in.
 - `CreateFunction(...)` is generator-backed and has no runtime fallback.
 - `LuauState` is not thread-safe.
 - A documented module system and higher-level async/thread orchestration are not part of the current surface yet.

@@ -30,7 +30,7 @@ double value = add.Invoke<double>(1, 2);
 
 `LuauValue` also participates in this model. If it represents `table`, `function`, `string`, `userdata`, or `buffer`, it owns a tracked reference and should be disposed.
 
-That also applies to values returned from `InvokeMulti(...)` or `DoStringMulti(...)`: dispose each returned `LuauValue` when it may be reference-backed.
+That also applies to values returned from `InvokeMulti(...)` or `ExecuteMulti()`: dispose each returned `LuauValue` when it may be reference-backed.
 
 ## Borrowed values
 

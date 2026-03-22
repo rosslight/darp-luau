@@ -19,7 +19,7 @@ public sealed class LuauArgsUserdataTests : IDisposable
         _state.Globals.Set("input", new ValueUserdata { Value = 42 });
         _state.Globals.Set("f", func);
 
-        _state.DoString("result = f(input)");
+        _state.Load("result = f(input)").Execute();
         _state.Globals.TryGet("result", out int result).ShouldBeTrue();
         result.ShouldBe(42);
     }
@@ -36,13 +36,15 @@ public sealed class LuauArgsUserdataTests : IDisposable
         _state.Globals.Set("input", new OtherValueUserdata());
         _state.Globals.Set("f", func);
 
-        _state.DoString(
-            """
-            ok, err = pcall(function()
-              f(input)
-            end)
-            """
-        );
+        _state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  f(input)
+                end)
+                """
+            )
+            .Execute();
 
         _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -62,13 +64,15 @@ public sealed class LuauArgsUserdataTests : IDisposable
         _state.Globals.Set("input", 12);
         _state.Globals.Set("f", func);
 
-        _state.DoString(
-            """
-            ok, err = pcall(function()
-              f(input)
-            end)
-            """
-        );
+        _state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  f(input)
+                end)
+                """
+            )
+            .Execute();
 
         _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -87,7 +91,7 @@ public sealed class LuauArgsUserdataTests : IDisposable
         });
         _state.Globals.Set("f", func);
 
-        _state.DoString("result = f(nil)");
+        _state.Load("result = f(nil)").Execute();
         _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
         result.ShouldBe("nil");
     }
@@ -104,7 +108,7 @@ public sealed class LuauArgsUserdataTests : IDisposable
         _state.Globals.Set("input", new ValueUserdata());
         _state.Globals.Set("f", func);
 
-        _state.DoString("result = f(input)");
+        _state.Load("result = f(input)").Execute();
         _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
         result.ShouldBe("value");
     }
