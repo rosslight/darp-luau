@@ -9,7 +9,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoString_ShouldReturnVoid_U8()
     {
-        _state.DoString("result = 42"u8);
+        _state.Load("result = 42"u8).Execute();
 
         _state.Globals.GetNumber("result").ShouldBe(42);
     }
@@ -17,7 +17,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoString_ShouldReturnVoid()
     {
-        _state.DoString("result = 42");
+        _state.Load("result = 42").Execute();
 
         _state.Globals.GetNumber("result").ShouldBe(42);
     }
@@ -25,7 +25,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoString_ShouldReturnTypedValue_U8()
     {
-        int result = _state.DoString<int>("return 42"u8);
+        int result = _state.Load("return 42"u8).Execute<int>();
 
         result.ShouldBe(42);
     }
@@ -33,7 +33,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoString_ShouldReturnTypedValue()
     {
-        int result = _state.DoString<int>("return 42");
+        int result = _state.Load("return 42").Execute<int>();
 
         result.ShouldBe(42);
     }
@@ -41,7 +41,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoString_TupleReturn_ShouldIgnoreAdditionalReturnValues_U8()
     {
-        (byte first, short second) = _state.DoString<byte, short>("return 10, 11, 12"u8);
+        (byte first, short second) = _state.Load("return 10, 11, 12"u8).Execute<byte, short>();
 
         first.ShouldBe<byte>(10);
         second.ShouldBe<short>(11);
@@ -50,7 +50,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoString_TupleReturn_ShouldIgnoreAdditionalReturnValues()
     {
-        (byte first, short second) = _state.DoString<byte, short>("return 10, 11, 12");
+        (byte first, short second) = _state.Load("return 10, 11, 12").Execute<byte, short>();
 
         first.ShouldBe<byte>(10);
         second.ShouldBe<short>(11);
@@ -59,7 +59,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoString_TupleReturn_WithOwnedReference_ShouldCloneReferenceOwnership()
     {
-        (LuauTable table, int count) = _state.DoString<LuauTable, int>("return { value = 42 }, 5");
+        (LuauTable table, int count) = _state.Load("return { value = 42 }, 5").Execute<LuauTable, int>();
         using (table)
         {
             count.ShouldBe(5);
@@ -70,7 +70,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoString_ShouldReturnTypedTuple()
     {
-        (int number, string? text, bool flag) = _state.DoString<int, string?, bool>("return 10, 'hello', true");
+        (int number, string? text, bool flag) = _state.Load("return 10, 'hello', true").Execute<int, string?, bool>();
 
         number.ShouldBe(10);
         text.ShouldBe("hello");
@@ -80,9 +80,9 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoString_ShouldReturnTypedTuple4_U8()
     {
-        (int number, string? nilText, string text, bool flag) = _state.DoString<int, string?, string, bool>(
-            "return 10, nil, 'hello', true"u8
-        );
+        (int number, string? nilText, string text, bool flag) = _state
+            .Load("return 10, nil, 'hello', true"u8)
+            .Execute<int, string?, string, bool>();
 
         number.ShouldBe(10);
         nilText.ShouldBeNull();
@@ -93,9 +93,9 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoString_ShouldReturnTypedTuple4()
     {
-        (int number, string? nilText, string text, bool flag) = _state.DoString<int, string?, string, bool>(
-            "return 10, nil, 'hello', true"
-        );
+        (int number, string? nilText, string text, bool flag) = _state
+            .Load("return 10, nil, 'hello', true")
+            .Execute<int, string?, string, bool>();
 
         number.ShouldBe(10);
         nilText.ShouldBeNull();
@@ -104,15 +104,19 @@ public sealed class StateTests : IDisposable
     }
 
     [Fact]
-    public void DoString_TupleReturn_ShouldThrowWhenTooFewValuesAreReturned()
+    public void DoString_TupleReturn_ShouldThrowWhenMissingValueCannotBeConverted()
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => _state.DoString<int, int>("return 1"));
+        Should.Throw<InvalidCastException>(() =>
+        {
+            LuauChunk chunk = _state.Load("return 1");
+            _ = chunk.Execute<int, int>();
+        });
     }
 
     [Fact]
     public void DoStringMulti_ShouldReturnEmptyArray_WhenChunkReturnsNothing()
     {
-        LuauValue[] values = _state.DoStringMulti("return");
+        LuauValue[] values = _state.Load("return").ExecuteMulti();
 
         values.ShouldBeEmpty();
     }
@@ -120,7 +124,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoStringMulti_ShouldReadAllReturnValues()
     {
-        LuauValue[] values = _state.DoStringMulti("return 10, 'hello', true");
+        LuauValue[] values = _state.Load("return 10, 'hello', true").ExecuteMulti();
         values.Length.ShouldBe(3);
 
         using LuauValue value1 = values[0];
@@ -139,7 +143,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoStringMulti_WithOwnedReference_ShouldCloneReferenceOwnership()
     {
-        LuauValue[] values = _state.DoStringMulti("return { value = 42 }, 5");
+        LuauValue[] values = _state.Load("return { value = 42 }, 5").ExecuteMulti();
         values.Length.ShouldBe(2);
 
         using LuauValue tableValue = values[0];
@@ -161,7 +165,7 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoStringMulti_ByteSpanOverload_ShouldMatchCharSpanOverload()
     {
-        LuauValue[] values = _state.DoStringMulti("return 1, 2"u8);
+        LuauValue[] values = _state.Load("return 1, 2"u8).ExecuteMulti();
         values.Length.ShouldBe(2);
 
         using LuauValue value1 = values[0];
@@ -177,7 +181,11 @@ public sealed class StateTests : IDisposable
     [Fact]
     public void DoStringMulti_ShouldThrowLuaException_WhenChunkErrors()
     {
-        LuaException exception = Should.Throw<LuaException>(() => _state.DoStringMulti("error('boom')"));
+        LuaException exception = Should.Throw<LuaException>(() =>
+        {
+            LuauChunk chunk = _state.Load("error('boom')");
+            _ = chunk.ExecuteMulti();
+        });
 
         exception.Message.ShouldContain("boom");
     }

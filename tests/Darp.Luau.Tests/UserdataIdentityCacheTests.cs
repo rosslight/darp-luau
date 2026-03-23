@@ -17,7 +17,7 @@ public sealed class UserdataIdentityCacheTests : IDisposable
 
         _state.Globals.Set("first", first);
         _state.Globals.Set("second", second);
-        _state.DoString("sameIdentity = first == second");
+        _state.Load("sameIdentity = first == second").Execute();
 
         _state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
         sameIdentity.ShouldBeTrue();
@@ -34,7 +34,7 @@ public sealed class UserdataIdentityCacheTests : IDisposable
 
         _state.Globals.Set("first", first);
         _state.Globals.Set("second", second);
-        _state.DoString("sameIdentity = first == second");
+        _state.Load("sameIdentity = first == second").Execute();
 
         _state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
         sameIdentity.ShouldBeFalse();
@@ -65,7 +65,7 @@ public sealed class UserdataIdentityCacheTests : IDisposable
 
         using LuauUserdata recreated = _state.GetOrCreateUserdata(value);
         _state.Globals.Set("recreated", recreated);
-        _state.DoString("sameIdentity = keepAlive == recreated");
+        _state.Load("sameIdentity = keepAlive == recreated").Execute();
 
         _state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
         sameIdentity.ShouldBeTrue();
@@ -80,18 +80,20 @@ public sealed class UserdataIdentityCacheTests : IDisposable
         _state.Globals.Set("oldUserdata", oldUserdata);
         oldUserdata.Dispose();
 
-        _state.DoString(
-            """
-            weakKeys = setmetatable({}, { __mode = "k" })
-            weakKeys[oldUserdata] = true
-            oldUserdata = nil
-            hasCollectGarbage = collectgarbage ~= nil
-            if hasCollectGarbage then
-              collectgarbage("collect")
-            end
-            oldCollected = next(weakKeys) == nil
-            """
-        );
+        _state
+            .Load(
+                """
+                weakKeys = setmetatable({}, { __mode = "k" })
+                weakKeys[oldUserdata] = true
+                oldUserdata = nil
+                hasCollectGarbage = collectgarbage ~= nil
+                if hasCollectGarbage then
+                  collectgarbage("collect")
+                end
+                oldCollected = next(weakKeys) == nil
+                """
+            )
+            .Execute();
 
         _state.Globals.TryGet("hasCollectGarbage", out bool hasCollectGarbage).ShouldBeTrue();
         if (!hasCollectGarbage)
@@ -102,7 +104,7 @@ public sealed class UserdataIdentityCacheTests : IDisposable
 
         using LuauUserdata newUserdata = _state.GetOrCreateUserdata(value);
         _state.Globals.Set("newUserdata", newUserdata);
-        _state.DoString("reusedAfterCollect = weakKeys[newUserdata] == true");
+        _state.Load("reusedAfterCollect = weakKeys[newUserdata] == true").Execute();
 
         _state.Globals.TryGet("reusedAfterCollect", out bool reusedAfterCollect).ShouldBeTrue();
         reusedAfterCollect.ShouldBeFalse();
@@ -120,7 +122,7 @@ public sealed class UserdataIdentityCacheTests : IDisposable
         {
             using LuauUserdata current = _state.GetOrCreateUserdata(value);
             _state.Globals.Set("current", current);
-            _state.DoString("sameIdentity = baseline == current");
+            _state.Load("sameIdentity = baseline == current").Execute();
             _state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
             sameIdentity.ShouldBeTrue();
         }

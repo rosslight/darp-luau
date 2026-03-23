@@ -13,17 +13,18 @@ public sealed class UserdataTests
         CounterUserdata.LastParameterCount = -1;
 
         state.Globals.Set("counter", counter);
-        state.DoString(
-            """
-            before = counter.value
-            counter.value = 41
-            after = counter.value
-            methodResult = getmetatable(counter).__namecall(counter, "add", 1)
-            """
-        );
+        state
+            .Load(
+                """
+                before = counter.value
+                counter.value = 41
+                after = counter.value
+                methodResult = getmetatable(counter).__namecall(counter, "add", 1)
+                """
+            )
+            .Execute();
 
-        state.Globals.TryGet("before", out int before).ShouldBeTrue();
-        before.ShouldBe(0);
+        state.Globals.GetNumber("before").ShouldBe(0);
 
         state.Globals.TryGet("after", out int after).ShouldBeTrue();
         after.ShouldBe(41);
@@ -45,12 +46,14 @@ public sealed class UserdataTests
         CounterUserdata.LastParameterCount = -1;
         state.Globals.Set("counter", new CounterUserdata());
 
-        state.DoString(
-            """
-            counter.value = 41
-            methodResult = counter:add(1)
-            """
-        );
+        state
+            .Load(
+                """
+                counter.value = 41
+                methodResult = counter:add(1)
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("methodResult", out int methodResult).ShouldBeTrue();
         methodResult.ShouldBe(42);
@@ -74,7 +77,7 @@ public sealed class UserdataTests
         using (roundtrip)
         {
             state.Globals.Set("userdataFromValue", value);
-            state.DoString("isUserdataPresent = userdataFromValue ~= nil");
+            state.Load("isUserdataPresent = userdataFromValue ~= nil").Execute();
             state.Globals.TryGet("isUserdataPresent", out bool isUserdataPresent).ShouldBeTrue();
             isUserdataPresent.ShouldBeTrue();
         }
@@ -91,7 +94,7 @@ public sealed class UserdataTests
 
         state.Globals.Set("first", first);
         state.Globals.Set("second", second);
-        state.DoString("sameIdentity = first == second");
+        state.Load("sameIdentity = first == second").Execute();
 
         state.Globals.TryGet("sameIdentity", out bool sameIdentity).ShouldBeTrue();
         sameIdentity.ShouldBeTrue();
@@ -142,7 +145,7 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("counter", new CounterUserdata());
 
-        state.DoString("missingValue = counter.missing");
+        state.Load("missingValue = counter.missing").Execute();
 
         state.Globals.TryGet("missingValue", out LuauValue missingValue).ShouldBeTrue();
         missingValue.Type.ShouldBe(LuauValueType.Nil);
@@ -154,7 +157,11 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("counter", new CounterUserdata());
 
-        LuaException exception = Should.Throw<LuaException>(() => state.DoString("x = counter[1]"));
+        LuaException exception = Should.Throw<LuaException>(() =>
+        {
+            LuauChunk chunk = state.Load("x = counter[1]");
+            chunk.Execute();
+        });
 
         exception.Message.ShouldContain("userdata index access requires a string member name");
     }
@@ -165,7 +172,11 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("counter", new CounterUserdata());
 
-        LuaException exception = Should.Throw<LuaException>(() => state.DoString("counter.missing = 5"));
+        LuaException exception = Should.Throw<LuaException>(() =>
+        {
+            LuauChunk chunk = state.Load("counter.missing = 5");
+            chunk.Execute();
+        });
 
         exception.Message.ShouldContain("unknown userdata member 'missing'");
     }
@@ -176,13 +187,15 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("counter", new CounterUserdata());
 
-        state.DoString(
-            """
-            ok, err = pcall(function()
-              counter.missing = 5
-            end)
-            """
-        );
+        state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  counter.missing = 5
+                end)
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -197,13 +210,15 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("counter", new CounterUserdata());
 
-        state.DoString(
-            """
-            ok, err = pcall(function()
-              counter[1] = 5
-            end)
-            """
-        );
+        state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  counter[1] = 5
+                end)
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -219,7 +234,7 @@ public sealed class UserdataTests
         state.Globals.Set("counter", new CounterUserdata());
 
         LuaException exception = Should.Throw<LuaException>(() =>
-            state.DoString("result = getmetatable(counter).__namecall(counter, \"missingMethod\", 1)")
+            state.Load("result = getmetatable(counter).__namecall(counter, \"missingMethod\", 1)").Execute()
         );
 
         exception.Message.ShouldContain("unknown userdata method 'missingMethod'");
@@ -231,13 +246,15 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("counter", new CounterUserdata());
 
-        state.DoString(
-            """
-            ok, err = pcall(function()
-              return getmetatable(counter).__namecall(counter, "missingMethod", 1)
-            end)
-            """
-        );
+        state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  return getmetatable(counter).__namecall(counter, "missingMethod", 1)
+                end)
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -253,7 +270,7 @@ public sealed class UserdataTests
         state.Globals.Set("counter", new CounterUserdata());
 
         LuaException exception = Should.Throw<LuaException>(() =>
-            state.DoString("x = getmetatable(counter).__namecall(counter, 1, 1)")
+            state.Load("x = getmetatable(counter).__namecall(counter, 1, 1)").Execute()
         );
 
         exception.Message.ShouldContain("userdata method call requires a string method name");
@@ -265,7 +282,11 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("failing", new FailingUserdata());
 
-        LuaException exception = Should.Throw<LuaException>(() => state.DoString("x = failing.explode"));
+        LuaException exception = Should.Throw<LuaException>(() =>
+        {
+            LuauChunk chunk = state.Load("x = failing.explode");
+            chunk.Execute();
+        });
 
         exception.Message.ShouldContain("__index callback failed");
         exception.Message.ShouldContain("Boom from OnIndex");
@@ -277,13 +298,15 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("failing", new FailingUserdata());
 
-        state.DoString(
-            """
-            ok, err = pcall(function()
-              return failing.explode
-            end)
-            """
-        );
+        state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  return failing.explode
+                end)
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -299,13 +322,15 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("failing", new FailingUserdata());
 
-        state.DoString(
-            """
-            ok, err = pcall(function()
-              return failing.errorIndex
-            end)
-            """
-        );
+        state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  return failing.errorIndex
+                end)
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -321,7 +346,11 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("failing", new FailingUserdata());
 
-        LuaException exception = Should.Throw<LuaException>(() => state.DoString("failing.explodeSet = 1"));
+        LuaException exception = Should.Throw<LuaException>(() =>
+        {
+            LuauChunk chunk = state.Load("failing.explodeSet = 1");
+            chunk.Execute();
+        });
 
         exception.Message.ShouldContain("__newindex callback failed");
         exception.Message.ShouldContain("Boom from OnSetIndex");
@@ -333,13 +362,15 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("failing", new FailingUserdata());
 
-        state.DoString(
-            """
-            ok, err = pcall(function()
-              failing.explodeSet = 1
-            end)
-            """
-        );
+        state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  failing.explodeSet = 1
+                end)
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -355,13 +386,15 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("failing", new FailingUserdata());
 
-        state.DoString(
-            """
-            ok, err = pcall(function()
-              failing.errorSet = 1
-            end)
-            """
-        );
+        state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  failing.errorSet = 1
+                end)
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -378,7 +411,7 @@ public sealed class UserdataTests
         state.Globals.Set("failing", new FailingUserdata());
 
         LuaException exception = Should.Throw<LuaException>(() =>
-            state.DoString("x = getmetatable(failing).__namecall(failing, \"explodeMethod\")")
+            state.Load("x = getmetatable(failing).__namecall(failing, \"explodeMethod\")").Execute()
         );
 
         exception.Message.ShouldContain("__namecall callback failed");
@@ -391,13 +424,15 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("failing", new FailingUserdata());
 
-        state.DoString(
-            """
-            ok, err = pcall(function()
-              return getmetatable(failing).__namecall(failing, "explodeMethod")
-            end)
-            """
-        );
+        state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  return getmetatable(failing).__namecall(failing, "explodeMethod")
+                end)
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -413,12 +448,14 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("counter", new CounterUserdata());
 
-        state.DoString(
-            """
-            counter.value = 10
-            first, second = getmetatable(counter).__namecall(counter, "pair")
-            """
-        );
+        state
+            .Load(
+                """
+                counter.value = 10
+                first, second = getmetatable(counter).__namecall(counter, "pair")
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("first", out int first).ShouldBeTrue();
         first.ShouldBe(10);
@@ -433,13 +470,15 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("counter", new CounterUserdata());
 
-        state.DoString(
-            """
-            counter.value = 10
-            noResult = getmetatable(counter).__namecall(counter, "touch")
-            after = counter.value
-            """
-        );
+        state
+            .Load(
+                """
+                counter.value = 10
+                noResult = getmetatable(counter).__namecall(counter, "touch")
+                after = counter.value
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("noResult", out LuauValue noResult).ShouldBeTrue();
         noResult.Type.ShouldBe(LuauValueType.Nil);
@@ -454,14 +493,16 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("counter", new CounterUserdata());
 
-        state.DoString(
-            """
-            ok, err = pcall(function()
-              return getmetatable(counter).__namecall(counter, "badUnknown")
-            end)
-            after = getmetatable(counter).__namecall(counter, "add", 1)
-            """
-        );
+        state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  return getmetatable(counter).__namecall(counter, "badUnknown")
+                end)
+                after = getmetatable(counter).__namecall(counter, "add", 1)
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
         ok.ShouldBeFalse();
@@ -479,19 +520,21 @@ public sealed class UserdataTests
         using var state = new LuauState();
         state.Globals.Set("failing", new FailingUserdata());
 
-        state.DoString(
-            """
-            failures = 0
-            for i = 1, 2000 do
-              local ok = pcall(function()
-                failing.explodeSet = i
-              end)
-              if not ok then
-                failures = failures + 1
-              end
-            end
-            """
-        );
+        state
+            .Load(
+                """
+                failures = 0
+                for i = 1, 2000 do
+                  local ok = pcall(function()
+                    failing.explodeSet = i
+                  end)
+                  if not ok then
+                    failures = failures + 1
+                  end
+                end
+                """
+            )
+            .Execute();
 
         state.Globals.TryGet("failures", out int failures).ShouldBeTrue();
         failures.ShouldBe(2000);

@@ -103,9 +103,10 @@ public sealed class LuauTableBasicTests : IDisposable
         using LuauTable table = _lua.CreateTable();
         _lua.Globals.Set("tableUnderTest", table);
 
-        _lua.DoString(
-            "setmetatable(tableUnderTest, { __index = function(_, key) if key == 'virtualKey' then return 123 end end })"
-        );
+        _lua.Load(
+                "setmetatable(tableUnderTest, { __index = function(_, key) if key == 'virtualKey' then return 123 end end })"
+            )
+            .Execute();
 
         table.ContainsKey("virtualKey").ShouldBeTrue();
     }

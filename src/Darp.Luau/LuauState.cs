@@ -1,10 +1,8 @@
-using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using Darp.Luau.Internal;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -16,8 +14,6 @@ namespace Darp.Luau;
 /// <remarks> Not threadsafe </remarks>
 public sealed unsafe class LuauState : IDisposable
 {
-    private const int LuaMultRet = -1;
-
     // ReSharper disable once ReplaceWithFieldKeyword
     internal readonly lua_State* L;
     private int _disposing; // 0 = false, 1 = true
@@ -222,6 +218,37 @@ public sealed unsafe class LuauState : IDisposable
     }
 
     /// <summary>
+    /// Creates a writable chunk environment table that falls back to this state's globals.
+    /// </summary>
+    /// <returns>The created environment table.</returns>
+    public LuauTable CreateEnvironment()
+    {
+        this.ThrowIfDisposed();
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        lua_newtable(L);
+
+        fixed (byte* pGlobalName = "_G\0"u8)
+        {
+            lua_pushvalue(L, -1);
+            lua_setfield(L, -2, pGlobalName);
+        }
+
+        lua_newtable(L);
+        fixed (byte* pIndexName = "__index\0"u8)
+        {
+            lua_pushvalue(L, LUA_GLOBALSINDEX);
+            lua_setfield(L, -2, pIndexName);
+        }
+
+        _ = lua_setmetatable(L, -2);
+
+        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
+        return new LuauTable(this, reference);
+    }
+
+    /// <summary>
     /// Manual callback delegate used by <see cref="CreateFunctionBuilder(LuauFunctionBuilder)"/>.
     /// </summary>
     /// <remarks>
@@ -384,6 +411,30 @@ public sealed unsafe class LuauState : IDisposable
         return new LuauBuffer(this, handle);
     }
 
+    /// <summary> Creates a lightweight executable chunk from source text. </summary>
+    /// <param name="source">The source text to compile and execute.</param>
+    /// <returns>A chunk wrapper that can be executed or converted to a reusable <see cref="LuauFunction"/>.</returns>
+    /// <remarks>
+    /// The returned chunk is an ephemeral wrapper over the provided source. Executing it recompiles the source each time.
+    /// </remarks>
+    public LuauChunk Load(ReadOnlySpan<char> source)
+    {
+        this.ThrowIfDisposed();
+        return new LuauChunk(this, LuauCompiler.Default, source);
+    }
+
+    /// <summary> Creates a lightweight executable chunk from UTF-8 source bytes. </summary>
+    /// <param name="source">The UTF-8 encoded source text to compile and execute.</param>
+    /// <returns>A chunk wrapper that can be executed or converted to a reusable <see cref="LuauFunction"/>.</returns>
+    /// <remarks>
+    /// The returned chunk is an ephemeral wrapper over the provided source. Executing it recompiles the source each time.
+    /// </remarks>
+    public LuauChunk Load(ReadOnlySpan<byte> source)
+    {
+        this.ThrowIfDisposed();
+        return new LuauChunk(this, LuauCompiler.Default, source);
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -397,182 +448,5 @@ public sealed unsafe class LuauState : IDisposable
 #pragma warning disable CS0618 // Type or member is obsolete -> This is the place we want to clear the delegates
         _delegateSave.Clear();
 #pragma warning restore CS0618 // Type or member is obsolete
-    }
-
-    /// <summary>Compiles and runs Luau UTF-8 source and ignores any return values.</summary>
-    /// <param name="source">The UTF-8 encoded source to compile and run.</param>
-    /// <param name="chunkName">The UTF-8 encoded chunk name to load, or the default chunk name when omitted.</param>
-    public void DoString(ReadOnlySpan<byte> source, ReadOnlySpan<byte> chunkName = default)
-    {
-        this.ThrowIfDisposed();
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        if (chunkName.IsEmpty)
-            chunkName = "main"u8;
-        CompileLoadAndCall(L, source, chunkName, nResults: 0);
-    }
-
-    /// <summary>Compiles and runs Luau source text and ignores any return values.</summary>
-    /// <param name="source">The source text to compile and run. It is encoded as UTF-8 before execution.</param>
-    /// <param name="chunkName">The chunk name to load, or the default chunk name when omitted. It is encoded as UTF-8 before execution.</param>
-    public void DoString(ReadOnlySpan<char> source, ReadOnlySpan<char> chunkName = default)
-    {
-        byte[] sourceBuffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetByteCount(source));
-        int numberOfSourceBytes = Encoding.UTF8.GetBytes(source, sourceBuffer);
-        try
-        {
-            Span<byte> chunkNameBuffer = stackalloc byte[Encoding.UTF8.GetByteCount(chunkName)];
-            int numberOfChunkNameBytes = Encoding.UTF8.GetBytes(chunkName, chunkNameBuffer);
-            DoString(sourceBuffer.AsSpan(0, numberOfSourceBytes), chunkNameBuffer[..numberOfChunkNameBytes]);
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(sourceBuffer);
-        }
-    }
-
-    /// <summary>Compiles and runs Luau UTF-8 source and converts the first return value.</summary>
-    /// <param name="source">The UTF-8 encoded source to compile and run.</param>
-    /// <param name="chunkName">The UTF-8 encoded chunk name to load, or the default chunk name when omitted.</param>
-    /// <typeparam name="TR">Managed return type to convert to.</typeparam>
-    /// <returns>The first Luau return value converted to <typeparamref name="TR"/>. Extra return values are ignored.</returns>
-    public TR DoString<TR>(ReadOnlySpan<byte> source, ReadOnlySpan<byte> chunkName = default) =>
-        DoStringCore(source, chunkName, LuauFunctionInvokeCore.ResultSelector<TR>);
-
-    /// <summary>Compiles and runs Luau source text and converts the first return value.</summary>
-    /// <param name="source">The source text to compile and run. It is encoded as UTF-8 before execution.</param>
-    /// <param name="chunkName">The chunk name to load, or the default chunk name when omitted. It is encoded as UTF-8 before execution.</param>
-    /// <typeparam name="TR">Managed return type to convert to.</typeparam>
-    /// <returns>The first Luau return value converted to <typeparamref name="TR"/>. Extra return values are ignored.</returns>
-    public TR DoString<TR>(ReadOnlySpan<char> source, ReadOnlySpan<char> chunkName = default) =>
-        DoStringCore(source, chunkName, LuauFunctionInvokeCore.ResultSelector<TR>);
-
-    /// <summary>Compiles and runs Luau UTF-8 source and converts the first two return values.</summary>
-    /// <param name="source">The UTF-8 encoded source to compile and run.</param>
-    /// <param name="chunkName">The UTF-8 encoded chunk name to load, or the default chunk name when omitted.</param>
-    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
-    /// <returns>The first two Luau return values converted to a tuple. Extra return values are ignored.</returns>
-    public (TR1, TR2) DoString<TR1, TR2>(ReadOnlySpan<byte> source, ReadOnlySpan<byte> chunkName = default) =>
-        DoStringCore(source, chunkName, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>);
-
-    /// <summary>Compiles and runs Luau source text and converts the first two return values.</summary>
-    /// <param name="source">The source text to compile and run. It is encoded as UTF-8 before execution.</param>
-    /// <param name="chunkName">The chunk name to load, or the default chunk name when omitted. It is encoded as UTF-8 before execution.</param>
-    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
-    /// <returns>The first two Luau return values converted to a tuple. Extra return values are ignored.</returns>
-    public (TR1, TR2) DoString<TR1, TR2>(ReadOnlySpan<char> source, ReadOnlySpan<char> chunkName = default) =>
-        DoStringCore(source, chunkName, LuauFunctionInvokeCore.ResultSelector<TR1, TR2>);
-
-    /// <summary>Compiles and runs Luau UTF-8 source and converts the first three return values.</summary>
-    /// <param name="source">The UTF-8 encoded source to compile and run.</param>
-    /// <param name="chunkName">The UTF-8 encoded chunk name to load, or the default chunk name when omitted.</param>
-    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
-    /// <returns>The first three Luau return values converted to a tuple. Extra return values are ignored.</returns>
-    public (TR1, TR2, TR3) DoString<TR1, TR2, TR3>(ReadOnlySpan<byte> source, ReadOnlySpan<byte> chunkName = default) =>
-        DoStringCore(source, chunkName, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>);
-
-    /// <summary>Compiles and runs Luau source text and converts the first three return values.</summary>
-    /// <param name="source">The source text to compile and run. It is encoded as UTF-8 before execution.</param>
-    /// <param name="chunkName">The chunk name to load, or the default chunk name when omitted. It is encoded as UTF-8 before execution.</param>
-    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
-    /// <returns>The first three Luau return values converted to a tuple. Extra return values are ignored.</returns>
-    public (TR1, TR2, TR3) DoString<TR1, TR2, TR3>(ReadOnlySpan<char> source, ReadOnlySpan<char> chunkName = default) =>
-        DoStringCore(source, chunkName, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3>);
-
-    /// <summary>Compiles and runs Luau UTF-8 source and converts the first four return values.</summary>
-    /// <param name="source">The UTF-8 encoded source to compile and run.</param>
-    /// <param name="chunkName">The UTF-8 encoded chunk name to load, or the default chunk name when omitted.</param>
-    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR4">Managed return type to convert to.</typeparam>
-    /// <returns>The first four Luau return values converted to a tuple. Extra return values are ignored.</returns>
-    public (TR1, TR2, TR3, TR4) DoString<TR1, TR2, TR3, TR4>(
-        ReadOnlySpan<byte> source,
-        ReadOnlySpan<byte> chunkName = default
-    ) => DoStringCore(source, chunkName, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>);
-
-    /// <summary>Compiles and runs Luau source text and converts the first four return values.</summary>
-    /// <param name="source">The source text to compile and run. It is encoded as UTF-8 before execution.</param>
-    /// <param name="chunkName">The chunk name to load, or the default chunk name when omitted. It is encoded as UTF-8 before execution.</param>
-    /// <typeparam name="TR1">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR2">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR3">Managed return type to convert to.</typeparam>
-    /// <typeparam name="TR4">Managed return type to convert to.</typeparam>
-    /// <returns>The first four Luau return values converted to a tuple. Extra return values are ignored.</returns>
-    public (TR1, TR2, TR3, TR4) DoString<TR1, TR2, TR3, TR4>(
-        ReadOnlySpan<char> source,
-        ReadOnlySpan<char> chunkName = default
-    ) => DoStringCore(source, chunkName, LuauFunctionInvokeCore.ResultSelector<TR1, TR2, TR3, TR4>);
-
-    /// <summary>Compiles and runs Luau UTF-8 source and returns all Luau return values as raw <see cref="LuauValue"/> instances.</summary>
-    /// <param name="source">The UTF-8 encoded source to compile and run.</param>
-    /// <param name="chunkName">The UTF-8 encoded chunk name to load, or the default chunk name when omitted.</param>
-    /// <returns>All Luau return values as an array.</returns>
-    public LuauValue[] DoStringMulti(ReadOnlySpan<byte> source, ReadOnlySpan<byte> chunkName = default) =>
-        DoStringCore(source, chunkName, LuauFunctionInvokeCore.ResultSelectorMulti);
-
-    /// <summary>Compiles and runs Luau source text and returns all Luau return values as raw <see cref="LuauValue"/> instances.</summary>
-    /// <param name="source">The source text to compile and run. It is encoded as UTF-8 before execution.</param>
-    /// <param name="chunkName">The chunk name to load, or the default chunk name when omitted. It is encoded as UTF-8 before execution.</param>
-    /// <returns>All Luau return values as an array.</returns>
-    public LuauValue[] DoStringMulti(ReadOnlySpan<char> source, ReadOnlySpan<char> chunkName = default) =>
-        DoStringCore(source, chunkName, LuauFunctionInvokeCore.ResultSelectorMulti);
-
-    private TResult DoStringCore<TResult>(
-        ReadOnlySpan<char> source,
-        ReadOnlySpan<char> chunkName,
-        Func<LuauArgs, TResult> resultSelector
-    )
-    {
-        byte[] sourceBuffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetByteCount(source));
-        int numberOfSourceBytes = Encoding.UTF8.GetBytes(source, sourceBuffer);
-        try
-        {
-            Span<byte> chunkNameBuffer = stackalloc byte[Encoding.UTF8.GetByteCount(chunkName)];
-            int numberOfChunkNameBytes = Encoding.UTF8.GetBytes(chunkName, chunkNameBuffer);
-            return DoStringCore(
-                sourceBuffer.AsSpan(0, numberOfSourceBytes),
-                chunkNameBuffer[..numberOfChunkNameBytes],
-                resultSelector
-            );
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(sourceBuffer);
-        }
-    }
-
-    private TResult DoStringCore<TResult>(
-        ReadOnlySpan<byte> source,
-        ReadOnlySpan<byte> chunkName,
-        Func<LuauArgs, TResult> resultSelector
-    )
-    {
-        this.ThrowIfDisposed();
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        if (chunkName.IsEmpty)
-            chunkName = "main"u8;
-
-        int topBeforeInvoke = lua_gettop(L);
-        try
-        {
-            CompileLoadAndCall(L, source, chunkName, nResults: LuaMultRet);
-            var result = new LuauArgs(this, lua_gettop(L) - topBeforeInvoke, topBeforeInvoke + 1);
-            return resultSelector(result);
-        }
-        finally
-        {
-            lua_settop(L, topBeforeInvoke);
-        }
     }
 }

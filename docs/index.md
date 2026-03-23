@@ -10,7 +10,7 @@ Darp.Luau is a .NET wrapper around [Luau](https://luau.org/) focused on native A
 This documentation is organized around the way you use the library in practice:
 
 - create a `LuauState` and choose built-in libraries,
-- run Luau source with `DoString(...)`,
+- run Luau source with `Load(...).Execute(...)`,
 - optionally enable file-backed `require(...)` with `EnableRequire()`,
 - move values between Luau and C# through strings, tables, functions, buffers, and userdata,
 - understand which values are owned references and which values are borrowed callback views.
@@ -43,32 +43,34 @@ using var lua = new LuauState();
 
 `LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
 
-## Execute Luau source
+## Chunks
 
-`DoString(...)` runs Luau source from managed code:
+`Load(...).Execute()` runs Luau source from managed code:
 
 ```csharp
-lua.DoString(
+lua.Load(
     """
     function add(a, b)
       return a + b
     end
     """
-);
+).Execute();
 
 using LuauFunction add = lua.Globals.GetLuauFunction("add");
 double result = add.Invoke<double>(1, 2);
 ```
 
-Chunks can also return values directly to managed code. Use `DoString<TR>(...)` for one typed value, `DoString<TR1, TR2>(...)`, ... for typed multi-return calls, and `DoStringMulti(...)` for raw `LuauValue[]` access:
+Chunks can also return values directly to managed code. Use `Load(...).Execute<TR>()` for one typed value, `Load(...).Execute<TR1, TR2>()`, ... for typed multi-return calls, and `Load(...).ExecuteMulti()` for raw `LuauValue[]` access:
 
 ```csharp
-(int total, int delta) = lua.DoString<int, int>("return 20 + 4, 20 - 4");
+(int total, int delta) = lua.Load("return 20, 4").Execute<int, int>();
 ```
 
-If you want file-based execution, load the file contents yourself and pass them to `DoString(...)`. If that script should be able to call `require(...)`, first call `EnableRequire()` and use an `@`-prefixed chunk name that points at the script path.
+If a chunk should keep its own globals, create an environment table with `CreateEnvironment()` and pass it through `WithEnvironment(...)`.
 
-See [Require](features/require.md), and [Execute Luau source](features/execution.md) for the full `DoString(...)` overload set, return behavior, and ownership notes.
+If you want file-based execution, load the file contents yourself and pass them to `Load(...)`. If that script should be able to call `require(...)`, first call `EnableRequire()` and use an `@`-prefixed chunk name through `WithName(...)` that points at the script path.
+
+See [Require](features/require.md), and [Chunks](features/chunks.md) for the full chunk execution API, return behavior, and ownership notes.
 
 ## Move data with tables
 
@@ -121,7 +123,7 @@ lua.Globals.Set("log", log);
 using LuauFunction pair = lua.CreateFunction((int a, int b) => (a + b, a - b));
 lua.Globals.Set("pair", pair);
 
-lua.DoString("""log("hello from luau")""");
+lua.Load("""log("hello from luau")""").Execute();
 ```
 
 Use `CreateFunction(...)` for supported fixed signatures, including supported top-level tuple returns. If you need manual argument parsing, unsupported callback shapes, or custom error shaping, use `CreateFunctionBuilder(...)`. See [Functions](features/functions.md).
@@ -135,12 +137,12 @@ var player = new PlayerUserdata { Name = "Ada", Score = 42 };
 
 lua.Globals.Set("player", IntoLuau.FromUserdata(player));
 
-lua.DoString(
+lua.Load(
     """
     currentName = player.name
     player.score = 100
     """
-);
+).Execute();
 ```
 
 See [Userdata](features/userdata.md) for hook behavior, retrieval APIs, identity rules, and lifetimes.
@@ -156,14 +158,14 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
     lib.Set("add", add);
 });
 
-lua.DoString("result = game.add(game.answer, 8)");
+lua.Load("result = game.add(game.answer, 8)").Execute();
 ```
 
 `OpenLibrary(...)` creates a global table and lets you populate it from managed code. See [Libraries](features/libraries.md).
 
 ## Where to next
 
-- [Execute Luau source](features/execution.md)
+- [Chunks](features/chunks.md)
 - [Lifetimes and ownership](concepts/lifetimes.md)
 - [Type mapping](concepts/type-mapping.md)
 - [Functions](features/functions.md)
