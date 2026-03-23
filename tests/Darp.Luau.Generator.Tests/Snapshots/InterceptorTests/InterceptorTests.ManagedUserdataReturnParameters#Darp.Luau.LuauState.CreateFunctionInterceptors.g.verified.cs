@@ -39,7 +39,7 @@ file static class CreateFunctionInterceptors
         }
     }
     [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "ScrubbedInterceptLocation")]
-    public static global::Darp.Luau.LuauFunction CreateMethod(this global::Darp.Luau.LuauState state, global::System.Func<(global::MyUserdata Item1, int Item2)> onLuaCall)
+    public static global::Darp.Luau.LuauFunction CreateMethod(this global::Darp.Luau.LuauState state, global::System.Func<(global::MyUserdata, int)> onLuaCall)
     {
         global::System.ArgumentNullException.ThrowIfNull(state);
         global::System.ArgumentNullException.ThrowIfNull(onLuaCall);

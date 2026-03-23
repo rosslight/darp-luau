@@ -14,7 +14,8 @@ internal static class EmitterHelper
     internal static string GetTupleReturnType(ParameterTypeInfo param, int index)
     {
         string type = GetDotnetType(param);
-        return param.TupleElementName is { Length: > 0 } name ? $"{type} {name}" : $"{type} Item{index}";
+        string defaultName = $"Item{index}";
+        return param.TupleElementName is { Length: > 0 } name && name != defaultName ? $"{type} {name}" : type;
     }
 
     internal static string GetDotnetType((LuauValueType Type, bool IsNullable) tuple) =>

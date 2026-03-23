@@ -6,6 +6,8 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace Darp.Luau.Generator.Helpers;
 
+internal readonly record struct LambdaReturnOverride(bool IsNullable, string? TupleElementName);
+
 internal static class LambdaReturnNullabilityResolver
 {
     /// <summary>
@@ -13,7 +15,7 @@ internal static class LambdaReturnNullabilityResolver
     /// Roslyn's inferred delegate type for <c>CreateFunction(...)</c> can otherwise drop <c>?</c>
     /// for plain lambdas, which would merge nullable and non-nullable interceptors.
     /// </summary>
-    internal static ImmutableArray<bool> GetReturnNullabilityOverrides(IInvocationOperation invocationOperation)
+    internal static ImmutableArray<LambdaReturnOverride> GetReturnOverrides(IInvocationOperation invocationOperation)
     {
         var syntax = (InvocationExpressionSyntax)invocationOperation.Syntax;
         if (syntax.ArgumentList.Arguments.Count == 0 || invocationOperation.SemanticModel is null)
@@ -28,7 +30,7 @@ internal static class LambdaReturnNullabilityResolver
         if (lambdaSyntax is null)
             return [];
 
-        bool[]? nullableOverrides = null;
+        LambdaReturnOverride[]? overrides = null;
         foreach (ExpressionSyntax returnExpression in GetReturnExpressions(lambdaSyntax))
         {
             TypeInfo typeInfo = invocationOperation.SemanticModel.GetTypeInfo(returnExpression);
@@ -38,37 +40,46 @@ internal static class LambdaReturnNullabilityResolver
 
             if (returnType is INamedTypeSymbol { IsTupleType: true } tupleType)
             {
-                nullableOverrides ??= new bool[tupleType.TupleElements.Length];
-                if (nullableOverrides.Length != tupleType.TupleElements.Length)
+                overrides ??= new LambdaReturnOverride[tupleType.TupleElements.Length];
+                if (overrides.Length != tupleType.TupleElements.Length)
                     return [];
 
                 for (int i = 0; i < tupleType.TupleElements.Length; i++)
                 {
-                    if (tupleType.TupleElements[i].NullableAnnotation is NullableAnnotation.Annotated)
-                        nullableOverrides[i] = true;
+                    bool isNullable = tupleType.TupleElements[i].NullableAnnotation is NullableAnnotation.Annotated;
+                    string? tupleElementName = returnExpression is TupleExpressionSyntax tupleExpression
+                        ? GetTupleElementName(tupleExpression.Arguments[i])
+                        : null;
+                    overrides[i] = new LambdaReturnOverride(isNullable, tupleElementName);
                 }
 
                 continue;
             }
 
-            nullableOverrides ??= new bool[1];
-            if (nullableOverrides.Length != 1)
+            overrides ??= new LambdaReturnOverride[1];
+            if (overrides.Length != 1)
                 return [];
 
             NullableAnnotation annotation = typeInfo.ConvertedType is null
                 ? typeInfo.Nullability.Annotation
                 : typeInfo.ConvertedNullability.Annotation;
-            if (
+            overrides[0] = new LambdaReturnOverride(
                 annotation is NullableAnnotation.Annotated
-                || returnExpression.IsKind(SyntaxKind.NullLiteralExpression)
-            )
-            {
-                nullableOverrides[0] = true;
-            }
+                || returnExpression.IsKind(SyntaxKind.NullLiteralExpression),
+                null
+            );
         }
 
-        return nullableOverrides?.ToImmutableArray() ?? [];
+        return overrides?.ToImmutableArray() ?? [];
     }
+
+    private static string? GetTupleElementName(ArgumentSyntax argumentSyntax) => argumentSyntax switch
+    {
+        { NameColon.Name.Identifier.ValueText: var explicitName } => explicitName,
+        { Expression: IdentifierNameSyntax { Identifier.ValueText: var identifierName } } => identifierName,
+        { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: var memberName } } => memberName,
+        _ => null,
+    };
 
     /// <summary>
     /// Returns the lambda's top-level return expressions without descending into nested lambdas.

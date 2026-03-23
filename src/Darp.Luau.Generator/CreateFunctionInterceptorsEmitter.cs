@@ -58,8 +58,8 @@ internal static class CreateFunctionInterceptorsEmitter
         var returnTypes = ImmutableArray.CreateBuilder<ParameterTypeInfo>();
         // Delegate inference can erase nullable reference returns for plain lambdas, so
         // merge in lambda-body-derived nullability when it is available.
-        ImmutableArray<bool> nullableReturnOverrides =
-            LambdaReturnNullabilityResolver.GetReturnNullabilityOverrides(invocationOperation);
+        ImmutableArray<LambdaReturnOverride> returnOverrides =
+            LambdaReturnNullabilityResolver.GetReturnOverrides(invocationOperation);
 
         for (int i = 0; i < invokeMethod.Parameters.Length; i++)
         {
@@ -106,7 +106,7 @@ internal static class CreateFunctionInterceptorsEmitter
                 invocationOperation,
                 invokeMethod.ReturnType,
                 invokeMethod.ReturnNullableAnnotation,
-                nullableReturnOverrides,
+                returnOverrides,
                 returnTypes,
                 diagnostics
             )
@@ -379,7 +379,7 @@ internal static class CreateFunctionInterceptorsEmitter
         IInvocationOperation invocationOperation,
         ITypeSymbol returnType,
         NullableAnnotation returnNullableAnnotation,
-        ImmutableArray<bool> nullableReturnOverrides,
+        ImmutableArray<LambdaReturnOverride> returnOverrides,
         ImmutableArray<ParameterTypeInfo>.Builder returnTypes,
         List<Diagnostic> diagnostics
     )
@@ -396,7 +396,7 @@ internal static class CreateFunctionInterceptorsEmitter
                 returnTypes,
                 diagnostics,
                 nullableAnnotationOverride: returnNullableAnnotation,
-                nullableOverride: nullableReturnOverrides is [var singleNullableOverride] ? singleNullableOverride : null
+                nullableOverride: returnOverrides is [var singleOverride] ? singleOverride.IsNullable : null
             );
 
         if (tupleType.TupleElements.Length > 4)
@@ -439,8 +439,10 @@ internal static class CreateFunctionInterceptorsEmitter
                     returnTypes,
                     diagnostics,
                     tupleElement.NullableAnnotation,
-                    tupleElement.Name,
-                    nullableReturnOverrides.Length > i ? nullableReturnOverrides[i] : null
+                    returnOverrides.Length > i && returnOverrides[i].TupleElementName is { } tupleElementName
+                        ? tupleElementName
+                        : tupleElement.Name,
+                    returnOverrides.Length > i ? returnOverrides[i].IsNullable : null
                 )
             )
                 return false;
