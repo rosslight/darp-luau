@@ -124,7 +124,9 @@ Borrowed `*View` values and any spans returned here are callback-scoped. Convert
 
 `CreateFunction(...)` uses a narrower set of conversions than the library as a whole.
 
-It is a good fit for fixed signatures built from common primitives, supported nullable value types, enums, strings, span-based string or buffer parameters, `LuauValue`, borrowed callback views, and top-level tuple returns whose elements are individually supported.
+It is a good fit for fixed signatures built from common primitives, supported nullable value types, enums, strings, span-based string or buffer parameters, `LuauValue`, managed userdata types implementing `ILuauUserData<TSelf>`, borrowed callback views, and top-level tuple returns whose elements are individually supported.
+
+For userdata specifically, `CreateFunction(...)` supports two different shapes: `LuauUserdataView` for a borrowed raw userdata view, and self-typed managed userdata for types implementing `ILuauUserData<TSelf>`.
 
 It is not the catch-all conversion surface for every wrapper type. Nested tuple returns and other unsupported delegate shapes still require `CreateFunctionBuilder(...)` and manual `LuauArgs` handling.
 

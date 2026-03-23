@@ -126,6 +126,8 @@ _ = playerRef.TryGetManaged(out PlayerUserdata? resolvedPlayer, out string? erro
 
 Managed userdata types implement `ILuauUserData<T>` to expose script-facing fields, setters, and methods. See [Userdata](docs/features/userdata.md) for the full hook model.
 
+`CreateFunction(...)` also supports managed userdata parameters and returns for types that implement `ILuauUserData<TSelf>`.
+
 ## Register custom libraries
 
 ```csharp

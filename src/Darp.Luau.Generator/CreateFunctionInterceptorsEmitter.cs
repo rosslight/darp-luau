@@ -56,6 +56,10 @@ internal static class CreateFunctionInterceptorsEmitter
 
         var parameters = ImmutableArray.CreateBuilder<ParameterTypeInfo>();
         var returnTypes = ImmutableArray.CreateBuilder<ParameterTypeInfo>();
+        // Delegate inference can erase nullable reference returns for plain lambdas, so
+        // merge in lambda-body-derived nullability when it is available.
+        ImmutableArray<LambdaReturnOverride> returnOverrides =
+            LambdaReturnNullabilityResolver.GetReturnOverrides(invocationOperation);
 
         for (int i = 0; i < invokeMethod.Parameters.Length; i++)
         {
@@ -80,6 +84,9 @@ internal static class CreateFunctionInterceptorsEmitter
                 return false;
             }
 
+            if (typeArg.NullableAnnotation is NullableAnnotation.Annotated)
+                isNullable = true;
+
             if (isNullable && !SupportsNullableParameter(luauType))
             {
                 var diagnostic = Diagnostic.Create(
@@ -94,7 +101,16 @@ internal static class CreateFunctionInterceptorsEmitter
 
             parameters.Add(new ParameterTypeInfo(luauType, isNullable, originalTypeName, null));
         }
-        if (!TryExtractReturnParameters(invocationOperation, invokeMethod.ReturnType, returnTypes, diagnostics))
+        if (
+            !TryExtractReturnParameters(
+                invocationOperation,
+                invokeMethod.ReturnType,
+                invokeMethod.ReturnNullableAnnotation,
+                returnOverrides,
+                returnTypes,
+                diagnostics
+            )
+        )
             return false;
 
         signature = new InvocationMethodSignature(parameters.ToImmutableArray(), returnTypes.ToImmutableArray());
@@ -120,7 +136,34 @@ internal static class CreateFunctionInterceptorsEmitter
                 or LuauValueType.NumberHalf
                 or LuauValueType.NumberFloat
                 or LuauValueType.NumberDecimal
-                or LuauValueType.Enum;
+                or LuauValueType.Enum
+                or LuauValueType.ManagedUserdata;
+    }
+
+    private static bool TryMapManagedUserdataType(ITypeSymbol type, [NotNullWhen(true)] out string? typeName)
+    {
+        typeName = null;
+        if (type is not INamedTypeSymbol { TypeKind: TypeKind.Class } namedType)
+            return false;
+
+        foreach (INamedTypeSymbol implementedInterface in namedType.AllInterfaces)
+        {
+            if (
+                implementedInterface is not { Name: "ILuauUserData", Arity: 1, TypeArguments.Length: 1 }
+                || implementedInterface.ContainingNamespace.ToDisplayString() != "Darp.Luau"
+            )
+            {
+                continue;
+            }
+
+            if (!SymbolEqualityComparer.Default.Equals(implementedInterface.TypeArguments[0], namedType))
+                continue;
+
+            typeName = namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryMapTypeToLuauValueType(
@@ -166,6 +209,13 @@ internal static class CreateFunctionInterceptorsEmitter
         {
             luauType = LuauValueType.Enum;
             originalTypeName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            return true;
+        }
+
+        if (TryMapManagedUserdataType(type, out string? userdataTypeName))
+        {
+            luauType = LuauValueType.ManagedUserdata;
+            originalTypeName = userdataTypeName;
             return true;
         }
 
@@ -328,6 +378,8 @@ internal static class CreateFunctionInterceptorsEmitter
     private static bool TryExtractReturnParameters(
         IInvocationOperation invocationOperation,
         ITypeSymbol returnType,
+        NullableAnnotation returnNullableAnnotation,
+        ImmutableArray<LambdaReturnOverride> returnOverrides,
         ImmutableArray<ParameterTypeInfo>.Builder returnTypes,
         List<Diagnostic> diagnostics
     )
@@ -342,7 +394,9 @@ internal static class CreateFunctionInterceptorsEmitter
                 returnLocation,
                 "the return value",
                 returnTypes,
-                diagnostics
+                diagnostics,
+                nullableAnnotationOverride: returnNullableAnnotation,
+                nullableOverride: returnOverrides is [var singleOverride] ? singleOverride.IsNullable : null
             );
 
         if (tupleType.TupleElements.Length > 4)
@@ -358,8 +412,9 @@ internal static class CreateFunctionInterceptorsEmitter
             return false;
         }
 
-        foreach (IFieldSymbol tupleElement in tupleType.TupleElements)
+        for (int i = 0; i < tupleType.TupleElements.Length; i++)
         {
+            IFieldSymbol tupleElement = tupleType.TupleElements[i];
             if (tupleElement.Type is INamedTypeSymbol { IsTupleType: true } nestedTupleType)
             {
                 diagnostics.Add(
@@ -384,7 +439,8 @@ internal static class CreateFunctionInterceptorsEmitter
                     returnTypes,
                     diagnostics,
                     tupleElement.NullableAnnotation,
-                    tupleElement.Name
+                    tupleElement.Name,
+                    returnOverrides.Length > i ? returnOverrides[i].IsNullable : null
                 )
             )
                 return false;
@@ -400,7 +456,8 @@ internal static class CreateFunctionInterceptorsEmitter
         ImmutableArray<ParameterTypeInfo>.Builder returnTypes,
         List<Diagnostic> diagnostics,
         NullableAnnotation? nullableAnnotationOverride = null,
-        string? tupleElementName = null
+        string? tupleElementName = null,
+        bool? nullableOverride = null
     )
     {
         if (
@@ -419,6 +476,10 @@ internal static class CreateFunctionInterceptorsEmitter
         }
 
         if (nullableAnnotationOverride is NullableAnnotation.Annotated)
+            isReturnNullable = true;
+
+        // Prefer the lambda-body override when Roslyn inferred a less precise delegate signature.
+        if (nullableOverride is true)
             isReturnNullable = true;
 
         if (isReturnNullable && !SupportsNullableParameter(mappedReturnType))
@@ -474,7 +535,6 @@ internal static class CreateFunctionInterceptorsEmitter
     private static string GenerateCheckParameter(int parameterIndex, ParameterTypeInfo param)
     {
         string dotnetType = GetDotnetType(param);
-        string tryFunctionName = GetTryFunction(param.Type);
 
         return param.Type switch
         {
@@ -556,13 +616,24 @@ internal static class CreateFunctionInterceptorsEmitter
                         return global::Darp.Luau.LuauReturn.Error(error);
                     {dotnetType} a{parameterIndex} = ({param.OriginalTypeName})a{parameterIndex}Raw;
                     """,
+            LuauValueType.ManagedUserdata => param.IsNullable
+                ? $"""
+                    if (!args.TryReadUserdataOrNil<{param.OriginalTypeName}>(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    """
+                : $"""
+                    if (!args.TryReadUserdata<{param.OriginalTypeName}>(parameterIndex: {parameterIndex}, out {dotnetType}? a{parameterIndex}, out error))
+                        return global::Darp.Luau.LuauReturn.Error(error);
+                    """,
             LuauValueType.LuauValue
             or LuauValueType.LuauTableView
             or LuauValueType.LuauStringView
             or LuauValueType.LuauFunctionView
             or LuauValueType.LuauBufferView
             or LuauValueType.LuauUserdataView => $"""
-                if (!args.{tryFunctionName}(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
+                if (!args.{GetTryFunction(
+                    param.Type
+                )}(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 """,
             _ => throw new ArgumentOutOfRangeException(
@@ -622,6 +693,9 @@ internal static class CreateFunctionInterceptorsEmitter
             LuauValueType.Enum => returnParameter.IsNullable
                 ? $"(double?){valueExpression}"
                 : $"(double){valueExpression}",
+            LuauValueType.ManagedUserdata => returnParameter.IsNullable
+                ? $"{valueExpression} is null ? default(global::Darp.Luau.IntoLuau) : global::Darp.Luau.IntoLuau.FromUserdata({valueExpression})"
+                : $"global::Darp.Luau.IntoLuau.FromUserdata({valueExpression})",
             _ => valueExpression,
         };
     }

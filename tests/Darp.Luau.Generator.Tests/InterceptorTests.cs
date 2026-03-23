@@ -152,6 +152,32 @@ public class InterceptorTests
     }
 
     [Fact]
+    public async Task ManagedUserdataParameter()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            {
+                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+            }
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((MyUserdata p1) => {});
+                    state.CreateFunction((MyUserdata? p1) => p1 is null ? 0 : 1);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
     public async Task ReturnParameters()
     {
         const string code = """
@@ -164,6 +190,145 @@ public class InterceptorTests
                     state.CreateFunction(() => 1);
                     state.CreateFunction(() => "myString");
                     state.CreateFunction((string x) => x);
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
+    public async Task ManagedUserdataReturnParameters()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            {
+                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+            }
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state, MyUserdata input)
+                {
+                    state.CreateFunction(() => input);
+                    state.CreateFunction(() => (MyUserdata?)null);
+                    state.CreateFunction(() => ((MyUserdata, int))(input, 5));
+                }
+            }
+        """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
+    public async Task ManagedUserdataNullableTupleReturnParameter()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            {
+                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+            }
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(() => ((MyUserdata?)null, 5));
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
+    public async Task ManagedUserdataNullableReturnParameter()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            {
+                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+            }
+
+            public delegate MyUserdata? NullableCallback();
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction((NullableCallback)(() => null));
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
+    public async Task ManagedUserdataNullableReturnParameter_MultipleBranches()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            {
+                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+            }
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state, bool returnNil, MyUserdata value)
+                {
+                    state.CreateFunction(() =>
+                    {
+                        if (returnNil)
+                            return (MyUserdata?)null;
+                        return value;
+                    });
+                }
+            }
+            """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
+    public async Task ManagedUserdataNullableTupleReturnParameter_MultipleBranches()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            {
+                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+            }
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state, bool returnNil, MyUserdata value)
+                {
+                    state.CreateFunction(() =>
+                    {
+                        if (returnNil)
+                            return ((MyUserdata?)null, 5);
+                        return (value, 5);
+                    });
                 }
             }
             """;
@@ -303,6 +468,45 @@ public class InterceptorTests
                 }
 
                 public static object? MyCallback(object? p1) => p1;
+            }
+            """;
+        await VerifyHelper.VerifyGeneratorWithErrors(code);
+    }
+
+    [Fact]
+    public async Task InvalidManagedUserdataType_ShouldFail()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public sealed class PlainUserdata
+            {
+            }
+
+            public sealed class OtherUserdata : ILuauUserData<OtherUserdata>
+            {
+                public static LuauReturnSingle OnIndex(OtherUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                public static LuauOutcome OnSetIndex(OtherUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                public static LuauReturn OnMethodCall(OtherUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+            }
+
+            public sealed class WrongUserdata : ILuauUserData<OtherUserdata>
+            {
+                public static LuauReturnSingle OnIndex(OtherUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                public static LuauOutcome OnSetIndex(OtherUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                public static LuauReturn OnMethodCall(OtherUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+            }
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state, PlainUserdata plain, WrongUserdata wrong)
+                {
+                    state.CreateFunction((PlainUserdata p1) => p1);
+                    state.CreateFunction((WrongUserdata p1) => p1);
+                    state.CreateFunction(() => plain);
+                    state.CreateFunction(() => wrong);
+                }
             }
             """;
         await VerifyHelper.VerifyGeneratorWithErrors(code);

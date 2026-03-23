@@ -6,7 +6,7 @@ internal static class EmitterHelper
 {
     internal static string GetDotnetType(ParameterTypeInfo param)
     {
-        if (param is { Type: LuauValueType.Enum, OriginalTypeName: { } name })
+        if (param is { Type: LuauValueType.Enum or LuauValueType.ManagedUserdata, OriginalTypeName: { } name })
             return param.IsNullable ? $"{name}?" : name;
         return GetDotnetType(param.Type, param.IsNullable);
     }
@@ -14,7 +14,8 @@ internal static class EmitterHelper
     internal static string GetTupleReturnType(ParameterTypeInfo param, int index)
     {
         string type = GetDotnetType(param);
-        return param.TupleElementName is { Length: > 0 } name ? $"{type} {name}" : $"{type} Item{index}";
+        string defaultName = $"Item{index}";
+        return param.TupleElementName is { Length: > 0 } name && name != defaultName ? $"{type} {name}" : type;
     }
 
     internal static string GetDotnetType((LuauValueType Type, bool IsNullable) tuple) =>
@@ -48,10 +49,10 @@ internal static class EmitterHelper
             LuauValueType.LuauStringView => "global::Darp.Luau.LuauStringView",
             LuauValueType.LuauBufferView => "global::Darp.Luau.LuauBufferView",
             LuauValueType.LuauUserdataView => "global::Darp.Luau.LuauUserdataView",
-            LuauValueType.Enum => throw new ArgumentOutOfRangeException(
+            LuauValueType.Enum or LuauValueType.ManagedUserdata => throw new ArgumentOutOfRangeException(
                 nameof(type),
                 type,
-                "Use GetDotnetType(ParameterTypeInfo) for enum types"
+                "Use GetDotnetType(ParameterTypeInfo) for enum and managed userdata types"
             ),
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not get the dotnet type"),
         };

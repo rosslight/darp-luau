@@ -775,8 +775,7 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("f", func);
 
         _state.Load("result = f(input)").Execute();
-        _state.Globals.TryGet("result", out string? result).ShouldBeTrue();
-        result.ShouldBe(expectedValue);
+        _state.Globals.GetUtf8String("result").ShouldBe(expectedValue);
     }
 
     [Fact]
@@ -794,7 +793,18 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.Set("f", func);
 
         _state.Load("result = f(input)").Execute();
-        _state.Globals.TryGet("result", out int result).ShouldBeTrue();
+        _state.Globals.GetNumber("result").ShouldBe(42);
+    }
+
+    [Fact]
+    public void CreateFunction_UserdataArg_ShouldReadManagedUserdata()
+    {
+        var input = new ArgsUserdataA { Value = 42 };
+        using LuauFunction func = _state.CreateFunction((ArgsUserdataA value) => value.Value);
+        _state.Globals.Set("input", input);
+        _state.Globals.Set("f", func);
+
+        int result = _state.Load("return f(input)").Execute<int>();
         result.ShouldBe(42);
     }
 
@@ -821,16 +831,35 @@ public sealed class FunctionTests : IDisposable
             )
             .Execute();
 
-        _state.Globals.TryGet("ok", out bool ok).ShouldBeTrue();
-        ok.ShouldBeFalse();
-        _state.Globals.TryGet("err", out string? err).ShouldBeTrue();
-        err.ShouldContain("must be userdata of type");
+        _state.Globals.GetBoolean("ok").ShouldBeFalse();
+        _state.Globals.GetUtf8String("err").ShouldContain("must be userdata of type");
+    }
+
+    [Fact]
+    public void CreateFunction_UserdataArg_WrongType_ShouldReturnError()
+    {
+        using LuauFunction func = _state.CreateFunction(static (ArgsUserdataA value) => value.Value);
+        _state.Globals.Set("input", new ArgsUserdataB());
+        _state.Globals.Set("f", func);
+
+        _state
+            .Load(
+                """
+                ok, err = pcall(function()
+                  f(input)
+                end)
+                """
+            )
+            .Execute();
+
+        _state.Globals.GetBoolean("ok").ShouldBeFalse();
+        _state.Globals.GetUtf8String("err").ShouldContain("must be userdata of type");
     }
 
     [Fact]
     public void Func_UserdataArgOrNil_ShouldHandleNil()
     {
-        using var func = _state.CreateFunctionBuilder(static args =>
+        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
         {
             if (!args.TryReadUserdataOrNil(1, out ArgsUserdataA? value, out string? error))
                 return LuauReturn.Error(error);
@@ -848,6 +877,148 @@ public sealed class FunctionTests : IDisposable
         fromNil.ShouldBe("nil");
         _state.Globals.TryGet("fromUserdata", out string? fromUserdata).ShouldBeTrue();
         fromUserdata.ShouldBe("value");
+    }
+
+    [Fact]
+    public void CreateFunction_UserdataArgOrNil_ShouldHandleNil()
+    {
+        using LuauFunction func = _state.CreateFunction((ArgsUserdataA? value) => value is null ? "nil" : "value");
+        _state.Globals.Set("f", func);
+
+        string fromNil = _state.Load("return f(nil)").Execute<string>();
+        _state.Globals.Set("input", new ArgsUserdataA());
+        string fromUserdata = _state.Load("return f(input)").Execute<string>();
+
+        fromNil.ShouldBe("nil");
+        fromUserdata.ShouldBe("value");
+    }
+
+    [Fact]
+    public void CreateFunction_ReturningManagedUserdata_ShouldNotRequireImplicitConversion()
+    {
+        var input = new GeneratedReturnUserdata();
+        using LuauFunction func = _state.CreateFunction(() => input);
+        _state.Globals.Set("input", IntoLuau.FromUserdata(input));
+        _state.Globals.Set("f", func);
+
+        _state.Load("result = f(); isSame = result == input").Execute();
+
+        _state.Globals.TryGet("isSame", out bool isSame).ShouldBeTrue();
+        isSame.ShouldBeTrue();
+        _state.Globals.TryGetUserdata("result", out GeneratedReturnUserdata? result).ShouldBeTrue();
+        ReferenceEquals(input, result).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CreateFunction_ReturningNullableManagedUserdata_FromLambda_ShouldReturnNil()
+    {
+        using LuauFunction func = _state.CreateFunction(() => (GeneratedReturnUserdata?)null);
+        _state.Globals.Set("f", func);
+
+        _state.Load("isNil = f() == nil").Execute();
+
+        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CreateFunction_ReturningNullableManagedUserdata_ShouldReturnNil()
+    {
+        Func<GeneratedReturnUserdata?> callback = static () => null;
+        using LuauFunction func = _state.CreateFunction(callback);
+        _state.Globals.Set("f", func);
+
+        _state.Load("isNil = f() == nil").Execute();
+
+        _state.Globals.TryGet("isNil", out bool isNil).ShouldBeTrue();
+        isNil.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CreateFunction_ReturningNullableManagedUserdata_FromMultipleBranches_ShouldReturnNilOrUserdata()
+    {
+        bool returnNil = true;
+        var instance = new GeneratedReturnUserdata();
+        using LuauFunction func = _state.CreateFunction(() =>
+        {
+            if (returnNil)
+                return (GeneratedReturnUserdata?)null;
+            return instance;
+        });
+        _state.Globals.Set("f", func);
+
+        _state.Load("isNil = f() == nil").Execute();
+        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
+
+        returnNil = false;
+        _state.Load("result = f()").Execute();
+        GeneratedReturnUserdata result = _state.Globals.GetUserdata<GeneratedReturnUserdata>("result");
+        ReferenceEquals(instance, result).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CreateFunction_TupleReturn_WithNullableManagedUserdata_FromMultipleBranches_ShouldReturnNilOrUserdata()
+    {
+        bool returnNil = true;
+        var instance = new GeneratedReturnUserdata();
+        using LuauFunction func = _state.CreateFunction(() =>
+        {
+            if (returnNil)
+                return ((GeneratedReturnUserdata?)null, 7);
+            return (instance, 7);
+        });
+        _state.Globals.Set("f", func);
+
+        _state.Load("resultUserdata, resultNumber = f(); isNil = resultUserdata == nil").Execute();
+        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
+        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
+
+        returnNil = false;
+        _state.Load("resultUserdata, resultNumber = f()").Execute();
+        GeneratedReturnUserdata result = _state.Globals.GetUserdata<GeneratedReturnUserdata>("resultUserdata");
+        ReferenceEquals(instance, result).ShouldBeTrue();
+        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
+    }
+
+    [Fact]
+    public void CreateFunction_ReturningWrongNullabilityShouldThrow()
+    {
+        using LuauFunction func = _state.CreateFunction((Func<GeneratedReturnUserdata>)Callback);
+        _state.Globals.Set("f", func);
+
+        Should
+            .Throw<LuaException>(() => _state.Load("return f()").Execute())
+            .Message.ShouldContain("Value cannot be null. (Parameter 'userdata'");
+        return;
+
+        static GeneratedReturnUserdata Callback() => null!;
+    }
+
+    [Fact]
+    public void CreateFunction_TupleReturn_WithManagedUserdata_ShouldWork()
+    {
+        var input = new GeneratedReturnUserdata();
+        using LuauFunction func = _state.CreateFunction(() => (input, 7));
+        _state.Globals.Set("input", IntoLuau.FromUserdata(input));
+        _state.Globals.Set("f", func);
+
+        _state.Load("resultUserdata, resultNumber = f(); isSame = resultUserdata == input").Execute();
+
+        _state.Globals.GetBoolean("isSame").ShouldBeTrue();
+        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
+        GeneratedReturnUserdata resultUserdata = _state.Globals.GetUserdata<GeneratedReturnUserdata>("resultUserdata");
+        ReferenceEquals(input, resultUserdata).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CreateFunction_TupleReturn_WithNullableManagedUserdata_ShouldReturnNilAndOtherValues()
+    {
+        using LuauFunction func = _state.CreateFunction(() => ((GeneratedReturnUserdata?)null, 7));
+        _state.Globals.Set("f", func);
+
+        _state.Load("resultUserdata, resultNumber = f(); isNil = resultUserdata == nil").Execute();
+
+        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
+        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
     }
 
     [Fact]
@@ -1270,4 +1441,25 @@ internal sealed class ArgsUserdataB : ILuauUserData<ArgsUserdataB>
     ) => LuauReturn.NotHandledError;
 
     public static implicit operator IntoLuau(ArgsUserdataB value) => IntoLuau.FromUserdata(value);
+}
+
+internal sealed class GeneratedReturnUserdata : ILuauUserData<GeneratedReturnUserdata>
+{
+    public static LuauReturnSingle OnIndex(
+        GeneratedReturnUserdata self,
+        in LuauState state,
+        in ReadOnlySpan<char> fieldName
+    ) => LuauReturnSingle.NotHandled;
+
+    public static LuauOutcome OnSetIndex(
+        GeneratedReturnUserdata self,
+        LuauArgsSingle args,
+        in ReadOnlySpan<char> fieldName
+    ) => LuauOutcome.NotHandledError;
+
+    public static LuauReturn OnMethodCall(
+        GeneratedReturnUserdata self,
+        LuauArgs functionArgs,
+        in ReadOnlySpan<char> methodName
+    ) => LuauReturn.NotHandledError;
 }
