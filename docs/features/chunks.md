@@ -6,6 +6,7 @@ That chunk object is the execution surface:
 
 - it carries the source to compile,
 - it can carry a chunk name via `WithName(...)`,
+- it can carry an execution environment via `WithEnvironment(...)`,
 - it executes the source through `Execute(...)`,
 - it can expose all returns through `ExecuteMulti()`,
 - it can be compiled into a reusable `LuauFunction` with `ToFunction()`.
@@ -101,6 +102,27 @@ lua.Load(File.ReadAllBytes(path))
 ```
 
 This is especially important for `EnableRequire()`, because entry chunk names drive path resolution.
+
+## Use an environment
+
+Use `CreateEnvironment()` when a chunk should keep its own globals while still reading from the state's shared globals:
+
+```csharp
+using LuauTable env = lua.CreateEnvironment();
+
+int result = lua.Load(
+    """
+    count = (count or 0) + 1
+    return math.max(count, 1)
+    """
+).WithEnvironment(env).Execute<int>();
+```
+
+Environment reads fall back to `lua.Globals`, but assignments stay on the environment table itself.
+
+- Reuse the same environment across multiple chunk executions when they should share chunk-local globals.
+- `_G` inside that environment points back to the environment table.
+- This is a scoping helper, not a sandbox or isolation boundary.
 
 ## Convert a chunk into a function
 

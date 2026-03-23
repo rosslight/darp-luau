@@ -218,6 +218,37 @@ public sealed unsafe class LuauState : IDisposable
     }
 
     /// <summary>
+    /// Creates a writable chunk environment table that falls back to this state's globals.
+    /// </summary>
+    /// <returns>The created environment table.</returns>
+    public LuauTable CreateEnvironment()
+    {
+        this.ThrowIfDisposed();
+#if DEBUG
+        using var guard = new StackGuard(L, expectedDelta: 0);
+#endif
+        lua_newtable(L);
+
+        fixed (byte* pGlobalName = "_G\0"u8)
+        {
+            lua_pushvalue(L, -1);
+            lua_setfield(L, -2, pGlobalName);
+        }
+
+        lua_newtable(L);
+        fixed (byte* pIndexName = "__index\0"u8)
+        {
+            lua_pushvalue(L, LUA_GLOBALSINDEX);
+            lua_setfield(L, -2, pIndexName);
+        }
+
+        _ = lua_setmetatable(L, -2);
+
+        ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
+        return new LuauTable(this, reference);
+    }
+
+    /// <summary>
     /// Manual callback delegate used by <see cref="CreateFunctionBuilder(LuauFunctionBuilder)"/>.
     /// </summary>
     /// <remarks>

@@ -35,6 +35,19 @@ public readonly unsafe partial struct LuauTable : ILuauReference, IEnumerable<Ke
         _handle = handle;
     }
 
+    internal LuauState GetStateOrThrow()
+    {
+        ArgumentNullException.ThrowIfNull(_state);
+        _state.ThrowIfDisposed();
+        return _state;
+    }
+
+    internal ulong GetHandleOrThrow()
+    {
+        _ = GetStateOrThrow().GetTrackedReferenceOrThrow(_handle);
+        return _handle;
+    }
+
     /// <summary> Gets the count of the table if viewed as a list </summary>
     /// <remarks> If a lua table has holes, this property is unreliable! </remarks>
     public int ListCount

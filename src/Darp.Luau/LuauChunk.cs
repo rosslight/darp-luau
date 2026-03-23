@@ -44,12 +44,13 @@ public readonly ref struct LuauChunk
     private readonly ReadOnlySpan<char> _charSource;
     private readonly ReadOnlySpan<byte> _utf8Source;
     private readonly ReadOnlySpan<char> _chunkName;
+    private readonly ulong _environmentHandle;
 
     internal LuauChunk(LuauState? state, LuauCompiler compiler, ReadOnlySpan<char> source)
-        : this(state, compiler, LuauChunkSourceKind.Chars, source, default, default) { }
+        : this(state, compiler, LuauChunkSourceKind.Chars, source, default, default, environmentHandle: 0) { }
 
     internal LuauChunk(LuauState? state, LuauCompiler compiler, ReadOnlySpan<byte> source)
-        : this(state, compiler, LuauChunkSourceKind.Utf8Bytes, default, source, default) { }
+        : this(state, compiler, LuauChunkSourceKind.Utf8Bytes, default, source, default, environmentHandle: 0) { }
 
     private LuauChunk(
         LuauState? state,
@@ -57,7 +58,8 @@ public readonly ref struct LuauChunk
         LuauChunkSourceKind sourceKind,
         ReadOnlySpan<char> charSource,
         ReadOnlySpan<byte> utf8Source,
-        ReadOnlySpan<char> chunkName
+        ReadOnlySpan<char> chunkName,
+        ulong environmentHandle
     )
     {
         _state = state;
@@ -66,23 +68,30 @@ public readonly ref struct LuauChunk
         _charSource = charSource;
         _utf8Source = utf8Source;
         _chunkName = chunkName;
+        _environmentHandle = environmentHandle;
     }
-
-    /// <summary> Gets the environment configured for this chunk. </summary>
-    /// <remarks>Chunk environments are not implemented yet.</remarks>
-    public LuauTable Environment { get; }
-
-    /// <summary> Returns a copy of this chunk configured to run with the provided environment. </summary>
-    /// <param name="environment">The environment table to bind to the chunk.</param>
-    /// <returns>A chunk configured with the provided environment.</returns>
-    /// <remarks>Chunk environments are not implemented yet.</remarks>
-    public LuauChunk WithEnvironment(LuauTable environment) => throw new NotImplementedException();
 
     /// <summary> Returns a copy of this chunk configured with a specific chunk name. </summary>
     /// <param name="chunkName">The chunk name to use when loading the compiled bytecode.</param>
     /// <returns>A chunk configured with the provided chunk name.</returns>
     public LuauChunk WithName(ReadOnlySpan<char> chunkName) =>
-        new(_state, _compiler, _sourceKind, _charSource, _utf8Source, chunkName);
+        new(_state, _compiler, _sourceKind, _charSource, _utf8Source, chunkName, _environmentHandle);
+
+    /// <summary> Returns a copy of this chunk configured with a dedicated execution environment. </summary>
+    /// <param name="environment">The environment table to use for global lookups and assignments.</param>
+    /// <returns>A chunk configured with the provided environment.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown when the owning state or environment is disposed.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the environment belongs to a different state.</exception>
+    public LuauChunk WithEnvironment(LuauTable environment)
+    {
+        LuauState state = GetState();
+        LuauState environmentState = environment.GetStateOrThrow();
+        if (!ReferenceEquals(state, environmentState))
+            throw new InvalidOperationException("Chunk environment must belong to the same LuauState.");
+
+        ulong environmentHandle = environment.GetHandleOrThrow();
+        return new LuauChunk(_state, _compiler, _sourceKind, _charSource, _utf8Source, _chunkName, environmentHandle);
+    }
 
     /// <summary> Compiles and executes the chunk, ignoring any return values. </summary>
     /// <exception cref="ObjectDisposedException">Thrown when the owning state is disposed.</exception>
@@ -277,10 +286,30 @@ public readonly ref struct LuauChunk
 
         int actualChunkNameBytes = Encoding.UTF8.GetBytes(chunkName, chunkNameBuffer);
         chunkNameBuffer[actualChunkNameBytes] = 0;
+
+        int environmentStackIndex = 0;
+        if (_environmentHandle != 0)
+        {
+            RegistryReferenceTracker.TrackedReference environmentReference = GetState()
+                .GetTrackedReferenceOrThrow(_environmentHandle);
+#pragma warning disable CA2000 // The environment is removed explicitly after luau_load so the loaded function remains on the stack.
+            _ = environmentReference.PushToTop();
+#pragma warning restore CA2000
+            environmentStackIndex = lua_gettop(L);
+        }
+
         fixed (byte* pChunkName = chunkNameBuffer)
         {
-            int loadStatus = luau_load(L, pChunkName, pByteCode, nSizeByteCode, 0);
-            LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
+            try
+            {
+                int loadStatus = luau_load(L, pChunkName, pByteCode, nSizeByteCode, environmentStackIndex);
+                LuaException.ThrowIfNotOk(L, loadStatus, "luau_load");
+            }
+            finally
+            {
+                if (environmentStackIndex != 0)
+                    lua_remove(L, environmentStackIndex);
+            }
         }
     }
 

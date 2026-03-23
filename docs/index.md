@@ -66,6 +66,8 @@ Chunks can also return values directly to managed code. Use `Load(...).Execute<T
 (int total, int delta) = lua.Load("return 20, 4").Execute<int, int>();
 ```
 
+If a chunk should keep its own globals, create an environment table with `CreateEnvironment()` and pass it through `WithEnvironment(...)`.
+
 If you want file-based execution, load the file contents yourself and pass them to `Load(...)`. If that script should be able to call `require(...)`, first call `EnableRequire()` and use an `@`-prefixed chunk name through `WithName(...)` that points at the script path.
 
 See [Require](features/require.md), and [Chunks](features/chunks.md) for the full chunk execution API, return behavior, and ownership notes.

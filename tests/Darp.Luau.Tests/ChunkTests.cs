@@ -204,6 +204,124 @@ public sealed class ChunkTests : IDisposable
         exception.Message.ShouldContain("named_utf8_chunk.luau");
     }
 
+    [Fact]
+    public void WithEnvironment_ReadsGlobalsAndWritesLocals()
+    {
+        _lua.Globals.Set("baseValue", 40);
+
+        using LuauTable environment = _lua.CreateEnvironment();
+        int result = _lua.Load(
+                """
+                computed = baseValue + 2
+                return computed
+                """
+            )
+            .WithEnvironment(environment)
+            .Execute<int>();
+
+        result.ShouldBe(42);
+        environment.GetNumber("computed").ShouldBe(42);
+        _lua.Globals.GetNumber("baseValue").ShouldBe(40);
+        _lua.Globals.ContainsKey("computed").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CreateEnvironment_Sets_G_ToEnvironment()
+    {
+        using LuauTable environment = _lua.CreateEnvironment();
+
+        _lua.Load("_G.answer = 21").WithEnvironment(environment).Execute();
+
+        environment.GetNumber("answer").ShouldBe(21);
+        _lua.Globals.ContainsKey("answer").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ToFunction_PreservesEnvironment()
+    {
+        _lua.Globals.Set("step", 3);
+
+        using LuauTable environment = _lua.CreateEnvironment();
+        using LuauFunction function = _lua.Load(
+                """
+                counter = (counter or 0) + step
+                return counter
+                """
+            )
+            .WithEnvironment(environment)
+            .ToFunction();
+
+        function.Invoke<int>().ShouldBe(3);
+        function.Invoke<int>().ShouldBe(6);
+
+        environment.GetNumber("counter").ShouldBe(6);
+        _lua.Globals.ContainsKey("counter").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void WithEnvironment_FromDifferentState_Throws()
+    {
+        using var otherState = new LuauState();
+        using LuauTable environment = otherState.CreateEnvironment();
+
+        InvalidOperationException exception = Should.Throw<InvalidOperationException>(() =>
+            _lua.Load("return 1").WithEnvironment(environment)
+        );
+
+        exception.Message.ShouldContain("same LuauState");
+    }
+
+    [Fact]
+    public void WithEnvironment_DisposedEnvironment_Throws()
+    {
+        LuauTable environment = _lua.CreateEnvironment();
+        environment.Dispose();
+
+        Should.Throw<ObjectDisposedException>(() => _lua.Load("return 1").WithEnvironment(environment));
+    }
+
+    [Fact]
+    public void Execute_WithDisposedConfiguredEnvironment_Throws()
+    {
+        LuauTable environment = _lua.CreateEnvironment();
+        LuauChunk chunk = _lua.Load("return 1").WithEnvironment(environment);
+        environment.Dispose();
+
+        try
+        {
+            _ = chunk.Execute<int>();
+            throw new ShouldAssertException("Expected ObjectDisposedException to be thrown.");
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    [Fact]
+    public void ToFunction_WithDisposedConfiguredEnvironment_Throws()
+    {
+        LuauTable environment = _lua.CreateEnvironment();
+        LuauChunk chunk = _lua.Load("return 1").WithEnvironment(environment);
+        environment.Dispose();
+
+        try
+        {
+            using LuauFunction _ = chunk.ToFunction();
+            throw new ShouldAssertException("Expected ObjectDisposedException to be thrown.");
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    [Fact]
+    public void ToFunction_DisposingEnvironmentRefAfterwards_ShouldWork()
+    {
+        LuauTable environment = _lua.CreateEnvironment();
+        LuauChunk chunk = _lua.Load("return 1").WithEnvironment(environment);
+
+        using LuauFunction func = chunk.ToFunction();
+        environment.Dispose();
+
+        func.Invoke<int>().ShouldBe(1);
+    }
+
     public void Dispose()
     {
         _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2U);
