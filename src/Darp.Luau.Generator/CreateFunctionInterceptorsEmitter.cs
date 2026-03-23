@@ -439,9 +439,7 @@ internal static class CreateFunctionInterceptorsEmitter
                     returnTypes,
                     diagnostics,
                     tupleElement.NullableAnnotation,
-                    returnOverrides.Length > i && returnOverrides[i].TupleElementName is { } tupleElementName
-                        ? tupleElementName
-                        : tupleElement.Name,
+                    tupleElement.Name,
                     returnOverrides.Length > i ? returnOverrides[i].IsNullable : null
                 )
             )

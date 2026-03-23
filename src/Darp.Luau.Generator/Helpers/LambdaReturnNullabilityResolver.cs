@@ -50,7 +50,10 @@ internal static class LambdaReturnNullabilityResolver
                     string? tupleElementName = returnExpression is TupleExpressionSyntax tupleExpression
                         ? GetTupleElementName(tupleExpression.Arguments[i])
                         : null;
-                    overrides[i] = new LambdaReturnOverride(isNullable, tupleElementName);
+                    overrides[i] = new LambdaReturnOverride(
+                        overrides[i].IsNullable || isNullable,
+                        overrides[i].TupleElementName ?? tupleElementName
+                    );
                 }
 
                 continue;
@@ -64,9 +67,10 @@ internal static class LambdaReturnNullabilityResolver
                 ? typeInfo.Nullability.Annotation
                 : typeInfo.ConvertedNullability.Annotation;
             overrides[0] = new LambdaReturnOverride(
-                annotation is NullableAnnotation.Annotated
-                || returnExpression.IsKind(SyntaxKind.NullLiteralExpression),
-                null
+                overrides[0].IsNullable
+                    || annotation is NullableAnnotation.Annotated
+                    || returnExpression.IsKind(SyntaxKind.NullLiteralExpression),
+                overrides[0].TupleElementName
             );
         }
 

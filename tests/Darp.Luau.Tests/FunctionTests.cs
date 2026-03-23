@@ -934,6 +934,52 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void CreateFunction_ReturningNullableManagedUserdata_FromMultipleBranches_ShouldReturnNilOrUserdata()
+    {
+        bool returnNil = true;
+        var instance = new GeneratedReturnUserdata();
+        using LuauFunction func = _state.CreateFunction(() =>
+        {
+            if (returnNil)
+                return (GeneratedReturnUserdata?)null;
+            return instance;
+        });
+        _state.Globals.Set("f", func);
+
+        _state.Load("isNil = f() == nil").Execute();
+        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
+
+        returnNil = false;
+        _state.Load("result = f()").Execute();
+        GeneratedReturnUserdata result = _state.Globals.GetUserdata<GeneratedReturnUserdata>("result");
+        ReferenceEquals(instance, result).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CreateFunction_TupleReturn_WithNullableManagedUserdata_FromMultipleBranches_ShouldReturnNilOrUserdata()
+    {
+        bool returnNil = true;
+        var instance = new GeneratedReturnUserdata();
+        using LuauFunction func = _state.CreateFunction(() =>
+        {
+            if (returnNil)
+                return ((GeneratedReturnUserdata?)null, 7);
+            return (instance, 7);
+        });
+        _state.Globals.Set("f", func);
+
+        _state.Load("resultUserdata, resultNumber = f(); isNil = resultUserdata == nil").Execute();
+        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
+        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
+
+        returnNil = false;
+        _state.Load("resultUserdata, resultNumber = f()").Execute();
+        GeneratedReturnUserdata result = _state.Globals.GetUserdata<GeneratedReturnUserdata>("resultUserdata");
+        ReferenceEquals(instance, result).ShouldBeTrue();
+        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
+    }
+
+    [Fact]
     public void CreateFunction_ReturningWrongNullabilityShouldThrow()
     {
         using LuauFunction func = _state.CreateFunction((Func<GeneratedReturnUserdata>)Callback);
