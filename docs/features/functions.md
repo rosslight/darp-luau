@@ -64,8 +64,11 @@ This is the normal callback API when your callback shape is simple and static.
 - enums,
 - `string` and span-based string or buffer parameters,
 - `LuauValue`,
+- managed userdata types that implement `ILuauUserData<TSelf>`,
 - borrowed callback views such as `LuauTableView` or `LuauFunctionView`,
 - `void`, one managed return value, or a top-level tuple return whose elements are individually supported.
+
+Managed userdata support here is the typed managed path, not the raw userdata wrapper path. Use `LuauUserdataView` when you want a borrowed userdata view directly; use `ILuauUserData<TSelf>` when you want `CreateFunction(...)` to marshal to and from your managed type.
 
 The supported signature set is narrower than the library's overall type-conversion surface. Generator-backed callbacks currently reject nested tuple returns and are limited to top-level tuple returns that fit the current `LuauReturn.Ok(...)` arity. If a delegate shape is not supported there, use `CreateFunctionBuilder(...)` instead. See [Type mapping](../concepts/type-mapping.md) for the broader conversion model.
 

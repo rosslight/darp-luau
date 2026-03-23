@@ -126,7 +126,7 @@ lua.Globals.Set("pair", pair);
 lua.Load("""log("hello from luau")""").Execute();
 ```
 
-Use `CreateFunction(...)` for supported fixed signatures, including supported top-level tuple returns. If you need manual argument parsing, unsupported callback shapes, or custom error shaping, use `CreateFunctionBuilder(...)`. See [Functions](features/functions.md).
+Use `CreateFunction(...)` for supported fixed signatures, including managed userdata parameters and returns for `ILuauUserData<TSelf>` types and supported top-level tuple returns. If you need manual argument parsing, unsupported callback shapes, or custom error shaping, use `CreateFunctionBuilder(...)`. See [Functions](features/functions.md).
 
 ## Expose userdata
 
