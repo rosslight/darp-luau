@@ -19,7 +19,7 @@ internal enum LuauChunkSourceKind : byte
 /// </summary>
 /// <param name="OptimizationLevel">The Luau compiler optimization level.</param>
 /// <param name="DebugLevel">The Luau compiler debug information level.</param>
-public readonly record struct LuauCompiler(int OptimizationLevel, int DebugLevel)
+internal sealed record LuauCompiler(int OptimizationLevel, int DebugLevel)
 {
     /// <summary>
     /// The default compiler configuration used by chunk loading APIs.
@@ -36,6 +36,7 @@ public readonly record struct LuauCompiler(int OptimizationLevel, int DebugLevel
 /// </remarks>
 public readonly ref struct LuauChunk
 {
+    private const string DefaultChunkName = "=main";
     private const int LuaMultRet = -1;
 
     private readonly LuauState? _state;
@@ -47,10 +48,11 @@ public readonly ref struct LuauChunk
     private readonly ulong _environmentHandle;
 
     internal LuauChunk(LuauState? state, LuauCompiler compiler, ReadOnlySpan<char> source)
-        : this(state, compiler, LuauChunkSourceKind.Chars, source, default, default, environmentHandle: 0) { }
+        : this(state, compiler, LuauChunkSourceKind.Chars, source, default, DefaultChunkName, environmentHandle: 0) { }
 
     internal LuauChunk(LuauState? state, LuauCompiler compiler, ReadOnlySpan<byte> source)
-        : this(state, compiler, LuauChunkSourceKind.Utf8Bytes, default, source, default, environmentHandle: 0) { }
+        : this(state, compiler, LuauChunkSourceKind.Utf8Bytes, default, source, DefaultChunkName, environmentHandle: 0)
+    { }
 
     private LuauChunk(
         LuauState? state,
@@ -226,26 +228,19 @@ public readonly ref struct LuauChunk
 
     private unsafe void LoadCompiledChunk(lua_State* L)
     {
-        lua_CompileOptions options = new()
-        {
-            optimizationLevel = _compiler.OptimizationLevel,
-            debugLevel = _compiler.DebugLevel,
-        };
+        ReadOnlySpan<char> chunkName = _chunkName.IsEmpty ? DefaultChunkName : _chunkName;
+        int nChunkNameBytes = Encoding.UTF8.GetByteCount(chunkName);
+        byte[] chunkNameArray = ArrayPool<byte>.Shared.Rent(nChunkNameBytes + 1);
+        int actualChunkNameBytes = Encoding.UTF8.GetBytes(chunkName, chunkNameArray);
+        chunkNameArray[actualChunkNameBytes] = 0;
+        ReadOnlySpan<byte> chunkNameBuffer = chunkNameArray.AsSpan(0, actualChunkNameBytes);
 
         if (_sourceKind == LuauChunkSourceKind.Utf8Bytes)
         {
+            fixed (byte* pChunkName = chunkNameBuffer)
             fixed (byte* pSource = _utf8Source)
             {
-                nuint nSizeByteCode = 0;
-                byte* pByteCode = luau_compile(pSource, (nuint)_utf8Source.Length, &options, &nSizeByteCode);
-                try
-                {
-                    LoadBytecode(L, pByteCode, nSizeByteCode);
-                }
-                finally
-                {
-                    luau_free(pByteCode);
-                }
+                CompileAndLoadByteCode(L, pSource, (nuint)_utf8Source.Length, pChunkName);
             }
             return;
         }
@@ -257,18 +252,10 @@ public readonly ref struct LuauChunk
             Span<byte> bytesSpan = bytesSource.AsSpan(0, nBytes);
             int actualNBytes = Encoding.UTF8.GetBytes(_charSource, bytesSpan);
             bytesSpan = bytesSpan[..actualNBytes];
+            fixed (byte* pChunkName = chunkNameBuffer)
             fixed (byte* pSource = bytesSpan)
             {
-                nuint nSizeByteCode = 0;
-                byte* pByteCode = luau_compile(pSource, (nuint)actualNBytes, &options, &nSizeByteCode);
-                try
-                {
-                    LoadBytecode(L, pByteCode, nSizeByteCode);
-                }
-                finally
-                {
-                    luau_free(pByteCode);
-                }
+                CompileAndLoadByteCode(L, pSource, (nuint)bytesSpan.Length, pChunkName);
             }
         }
         finally
@@ -277,29 +264,33 @@ public readonly ref struct LuauChunk
         }
     }
 
-    private unsafe void LoadBytecode(lua_State* L, byte* pByteCode, nuint nSizeByteCode)
+    private unsafe void CompileAndLoadByteCode(lua_State* L, byte* pSource, nuint sourceLength, byte* pChunkName)
     {
-        ReadOnlySpan<char> chunkName = _chunkName.IsEmpty ? "main" : _chunkName;
-
-        int nChunkNameBytes = Encoding.UTF8.GetByteCount(chunkName);
-        Span<byte> chunkNameBuffer = stackalloc byte[nChunkNameBytes + 1];
-
-        int actualChunkNameBytes = Encoding.UTF8.GetBytes(chunkName, chunkNameBuffer);
-        chunkNameBuffer[actualChunkNameBytes] = 0;
-
-        int environmentStackIndex = 0;
-        if (_environmentHandle != 0)
+        lua_CompileOptions* pOptions = null;
+        if (!ReferenceEquals(_compiler, LuauCompiler.Default))
         {
-            RegistryReferenceTracker.TrackedReference environmentReference = GetState()
-                .GetTrackedReferenceOrThrow(_environmentHandle);
-#pragma warning disable CA2000 // The environment is removed explicitly after luau_load so the loaded function remains on the stack.
-            _ = environmentReference.PushToTop();
-#pragma warning restore CA2000
-            environmentStackIndex = lua_gettop(L);
+            var options = new lua_CompileOptions
+            {
+                optimizationLevel = _compiler.OptimizationLevel,
+                debugLevel = _compiler.DebugLevel,
+            };
+            pOptions = &options;
         }
 
-        fixed (byte* pChunkName = chunkNameBuffer)
+        nuint nSizeByteCode = 0;
+        byte* pByteCode = luau_compile(pSource, sourceLength, pOptions, &nSizeByteCode);
+        try
         {
+            int environmentStackIndex = 0;
+            if (_environmentHandle != 0)
+            {
+                RegistryReferenceTracker.TrackedReference environmentReference = GetState()
+                    .GetTrackedReferenceOrThrow(_environmentHandle);
+#pragma warning disable CA2000 // The environment is removed explicitly after luau_load so the loaded function remains on the stack.
+                _ = environmentReference.PushToTop();
+#pragma warning restore CA2000
+                environmentStackIndex = lua_gettop(L);
+            }
             try
             {
                 int loadStatus = luau_load(L, pChunkName, pByteCode, nSizeByteCode, environmentStackIndex);
@@ -310,6 +301,10 @@ public readonly ref struct LuauChunk
                 if (environmentStackIndex != 0)
                     lua_remove(L, environmentStackIndex);
             }
+        }
+        finally
+        {
+            luau_free(pByteCode);
         }
     }
 

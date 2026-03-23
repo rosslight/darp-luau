@@ -419,6 +419,7 @@ public sealed unsafe class LuauState : IDisposable
     /// </remarks>
     public LuauChunk Load(ReadOnlySpan<char> source)
     {
+        this.ThrowIfDisposed();
         return new LuauChunk(this, LuauCompiler.Default, source);
     }
 
@@ -430,6 +431,7 @@ public sealed unsafe class LuauState : IDisposable
     /// </remarks>
     public LuauChunk Load(ReadOnlySpan<byte> source)
     {
+        this.ThrowIfDisposed();
         return new LuauChunk(this, LuauCompiler.Default, source);
     }
 

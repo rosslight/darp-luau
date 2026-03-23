@@ -322,6 +322,18 @@ public sealed class ChunkTests : IDisposable
         func.Invoke<int>().ShouldBe(1);
     }
 
+    [Fact]
+    public void Environments_WorkWithSimpleTables()
+    {
+        using LuauTable environment = _lua.CreateTable();
+        environment.Set("my_value", 42);
+        LuauChunk chunk = _lua.Load("return my_value").WithEnvironment(environment);
+
+        using LuauFunction func = chunk.ToFunction();
+
+        func.Invoke<int>().ShouldBe(42);
+    }
+
     public void Dispose()
     {
         _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2U);
