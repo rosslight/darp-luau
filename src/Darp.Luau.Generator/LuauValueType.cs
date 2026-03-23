@@ -31,4 +31,5 @@ internal enum LuauValueType
     LuauStringView,
     LuauBufferView,
     LuauUserdataView,
+    ManagedUserdata,
 }

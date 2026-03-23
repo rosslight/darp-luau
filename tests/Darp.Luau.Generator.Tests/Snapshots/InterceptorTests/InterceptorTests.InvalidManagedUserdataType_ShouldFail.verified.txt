@@ -1,0 +1,80 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+    {
+        state.CreateFunction((PlainUserdata p1) => p1);
+                              ^^^^^^^^^^^^^
+        state.CreateFunction((WrongUserdata p1) => p1);
+*/
+ : (25,30)-(25,43),
+      Message: Type 'PlainUserdata' used for parameter 'arg' is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction((PlainUserdata p1) => p1);
+        state.CreateFunction((WrongUserdata p1) => p1);
+                              ^^^^^^^^^^^^^
+        state.CreateFunction(() => plain);
+*/
+ : (26,30)-(26,43),
+      Message: Type 'WrongUserdata' used for parameter 'arg' is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction((WrongUserdata p1) => p1);
+        state.CreateFunction(() => plain);
+                                   ^^^^^
+        state.CreateFunction(() => wrong);
+*/
+ : (27,35)-(27,40),
+      Message: Type 'PlainUserdata' used for the return value is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+        state.CreateFunction(() => plain);
+        state.CreateFunction(() => wrong);
+                                   ^^^^^
+    }
+*/
+ : (28,35)-(28,40),
+      Message: Type 'WrongUserdata' used for the return value is not supported for Luau parameter/return marshalling,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU0002,
+        Title: Unsupported type for Luau interop,
+        MessageFormat: Type '{0}' used for {1} is not supported for Luau parameter/return marshalling,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
