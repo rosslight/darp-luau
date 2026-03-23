@@ -910,6 +910,17 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void CreateFunction_ReturningNullableManagedUserdata_FromLambda_ShouldReturnNil()
+    {
+        using LuauFunction func = _state.CreateFunction(() => (GeneratedReturnUserdata?)null);
+        _state.Globals.Set("f", func);
+
+        _state.Load("isNil = f() == nil").Execute();
+
+        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
+    }
+
+    [Fact]
     public void CreateFunction_ReturningNullableManagedUserdata_ShouldReturnNil()
     {
         Func<GeneratedReturnUserdata?> callback = static () => null;
@@ -950,6 +961,18 @@ public sealed class FunctionTests : IDisposable
         _state.Globals.GetNumber("resultNumber").ShouldBe(7);
         GeneratedReturnUserdata resultUserdata = _state.Globals.GetUserdata<GeneratedReturnUserdata>("resultUserdata");
         ReferenceEquals(input, resultUserdata).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void CreateFunction_TupleReturn_WithNullableManagedUserdata_ShouldReturnNilAndOtherValues()
+    {
+        using LuauFunction func = _state.CreateFunction(() => ((GeneratedReturnUserdata?)null, 7));
+        _state.Globals.Set("f", func);
+
+        _state.Load("resultUserdata, resultNumber = f(); isNil = resultUserdata == nil").Execute();
+
+        _state.Globals.GetBoolean("isNil").ShouldBeTrue();
+        _state.Globals.GetNumber("resultNumber").ShouldBe(7);
     }
 
     [Fact]

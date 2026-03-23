@@ -7,7 +7,6 @@ namespace Darp.Luau.Generator
 file static class CreateFunctionInterceptors
 {
     [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "ScrubbedInterceptLocation")]
-    [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "ScrubbedInterceptLocation")]
     public static global::Darp.Luau.LuauFunction CreateMethod(this global::Darp.Luau.LuauState state, global::System.Func<global::MyUserdata> onLuaCall)
     {
         global::System.ArgumentNullException.ThrowIfNull(state);
@@ -21,6 +20,22 @@ file static class CreateFunctionInterceptors
 
             var returns = onLuaCall();
             return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
+        }
+    }
+    [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "ScrubbedInterceptLocation")]
+    public static global::Darp.Luau.LuauFunction CreateMethodOptR1(this global::Darp.Luau.LuauState state, global::System.Func<global::MyUserdata?> onLuaCall)
+    {
+        global::System.ArgumentNullException.ThrowIfNull(state);
+        global::System.ArgumentNullException.ThrowIfNull(onLuaCall);
+        return state.CreateFunctionBuilder(F);
+
+        global::Darp.Luau.LuauReturn F(global::Darp.Luau.LuauArgs args)
+        {
+            if (!args.TryValidateArgumentCount(0, out string? error))
+                return global::Darp.Luau.LuauReturn.Error(error);
+
+            var returns = onLuaCall();
+            return global::Darp.Luau.LuauReturn.Ok(returns is null ? default(global::Darp.Luau.IntoLuau) : global::Darp.Luau.IntoLuau.FromUserdata(returns));
         }
     }
     [global::System.Runtime.CompilerServices.InterceptsLocationAttribute(1, "ScrubbedInterceptLocation")]

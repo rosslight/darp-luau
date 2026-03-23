@@ -56,6 +56,10 @@ internal static class CreateFunctionInterceptorsEmitter
 
         var parameters = ImmutableArray.CreateBuilder<ParameterTypeInfo>();
         var returnTypes = ImmutableArray.CreateBuilder<ParameterTypeInfo>();
+        // Delegate inference can erase nullable reference returns for plain lambdas, so
+        // merge in lambda-body-derived nullability when it is available.
+        ImmutableArray<bool> nullableReturnOverrides =
+            LambdaReturnNullabilityResolver.GetReturnNullabilityOverrides(invocationOperation);
 
         for (int i = 0; i < invokeMethod.Parameters.Length; i++)
         {
@@ -102,6 +106,7 @@ internal static class CreateFunctionInterceptorsEmitter
                 invocationOperation,
                 invokeMethod.ReturnType,
                 invokeMethod.ReturnNullableAnnotation,
+                nullableReturnOverrides,
                 returnTypes,
                 diagnostics
             )
@@ -374,6 +379,7 @@ internal static class CreateFunctionInterceptorsEmitter
         IInvocationOperation invocationOperation,
         ITypeSymbol returnType,
         NullableAnnotation returnNullableAnnotation,
+        ImmutableArray<bool> nullableReturnOverrides,
         ImmutableArray<ParameterTypeInfo>.Builder returnTypes,
         List<Diagnostic> diagnostics
     )
@@ -389,7 +395,8 @@ internal static class CreateFunctionInterceptorsEmitter
                 "the return value",
                 returnTypes,
                 diagnostics,
-                nullableAnnotationOverride: returnNullableAnnotation
+                nullableAnnotationOverride: returnNullableAnnotation,
+                nullableOverride: nullableReturnOverrides is [var singleNullableOverride] ? singleNullableOverride : null
             );
 
         if (tupleType.TupleElements.Length > 4)
@@ -405,8 +412,9 @@ internal static class CreateFunctionInterceptorsEmitter
             return false;
         }
 
-        foreach (IFieldSymbol tupleElement in tupleType.TupleElements)
+        for (int i = 0; i < tupleType.TupleElements.Length; i++)
         {
+            IFieldSymbol tupleElement = tupleType.TupleElements[i];
             if (tupleElement.Type is INamedTypeSymbol { IsTupleType: true } nestedTupleType)
             {
                 diagnostics.Add(
@@ -431,7 +439,8 @@ internal static class CreateFunctionInterceptorsEmitter
                     returnTypes,
                     diagnostics,
                     tupleElement.NullableAnnotation,
-                    tupleElement.Name
+                    tupleElement.Name,
+                    nullableReturnOverrides.Length > i ? nullableReturnOverrides[i] : null
                 )
             )
                 return false;
@@ -447,7 +456,8 @@ internal static class CreateFunctionInterceptorsEmitter
         ImmutableArray<ParameterTypeInfo>.Builder returnTypes,
         List<Diagnostic> diagnostics,
         NullableAnnotation? nullableAnnotationOverride = null,
-        string? tupleElementName = null
+        string? tupleElementName = null,
+        bool? nullableOverride = null
     )
     {
         if (
@@ -466,6 +476,10 @@ internal static class CreateFunctionInterceptorsEmitter
         }
 
         if (nullableAnnotationOverride is NullableAnnotation.Annotated)
+            isReturnNullable = true;
+
+        // Prefer the lambda-body override when Roslyn inferred a less precise delegate signature.
+        if (nullableOverride is true)
             isReturnNullable = true;
 
         if (isReturnNullable && !SupportsNullableParameter(mappedReturnType))

@@ -219,6 +219,31 @@ public class InterceptorTests
                     state.CreateFunction(() => ((MyUserdata, int))(input, 5));
                 }
             }
+        """;
+        await VerifyHelper.VerifyGenerator(code);
+    }
+
+    [Fact]
+    public async Task ManagedUserdataNullableTupleReturnParameter()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            public sealed class MyUserdata : ILuauUserData<MyUserdata>
+            {
+                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+            }
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state)
+                {
+                    state.CreateFunction(() => ((MyUserdata?)null, 5));
+                }
+            }
             """;
         await VerifyHelper.VerifyGenerator(code);
     }
