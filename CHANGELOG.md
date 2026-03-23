@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/rosslight/darp-luau/compare/v0.1.1...v0.2.0) (2026-03-23)
+
+
+### Features
+
+* add chunks api ([#17](https://github.com/rosslight/darp-luau/issues/17)) ([add438b](https://github.com/rosslight/darp-luau/commit/add438bd8697106d697a7daf3dfb3b538041305b))
+* add multi return DoString calls ([#15](https://github.com/rosslight/darp-luau/issues/15)) ([0ef8a5a](https://github.com/rosslight/darp-luau/commit/0ef8a5a930e6e185dcfea9e01353efd601ae7d20))
+* Add support for require statement within script ([#7](https://github.com/rosslight/darp-luau/issues/7)) ([c901dae](https://github.com/rosslight/darp-luau/commit/c901daeea70e4a1ba7e8a74ff0210402e750f46e))
+* support managed userdata in function callbacks ([#18](https://github.com/rosslight/darp-luau/issues/18)) ([0e960d3](https://github.com/rosslight/darp-luau/commit/0e960d31e92bfa64009d5d3ad42c4ba74f1659d5))
+* support multiple values in function returns ([#13](https://github.com/rosslight/darp-luau/issues/13)) ([871440d](https://github.com/rosslight/darp-luau/commit/871440d70395dcb115d916373895a649a28a30d1))
+
 ## [0.1.1](https://github.com/rosslight/darp-luau/compare/v0.1.0...v0.1.1) (2026-03-16)
 
 
