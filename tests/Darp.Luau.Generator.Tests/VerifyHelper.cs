@@ -104,7 +104,10 @@ public static class VerifyHelper
         return VerifyGeneratedExportsWithErrors([source], callerFilePath);
     }
 
-    public static Task VerifyGeneratedExportsWithErrors(string[] sources, [CallerFilePath] string? callerFilePath = null)
+    public static Task VerifyGeneratedExportsWithErrors(
+        string[] sources,
+        [CallerFilePath] string? callerFilePath = null
+    )
     {
         string fileName =
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
@@ -228,15 +231,16 @@ public static class VerifyHelper
         if (verifyDiagnosticsSnapshot)
             snapshotDiagnostics = snapshotDiagnostics.Concat(analyzerDiagnostics);
 
-        object verificationTarget = verifyCompilationDiagnosticsSnapshot || verifyDiagnosticsSnapshot
-            ? new
-            {
-                Diagnostics = snapshotDiagnostics
-                    .Where(x => x.Id is not "CS5001")
-                    .Select(ToSerializableDiagnostic)
-                    .ToArray(),
-            }
-            : driver;
+        object verificationTarget =
+            verifyCompilationDiagnosticsSnapshot || verifyDiagnosticsSnapshot
+                ? new
+                {
+                    Diagnostics = snapshotDiagnostics
+                        .Where(x => x.Id is not "CS5001")
+                        .Select(ToSerializableDiagnostic)
+                        .ToArray(),
+                }
+                : driver;
         SettingsTask settingsTask = Verify(verificationTarget).UseDirectory(Path.Join("Snapshots", directory));
         await configureSettingsTask(settingsTask);
         // Assert that there are no compilation errors (except for CS5001 which informs about the missing program entry)

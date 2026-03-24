@@ -34,7 +34,7 @@ internal static class GeneratedExportsIrProjector
                 method.Method.Parameters,
                 method.Method.ReturnTypes
             ),
-            _ => throw new InvalidOperationException($"Unsupported normalized member type '{member.GetType().Name}'")
+            _ => throw new InvalidOperationException($"Unsupported normalized member type '{member.GetType().Name}'"),
         };
     }
 

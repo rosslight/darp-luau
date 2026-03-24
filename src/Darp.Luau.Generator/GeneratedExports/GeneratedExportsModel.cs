@@ -36,17 +36,11 @@ internal sealed record DiscoveredExportType(
 
 internal abstract record DiscoveredExportMember(string ManagedName, AttributeData Attribute, SourceOrigin Origin);
 
-internal sealed record DiscoveredExportProperty(
-    IPropertySymbol Symbol,
-    AttributeData Attribute,
-    SourceOrigin Origin
-) : DiscoveredExportMember(Symbol.Name, Attribute, Origin);
+internal sealed record DiscoveredExportProperty(IPropertySymbol Symbol, AttributeData Attribute, SourceOrigin Origin)
+    : DiscoveredExportMember(Symbol.Name, Attribute, Origin);
 
-internal sealed record DiscoveredExportMethod(
-    IMethodSymbol Symbol,
-    AttributeData Attribute,
-    SourceOrigin Origin
-) : DiscoveredExportMember(Symbol.Name, Attribute, Origin);
+internal sealed record DiscoveredExportMethod(IMethodSymbol Symbol, AttributeData Attribute, SourceOrigin Origin)
+    : DiscoveredExportMember(Symbol.Name, Attribute, Origin);
 
 internal sealed record NormalizedExportType(
     INamedTypeSymbol Symbol,
@@ -102,10 +96,7 @@ internal sealed record NormalizedMethodContract(
     ImmutableEquatableArray<LuauTypeMapping> ReturnTypes
 );
 
-internal sealed record ValidatedExportType(
-    NormalizedExportType Type,
-    ValidatedLibraryExportNode? LibraryRoot
-);
+internal sealed record ValidatedExportType(NormalizedExportType Type, ValidatedLibraryExportNode? LibraryRoot);
 
 internal sealed record ValidatedLibraryExportNode(
     string Name,

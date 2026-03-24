@@ -22,9 +22,8 @@ internal static class GeneratedExportsValidation
     {
         ReportDuplicateNames(discoveredType.Symbol, normalizedType.Kind, normalizedType.Members, diagnostics);
 
-        ValidatedLibraryExportNode? libraryRoot = normalizedType.Kind == LuauExportedTypeKind.Library
-            ? BuildLibraryTree(normalizedType, diagnostics)
-            : null;
+        ValidatedLibraryExportNode? libraryRoot =
+            normalizedType.Kind == LuauExportedTypeKind.Library ? BuildLibraryTree(normalizedType, diagnostics) : null;
         return new ValidatedExportType(normalizedType, libraryRoot);
     }
 

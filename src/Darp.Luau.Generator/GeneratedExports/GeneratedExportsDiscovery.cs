@@ -29,7 +29,9 @@ internal static class GeneratedExportsDiscovery
         }
 
         AttributeData attribute = libraryAttribute ?? userdataAttribute!;
-        LuauExportedTypeKind kind = libraryAttribute is not null ? LuauExportedTypeKind.Library : LuauExportedTypeKind.Userdata;
+        LuauExportedTypeKind kind = libraryAttribute is not null
+            ? LuauExportedTypeKind.Library
+            : LuauExportedTypeKind.Userdata;
 
         var members = new List<DiscoveredExportMember>();
         foreach (ISymbol member in type.GetMembers())

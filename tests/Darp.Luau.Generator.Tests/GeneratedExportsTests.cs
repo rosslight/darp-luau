@@ -38,24 +38,24 @@ public class GeneratedExportsTests
         string[] sources =
         [
             """
-            using Darp.Luau;
+                using Darp.Luau;
 
-            [LuauLibrary("mathx")]
-            public static partial class MathX
-            {
-                [LuauMember("pi")]
-                public static double Pi => 3.14;
-            }
-            """,
+                [LuauLibrary("mathx")]
+                public static partial class MathX
+                {
+                    [LuauMember("pi")]
+                    public static double Pi => 3.14;
+                }
+                """,
             """
-            using Darp.Luau;
+                using Darp.Luau;
 
-            public static partial class MathX
-            {
-                [LuauMember("clamp")]
-                public static int Clamp(int value, int min, int max) => value;
-            }
-            """,
+                public static partial class MathX
+                {
+                    [LuauMember("clamp")]
+                    public static int Clamp(int value, int min, int max) => value;
+                }
+                """,
         ];
 
         await VerifyHelper.VerifyGeneratedExports(sources);

@@ -200,26 +200,26 @@ public class InterceptorTests
     public async Task ManagedUserdataReturnParameters()
     {
         const string code = """
-            using System;
-            using Darp.Luau;
+                using System;
+                using Darp.Luau;
 
-            public sealed class MyUserdata : ILuauUserData<MyUserdata>
-            {
-                public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
-                public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
-                public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
-            }
-
-            public static class Hi
-            {
-                public static void DoSomething(LuauState state, MyUserdata input)
+                public sealed class MyUserdata : ILuauUserData<MyUserdata>
                 {
-                    state.CreateFunction(() => input);
-                    state.CreateFunction(() => (MyUserdata?)null);
-                    state.CreateFunction(() => ((MyUserdata, int))(input, 5));
+                    public static LuauReturnSingle OnIndex(MyUserdata self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                    public static LuauOutcome OnSetIndex(MyUserdata self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                    public static LuauReturn OnMethodCall(MyUserdata self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
                 }
-            }
-        """;
+
+                public static class Hi
+                {
+                    public static void DoSomething(LuauState state, MyUserdata input)
+                    {
+                        state.CreateFunction(() => input);
+                        state.CreateFunction(() => (MyUserdata?)null);
+                        state.CreateFunction(() => ((MyUserdata, int))(input, 5));
+                    }
+                }
+            """;
         await VerifyHelper.VerifyGenerator(code);
     }
 

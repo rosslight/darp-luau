@@ -84,7 +84,9 @@ internal static class GeneratedExportsNormalization
             return null;
         }
 
-        string? exportedName = GeneratedExportsCompilationContext.GetStringConstructorArgument(discoveredProperty.Attribute);
+        string? exportedName = GeneratedExportsCompilationContext.GetStringConstructorArgument(
+            discoveredProperty.Attribute
+        );
         if (exportedName is null)
         {
             diagnostics.Add(
@@ -97,7 +99,14 @@ internal static class GeneratedExportsNormalization
             return null;
         }
 
-        if (!TryGetPropertyAccess(discoveredProperty.Attribute, location, diagnostics, out LuauExportPropertyAccess requestedAccess))
+        if (
+            !TryGetPropertyAccess(
+                discoveredProperty.Attribute,
+                location,
+                diagnostics,
+                out LuauExportPropertyAccess requestedAccess
+            )
+        )
             return null;
 
         if (
@@ -184,7 +193,9 @@ internal static class GeneratedExportsNormalization
             return null;
         }
 
-        string? exportedName = GeneratedExportsCompilationContext.GetStringConstructorArgument(discoveredMethod.Attribute);
+        string? exportedName = GeneratedExportsCompilationContext.GetStringConstructorArgument(
+            discoveredMethod.Attribute
+        );
         if (exportedName is null)
         {
             diagnostics.Add(
@@ -266,10 +277,21 @@ internal static class GeneratedExportsNormalization
         NormalizedPropertyAccessor? getter = null;
         if (exposeGetter)
         {
-            LuauInteropTypeUsage getterUsage = exportedTypeKind == LuauExportedTypeKind.Library
-                ? LuauInteropTypeUsage.LibraryProperty
-                : LuauInteropTypeUsage.UserdataPropertyGet;
-            if (!TryMapPropertyType(property, getterUsage, exportedTypeKind, location, context, diagnostics, out LuauTypeMapping getterType))
+            LuauInteropTypeUsage getterUsage =
+                exportedTypeKind == LuauExportedTypeKind.Library
+                    ? LuauInteropTypeUsage.LibraryProperty
+                    : LuauInteropTypeUsage.UserdataPropertyGet;
+            if (
+                !TryMapPropertyType(
+                    property,
+                    getterUsage,
+                    exportedTypeKind,
+                    location,
+                    context,
+                    diagnostics,
+                    out LuauTypeMapping getterType
+                )
+            )
             {
                 propertyContract = default!;
                 return false;
@@ -281,10 +303,21 @@ internal static class GeneratedExportsNormalization
         NormalizedPropertyAccessor? setter = null;
         if (exposeSetter)
         {
-            LuauInteropTypeUsage setterUsage = exportedTypeKind == LuauExportedTypeKind.Library
-                ? LuauInteropTypeUsage.LibraryProperty
-                : LuauInteropTypeUsage.UserdataPropertySet;
-            if (!TryMapPropertyType(property, setterUsage, exportedTypeKind, location, context, diagnostics, out LuauTypeMapping setterType))
+            LuauInteropTypeUsage setterUsage =
+                exportedTypeKind == LuauExportedTypeKind.Library
+                    ? LuauInteropTypeUsage.LibraryProperty
+                    : LuauInteropTypeUsage.UserdataPropertySet;
+            if (
+                !TryMapPropertyType(
+                    property,
+                    setterUsage,
+                    exportedTypeKind,
+                    location,
+                    context,
+                    diagnostics,
+                    out LuauTypeMapping setterType
+                )
+            )
             {
                 propertyContract = default!;
                 return false;
@@ -364,9 +397,10 @@ internal static class GeneratedExportsNormalization
         }
 
         var parameterBuilder = new List<LuauTypeMapping>();
-        LuauInteropTypeUsage parameterUsage = exportedTypeKind == LuauExportedTypeKind.Library
-            ? LuauInteropTypeUsage.LibraryFunctionParameter
-            : LuauInteropTypeUsage.UserdataMethodParameter;
+        LuauInteropTypeUsage parameterUsage =
+            exportedTypeKind == LuauExportedTypeKind.Library
+                ? LuauInteropTypeUsage.LibraryFunctionParameter
+                : LuauInteropTypeUsage.UserdataMethodParameter;
         foreach (IParameterSymbol parameter in method.Parameters)
         {
             if (parameter.RefKind != RefKind.None)
@@ -454,9 +488,10 @@ internal static class GeneratedExportsNormalization
         }
 
         var returnValues = new List<LuauTypeMapping>();
-        LuauInteropTypeUsage returnUsage = exportedTypeKind == LuauExportedTypeKind.Library
-            ? LuauInteropTypeUsage.LibraryFunctionReturn
-            : LuauInteropTypeUsage.UserdataMethodReturn;
+        LuauInteropTypeUsage returnUsage =
+            exportedTypeKind == LuauExportedTypeKind.Library
+                ? LuauInteropTypeUsage.LibraryFunctionReturn
+                : LuauInteropTypeUsage.UserdataMethodReturn;
         if (method.ReturnType is not INamedTypeSymbol { IsTupleType: true } tupleType)
         {
             if (
@@ -747,15 +782,16 @@ internal static class GeneratedExportsNormalization
     )
     {
         ImmutableArray<string> rawSegments;
-        bool success = exportedTypeKind == LuauExportedTypeKind.Library
-            ? GeneratedExportsPathParser.TryParseLibraryPath(exportedName, location, diagnostics, out rawSegments)
-            : GeneratedExportsPathParser.TryParseUserdataPath(
-                exportedName,
-                memberName,
-                location,
-                diagnostics,
-                out rawSegments
-            );
+        bool success =
+            exportedTypeKind == LuauExportedTypeKind.Library
+                ? GeneratedExportsPathParser.TryParseLibraryPath(exportedName, location, diagnostics, out rawSegments)
+                : GeneratedExportsPathParser.TryParseUserdataPath(
+                    exportedName,
+                    memberName,
+                    location,
+                    diagnostics,
+                    out rawSegments
+                );
         pathSegments = success ? rawSegments.ToImmutableEquatableArray() : ImmutableEquatableArray<string>.Empty;
         return success;
     }

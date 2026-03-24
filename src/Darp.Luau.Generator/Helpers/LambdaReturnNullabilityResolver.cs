@@ -77,13 +77,14 @@ internal static class LambdaReturnNullabilityResolver
         return overrides?.ToImmutableArray() ?? [];
     }
 
-    private static string? GetTupleElementName(ArgumentSyntax argumentSyntax) => argumentSyntax switch
-    {
-        { NameColon.Name.Identifier.ValueText: var explicitName } => explicitName,
-        { Expression: IdentifierNameSyntax { Identifier.ValueText: var identifierName } } => identifierName,
-        { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: var memberName } } => memberName,
-        _ => null,
-    };
+    private static string? GetTupleElementName(ArgumentSyntax argumentSyntax) =>
+        argumentSyntax switch
+        {
+            { NameColon.Name.Identifier.ValueText: var explicitName } => explicitName,
+            { Expression: IdentifierNameSyntax { Identifier.ValueText: var identifierName } } => identifierName,
+            { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: var memberName } } => memberName,
+            _ => null,
+        };
 
     /// <summary>
     /// Returns the lambda's top-level return expressions without descending into nested lambdas.
@@ -101,8 +102,8 @@ internal static class LambdaReturnNullabilityResolver
 
         foreach (
             ReturnStatementSyntax returnStatement in lambdaSyntax
-                .Block.DescendantNodes(
-                    static node => node is not AnonymousFunctionExpressionSyntax and not LocalFunctionStatementSyntax
+                .Block.DescendantNodes(static node =>
+                    node is not AnonymousFunctionExpressionSyntax and not LocalFunctionStatementSyntax
                 )
                 .OfType<ReturnStatementSyntax>()
         )

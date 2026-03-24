@@ -59,8 +59,9 @@ internal static class CreateFunctionInterceptorsEmitter
         var returnTypes = ImmutableArray.CreateBuilder<ParameterTypeInfo>();
         // Delegate inference can erase nullable reference returns for plain lambdas, so
         // merge in lambda-body-derived nullability when it is available.
-        ImmutableArray<LambdaReturnOverride> returnOverrides =
-            LambdaReturnNullabilityResolver.GetReturnOverrides(invocationOperation);
+        ImmutableArray<LambdaReturnOverride> returnOverrides = LambdaReturnNullabilityResolver.GetReturnOverrides(
+            invocationOperation
+        );
 
         for (int i = 0; i < invokeMethod.Parameters.Length; i++)
         {
@@ -362,7 +363,12 @@ internal static class CreateFunctionInterceptorsEmitter
         }
 
         returnTypes.Add(
-            new ParameterTypeInfo(mappedReturnType, isReturnNullable, mappedReturnParameter.OriginalTypeName, tupleElementName)
+            new ParameterTypeInfo(
+                mappedReturnType,
+                isReturnNullable,
+                mappedReturnParameter.OriginalTypeName,
+                tupleElementName
+            )
         );
         return true;
     }
@@ -496,7 +502,8 @@ internal static class CreateFunctionInterceptorsEmitter
             or LuauValueType.LuauStringView
             or LuauValueType.LuauFunctionView
             or LuauValueType.LuauBufferView
-            or LuauValueType.LuauUserdataView => $"""
+            or LuauValueType.LuauUserdataView =>
+                $"""
                 if (!args.{GetTryFunction(
                     param.Type
                 )}(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
