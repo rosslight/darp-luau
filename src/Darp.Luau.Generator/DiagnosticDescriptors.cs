@@ -48,4 +48,103 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true
     );
+
+    public static readonly DiagnosticDescriptor LuauLibraryTypeMustBePartialDescriptor = new(
+        id: "DLUAU1001",
+        title: "Luau library type must be partial",
+        messageFormat: "Type marked with [LuauLibrary] must be partial",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
+
+    public static readonly DiagnosticDescriptor LuauUserdataTypeMustBePartialDescriptor = new(
+        id: "DLUAU1002",
+        title: "Luau userdata type must be partial",
+        messageFormat: "Type marked with [LuauUserdata] must be partial",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
+
+    public static readonly DiagnosticDescriptor DuplicateLuauMemberNameDescriptor = new(
+        id: "DLUAU1003",
+        title: "Duplicate Luau member name",
+        messageFormat: "Duplicate Luau member name '{0}' on {1} '{2}'",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
+
+    public static readonly DiagnosticDescriptor UnsupportedGeneratedPropertyTypeDescriptor = new(
+        id: "DLUAU1004",
+        title: "Unsupported generated property type",
+        messageFormat: "Member type '{0}' is not supported for generated {1} '{2}'",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
+
+    public static readonly DiagnosticDescriptor InstanceLibraryStructNotSupportedDescriptor = new(
+        id: "DLUAU1005",
+        title: "Instance library structs are not supported",
+        messageFormat: "Instance library structs are not supported because the receiver would be copied",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
+
+    public static readonly DiagnosticDescriptor UnsupportedGeneratedFunctionShapeDescriptor = new(
+        id: "DLUAU1006",
+        title: "Unsupported generated function shape",
+        messageFormat: "Generated {0} '{1}' uses an unsupported parameter or return shape: {2}",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
+
+    public static readonly DiagnosticDescriptor LuauExportPathConflictDescriptor = new(
+        id: "DLUAU1007",
+        title: "Luau export path conflict",
+        messageFormat: "Luau export path conflict: '{0}' cannot be both a leaf member and a namespace for '{1}'",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
+
+    public static readonly DiagnosticDescriptor InvalidLuauExportPathDescriptor = new(
+        id: "DLUAU1008",
+        title: "Invalid Luau export path",
+        messageFormat: "Invalid Luau export path '{0}'; empty path segments are not allowed",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
+
+    public static readonly DiagnosticDescriptor LibraryPropertyMustBeReadOnlyDescriptor = new(
+        id: "DLUAU1009",
+        title: "Library properties must be read-only",
+        messageFormat: "Exported library property '{0}' must be read-only because libraries are snapshot tables after registration",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
+
+    public static readonly DiagnosticDescriptor GeneratedUserdataManualInteropConflictDescriptor = new(
+        id: "DLUAU1011",
+        title: "Generated and manual userdata hooks cannot mix",
+        messageFormat: "Generated userdata surface for '{0}' cannot be combined with manual ILuauUserData hooks in v1",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
+
+    public static readonly DiagnosticDescriptor InvalidGeneratedExportShapeDescriptor = new(
+        id: "DLUAU1012",
+        title: "Invalid generated export shape",
+        messageFormat: "Invalid generated export shape: {0}",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true
+    );
 }
