@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Darp.Luau.Generator.Helpers;
 using Microsoft.CodeAnalysis;
 
 namespace Darp.Luau.Generator.GeneratedExports;
@@ -23,35 +24,134 @@ internal enum LuauExportPropertyAccess
     ReadWrite = 3,
 }
 
-internal sealed record LuauExportedTypeModel(
+internal sealed record SourceOrigin(string DisplayName, Location Location);
+
+internal sealed record DiscoveredExportType(
+    INamedTypeSymbol Symbol,
+    LuauExportedTypeKind Kind,
+    AttributeData Attribute,
+    SourceOrigin Origin,
+    ImmutableEquatableArray<DiscoveredExportMember> Members
+);
+
+internal abstract record DiscoveredExportMember(string ManagedName, AttributeData Attribute, SourceOrigin Origin);
+
+internal sealed record DiscoveredExportProperty(
+    IPropertySymbol Symbol,
+    AttributeData Attribute,
+    SourceOrigin Origin
+) : DiscoveredExportMember(Symbol.Name, Attribute, Origin);
+
+internal sealed record DiscoveredExportMethod(
+    IMethodSymbol Symbol,
+    AttributeData Attribute,
+    SourceOrigin Origin
+) : DiscoveredExportMember(Symbol.Name, Attribute, Origin);
+
+internal sealed record NormalizedExportType(
     INamedTypeSymbol Symbol,
     LuauExportedTypeKind Kind,
     string? LibraryName,
-    ImmutableArray<LuauExportedMemberModel> Members,
-    LuauLibraryExportNode? LibraryRoot
+    SourceOrigin Origin,
+    ImmutableEquatableArray<NormalizedExportMember> Members
 );
 
-internal sealed record LuauExportedMemberModel(
-    ISymbol Symbol,
-    LuauExportedMemberKind Kind,
-    string Name,
-    ImmutableArray<string> PathSegments,
-    LuauExportPropertyAccess Access,
-    LuauTypeMapping? PropertyType,
-    ImmutableArray<LuauTypeMapping> Parameters,
-    ImmutableArray<LuauTypeMapping> ReturnTypes
-);
-
-internal sealed class LuauLibraryExportNode(string name)
+internal abstract record NormalizedExportMember(
+    string ManagedName,
+    string LuauName,
+    ImmutableEquatableArray<string> PathSegments,
+    SourceOrigin Origin
+)
 {
-    public string Name { get; } = name;
-
-    public LuauExportedMemberModel? Member { get; set; }
-
-    public Dictionary<string, LuauLibraryExportNode> Children { get; } = new(StringComparer.Ordinal);
+    public abstract ISymbol Symbol { get; }
 }
 
+internal sealed record NormalizedExportPropertyMember(
+    IPropertySymbol PropertySymbol,
+    string ManagedName,
+    string LuauName,
+    ImmutableEquatableArray<string> PathSegments,
+    SourceOrigin Origin,
+    NormalizedPropertyContract Property
+) : NormalizedExportMember(ManagedName, LuauName, PathSegments, Origin)
+{
+    public override ISymbol Symbol => PropertySymbol;
+}
+
+internal sealed record NormalizedExportMethodMember(
+    IMethodSymbol MethodSymbol,
+    string ManagedName,
+    string LuauName,
+    ImmutableEquatableArray<string> PathSegments,
+    SourceOrigin Origin,
+    NormalizedMethodContract Method
+) : NormalizedExportMember(ManagedName, LuauName, PathSegments, Origin)
+{
+    public override ISymbol Symbol => MethodSymbol;
+}
+
+internal sealed record NormalizedPropertyContract(
+    NormalizedPropertyAccessor? Getter,
+    NormalizedPropertyAccessor? Setter
+);
+
+internal sealed record NormalizedPropertyAccessor(LuauTypeMapping Type);
+
+internal sealed record NormalizedMethodContract(
+    ImmutableEquatableArray<LuauTypeMapping> Parameters,
+    ImmutableEquatableArray<LuauTypeMapping> ReturnTypes
+);
+
+internal sealed record ValidatedExportType(
+    NormalizedExportType Type,
+    ValidatedLibraryExportNode? LibraryRoot
+);
+
+internal sealed record ValidatedLibraryExportNode(
+    string Name,
+    NormalizedExportMember? Member,
+    ImmutableEquatableArray<ValidatedLibraryExportNode> Children
+);
+
+internal sealed record GeneratedExportSurfaceIr(
+    string ManagedTypeName,
+    LuauExportedTypeKind Kind,
+    string? LibraryName,
+    ImmutableEquatableArray<GeneratedExportMemberIr> Members,
+    GeneratedLibraryExportNodeIr? LibraryRoot
+);
+
+internal abstract record GeneratedExportMemberIr(
+    string ManagedName,
+    string LuauName,
+    ImmutableEquatableArray<string> PathSegments
+);
+
+internal sealed record GeneratedExportPropertyIr(
+    string ManagedName,
+    string LuauName,
+    ImmutableEquatableArray<string> PathSegments,
+    GeneratedExportAccessorIr? Getter,
+    GeneratedExportAccessorIr? Setter
+) : GeneratedExportMemberIr(ManagedName, LuauName, PathSegments);
+
+internal sealed record GeneratedExportMethodIr(
+    string ManagedName,
+    string LuauName,
+    ImmutableEquatableArray<string> PathSegments,
+    ImmutableEquatableArray<LuauTypeMapping> Parameters,
+    ImmutableEquatableArray<LuauTypeMapping> ReturnTypes
+) : GeneratedExportMemberIr(ManagedName, LuauName, PathSegments);
+
+internal sealed record GeneratedExportAccessorIr(LuauTypeMapping Type);
+
+internal sealed record GeneratedLibraryExportNodeIr(
+    string Name,
+    GeneratedExportMemberIr? Member,
+    ImmutableEquatableArray<GeneratedLibraryExportNodeIr> Children
+);
+
 internal sealed record GeneratedExportsTypeAnalysis(
-    LuauExportedTypeModel? Model,
+    GeneratedExportSurfaceIr? Model,
     ImmutableArray<Diagnostic> Diagnostics
 );

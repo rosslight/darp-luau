@@ -18,6 +18,7 @@ internal static class CreateFunctionInterceptorsEmitter
         List<Diagnostic> diagnostics
     )
     {
+        signature = default;
         ITypeSymbol? delegateType = invocationOperation.Arguments.Select(x => x.Value.Type).FirstOrDefault();
 
         if (delegateType is not INamedTypeSymbol { DelegateInvokeMethod: { } invokeMethod })
@@ -112,7 +113,10 @@ internal static class CreateFunctionInterceptorsEmitter
         )
             return false;
 
-        signature = new InvocationMethodSignature(parameters.ToImmutableArray(), returnTypes.ToImmutableArray());
+        signature = new InvocationMethodSignature(
+            parameters.ToImmutableEquatableArray(),
+            returnTypes.ToImmutableEquatableArray()
+        );
         return true;
     }
 
@@ -521,7 +525,7 @@ internal static class CreateFunctionInterceptorsEmitter
         writer.WriteLine($"if (!args.TryValidateArgumentCount({signature.Parameters.Length}, out string? error))");
         writer.WriteLine("    return global::Darp.Luau.LuauReturn.Error(error);");
         writer.WriteMultiLine(string.Join("\n", paramExtractions));
-        if (signature.ReturnParameters.IsEmpty)
+        if (signature.ReturnParameters.Length == 0)
         {
             writer.WriteLine($"{callExpression};");
             writer.WriteLine("return global::Darp.Luau.LuauReturn.Ok();");
@@ -572,9 +576,7 @@ internal static class CreateFunctionInterceptorsEmitter
         using var writer = new IndentedTextWriter(stringWriter);
         diagnostics = [];
 
-        var groups = new Dictionary<InvocationMethodSignature, HashSet<InterceptorLocationData>>(
-            InvocationSignatureComparer.Instance
-        );
+        var groups = new Dictionary<InvocationMethodSignature, HashSet<InterceptorLocationData>>();
         foreach (IInvocationOperation calledMethod in calls)
         {
             var syntax = (InvocationExpressionSyntax)calledMethod.Syntax;
@@ -700,65 +702,6 @@ internal readonly record struct ParameterTypeInfo(
 );
 
 internal readonly record struct InvocationMethodSignature(
-    ImmutableArray<ParameterTypeInfo> Parameters,
-    ImmutableArray<ParameterTypeInfo> ReturnParameters
+    ImmutableEquatableArray<ParameterTypeInfo> Parameters,
+    ImmutableEquatableArray<ParameterTypeInfo> ReturnParameters
 );
-
-internal sealed class InvocationSignatureComparer : IEqualityComparer<InvocationMethodSignature>
-{
-    public static readonly InvocationSignatureComparer Instance = new();
-
-    public bool Equals(InvocationMethodSignature x, InvocationMethodSignature y) =>
-        SequenceEqual(x.Parameters, y.Parameters) && SequenceEqual(x.ReturnParameters, y.ReturnParameters);
-
-    public int GetHashCode(InvocationMethodSignature obj)
-    {
-        unchecked
-        {
-            int hash = 17;
-
-            // Parameters
-            hash = (hash * 31) + obj.Parameters.Length;
-            for (int i = 0; i < obj.Parameters.Length; i++)
-            {
-                hash = (hash * 31) + (int)obj.Parameters[i].Type;
-                hash = (hash * 31) + (obj.Parameters[i].IsNullable ? 1 : 0);
-                hash =
-                    (hash * 31)
-                    + (obj.Parameters[i].OriginalTypeName is { } n ? StringComparer.Ordinal.GetHashCode(n) : 0);
-                hash =
-                    (hash * 31)
-                    + (obj.Parameters[i].TupleElementName is { } tn ? StringComparer.Ordinal.GetHashCode(tn) : 0);
-            }
-
-            // Separator to reduce accidental collisions between params/returns
-            hash = (int)(hash * 31 + 0x9E3779B9);
-
-            // ReturnParameters
-            hash = (hash * 31) + obj.ReturnParameters.Length;
-            for (int i = 0; i < obj.ReturnParameters.Length; i++)
-            {
-                hash = (hash * 31) + (int)obj.ReturnParameters[i].Type;
-                hash = (hash * 31) + (obj.ReturnParameters[i].IsNullable ? 1 : 0);
-                hash =
-                    (hash * 31)
-                    + (obj.ReturnParameters[i].OriginalTypeName is { } n ? StringComparer.Ordinal.GetHashCode(n) : 0);
-                hash =
-                    (hash * 31)
-                    + (obj.ReturnParameters[i].TupleElementName is { } tn ? StringComparer.Ordinal.GetHashCode(tn) : 0);
-            }
-
-            return hash;
-        }
-    }
-
-    private static bool SequenceEqual(ImmutableArray<ParameterTypeInfo> a, ImmutableArray<ParameterTypeInfo> b)
-    {
-        if (a.Length != b.Length)
-            return false;
-        for (int i = 0; i < a.Length; i++)
-            if (a[i] != b[i])
-                return false;
-        return true;
-    }
-}
