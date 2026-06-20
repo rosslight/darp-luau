@@ -137,7 +137,8 @@ internal static class GeneratedLibraryExportsEmitter
         writer.WriteLine("void BuildLibrary(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable lib)");
         writer.WriteLine("{");
         writer.Indent++;
-        WriteLibraryNodeContents(writer, model.LibraryRoot!, "lib", []);
+        var localNames = new LocalNameAllocator();
+        WriteLibraryNodeContents(writer, model.LibraryRoot!, "lib", localNames);
         writer.Indent--;
         writer.WriteLine("}");
         writer.Indent--;
@@ -156,26 +157,31 @@ internal static class GeneratedLibraryExportsEmitter
         IndentedTextWriter writer,
         GeneratedLibraryExportNodeIr node,
         string tableVariableName,
-        IReadOnlyList<string> pathSegments
+        LocalNameAllocator localNames
     )
     {
         foreach (GeneratedLibraryExportNodeIr child in node.Children.OrderBy(static x => x.Name, StringComparer.Ordinal))
         {
             if (child.Member is null)
             {
-                string nestedTableName = "__" + string.Join("_", pathSegments.Concat([child.Name]));
+                string nestedTableName = localNames.Next();
                 writer.WriteLine($"using global::Darp.Luau.LuauTable {nestedTableName} = state.CreateTable();");
-                WriteLibraryNodeContents(writer, child, nestedTableName, pathSegments.Concat([child.Name]).ToArray());
+                WriteLibraryNodeContents(writer, child, nestedTableName, localNames);
                 writer.WriteLine($"{tableVariableName}.Set({SymbolDisplay.FormatLiteral(child.Name, quote: true)}, {nestedTableName});");
                 writer.WriteLine();
                 continue;
             }
 
-            WriteMember(writer, child.Member, tableVariableName);
+            WriteMember(writer, child.Member, tableVariableName, localNames);
         }
     }
 
-    private static void WriteMember(IndentedTextWriter writer, GeneratedExportMemberIr member, string tableVariableName)
+    private static void WriteMember(
+        IndentedTextWriter writer,
+        GeneratedExportMemberIr member,
+        string tableVariableName,
+        LocalNameAllocator localNames
+    )
     {
         switch (member)
         {
@@ -183,7 +189,7 @@ internal static class GeneratedLibraryExportsEmitter
                 WriteProperty(writer, property, tableVariableName);
                 break;
             case GeneratedExportMethodIr method:
-                WriteMethod(writer, method, tableVariableName);
+                WriteMethod(writer, method, tableVariableName, localNames);
                 break;
             default:
                 throw new InvalidOperationException($"Unsupported generated library member '{member.GetType().Name}'.");
@@ -198,9 +204,14 @@ internal static class GeneratedLibraryExportsEmitter
         writer.WriteLine($"{tableVariableName}.Set({keyLiteral}, {FormatIntoLuauExpression(property.ManagedName, accessor.Type)});");
     }
 
-    private static void WriteMethod(IndentedTextWriter writer, GeneratedExportMethodIr method, string tableVariableName)
+    private static void WriteMethod(
+        IndentedTextWriter writer,
+        GeneratedExportMethodIr method,
+        string tableVariableName,
+        LocalNameAllocator localNames
+    )
     {
-        string functionVariableName = "__" + string.Join("_", method.PathSegments);
+        string functionVariableName = localNames.Next();
         string keyLiteral = SymbolDisplay.FormatLiteral(method.PathSegments[^1], quote: true);
 
         writer.WriteLine($"using global::Darp.Luau.LuauFunction {functionVariableName} = state.CreateFunctionBuilder(args =>");
@@ -239,6 +250,13 @@ internal static class GeneratedLibraryExportsEmitter
         writer.Indent--;
         writer.WriteLine("});");
         writer.WriteLine($"{tableVariableName}.Set({keyLiteral}, {functionVariableName});");
+    }
+
+    private sealed class LocalNameAllocator
+    {
+        private int _next;
+
+        public string Next() => $"__var{_next++}";
     }
 
     private static string GenerateCheckParameter(int parameterIndex, LuauTypeMapping param)

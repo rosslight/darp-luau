@@ -147,4 +147,13 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true
     );
+
+    public static readonly DiagnosticDescriptor LuauExportPathSegmentRequiresBracketAccessDescriptor = new(
+        id: "DLUAU1013",
+        title: "Luau export path segment requires bracket access",
+        messageFormat: "Luau export path '{0}' contains a segment that requires bracket access and is not valid for dot-path syntax",
+        category: "Darp.Luau.Generator",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true
+    );
 }

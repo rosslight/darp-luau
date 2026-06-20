@@ -18,3 +18,4 @@ DLUAU1008 | Darp.Luau.Generator | Error    | Invalid Luau export path
 DLUAU1009 | Darp.Luau.Generator | Error    | Library properties must be read-only
 DLUAU1011 | Darp.Luau.Generator | Error    | Generated and manual userdata hooks cannot mix
 DLUAU1012 | Darp.Luau.Generator | Error    | Invalid generated export shape
+DLUAU1013 | Darp.Luau.Generator | Warning  | Luau export path segment requires bracket access

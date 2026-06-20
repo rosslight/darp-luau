@@ -105,6 +105,54 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task InvalidLuauDotPathSegments_ShouldWarn()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata]
+            public sealed partial class Character
+            {
+                [LuauMember("foo bar")]
+                public string BracketName { get; set; } = "";
+
+                [LuauMember("local")]
+                public string KeywordName { get; set; } = "";
+
+                [LuauMember("field_1")]
+                public string ValidName { get; set; } = "";
+            }
+
+            [LuauLibrary("game")]
+            public static partial class GameLibrary
+            {
+                [LuauMember("123abc")]
+                public static int StartsWithDigit => 1;
+
+                [LuauMember("foo-bar")]
+                public static int HasHyphen => 2;
+
+                [LuauMember("tools.end")]
+                public static int KeywordSegment() => 3;
+
+                [LuauMember("bad-name.end.123abc")]
+                public static int MultipleInvalidSegments() => 4;
+
+                [LuauMember("foo")]
+                public static int Foo => 5;
+
+                [LuauMember("_private")]
+                public static int Private => 6;
+
+                [LuauMember("Field.u8")]
+                public static int CreateU8() => 8;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExports(code);
+    }
+
+    [Fact]
     public async Task LibraryPropertyAndMethodShapeDiagnostics_ShouldFail()
     {
         const string code = """

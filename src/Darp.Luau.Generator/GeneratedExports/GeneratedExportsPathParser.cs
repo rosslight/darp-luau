@@ -5,6 +5,32 @@ namespace Darp.Luau.Generator.GeneratedExports;
 
 internal static class GeneratedExportsPathParser
 {
+    private static readonly HashSet<string> s_luauKeywords = new(StringComparer.Ordinal)
+    {
+        "and",
+        "break",
+        "continue",
+        "do",
+        "else",
+        "elseif",
+        "end",
+        "false",
+        "for",
+        "function",
+        "if",
+        "in",
+        "local",
+        "nil",
+        "not",
+        "or",
+        "repeat",
+        "return",
+        "then",
+        "true",
+        "until",
+        "while",
+    };
+
     public static bool TryParseLibraryPath(
         string rawPath,
         Location location,
@@ -70,7 +96,39 @@ internal static class GeneratedExportsPathParser
             return false;
         }
 
+        if (splitSegments.Any(static segment => !IsLuauDotPathIdentifier(segment)))
+        {
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.LuauExportPathSegmentRequiresBracketAccessDescriptor,
+                    location,
+                    rawPath
+                )
+            );
+        }
+
         segments = splitSegments.ToImmutableArray();
         return true;
     }
+
+    private static bool IsLuauDotPathIdentifier(string segment)
+    {
+        if (s_luauKeywords.Contains(segment))
+            return false;
+
+        if (segment.Length == 0 || !IsIdentifierStart(segment[0]))
+            return false;
+
+        for (int i = 1; i < segment.Length; i++)
+        {
+            if (!IsIdentifierPart(segment[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsIdentifierStart(char c) => c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or '_';
+
+    private static bool IsIdentifierPart(char c) => IsIdentifierStart(c) || c is >= '0' and <= '9';
 }
