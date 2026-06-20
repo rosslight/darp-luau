@@ -18,6 +18,7 @@ internal static class CreateFunctionInterceptorsEmitter
         List<Diagnostic> diagnostics
     )
     {
+        signature = default;
         ITypeSymbol? delegateType = invocationOperation.Arguments.Select(x => x.Value.Type).FirstOrDefault();
 
         if (delegateType is not INamedTypeSymbol { DelegateInvokeMethod: { } invokeMethod })
@@ -58,8 +59,9 @@ internal static class CreateFunctionInterceptorsEmitter
         var returnTypes = ImmutableArray.CreateBuilder<ParameterTypeInfo>();
         // Delegate inference can erase nullable reference returns for plain lambdas, so
         // merge in lambda-body-derived nullability when it is available.
-        ImmutableArray<LambdaReturnOverride> returnOverrides =
-            LambdaReturnNullabilityResolver.GetReturnOverrides(invocationOperation);
+        ImmutableArray<LambdaReturnOverride> returnOverrides = LambdaReturnNullabilityResolver.GetReturnOverrides(
+            invocationOperation
+        );
 
         for (int i = 0; i < invokeMethod.Parameters.Length; i++)
         {
@@ -70,13 +72,12 @@ internal static class CreateFunctionInterceptorsEmitter
                 : $"parameter #{i + 1}";
 
             if (
-                !TryMapTypeToLuauValueType(
+                !TryMapTypeToParameterTypeInfo(
                     typeArg.Type,
                     parameterLocation,
                     usageDescription,
-                    out LuauValueType luauType,
-                    out bool isNullable,
-                    out string? originalTypeName,
+                    LuauInteropTypeUsage.CreateFunctionParameter,
+                    out ParameterTypeInfo parameterTypeInfo,
                     diagnostics
                 )
             )
@@ -85,9 +86,9 @@ internal static class CreateFunctionInterceptorsEmitter
             }
 
             if (typeArg.NullableAnnotation is NullableAnnotation.Annotated)
-                isNullable = true;
+                parameterTypeInfo = parameterTypeInfo with { IsNullable = true };
 
-            if (isNullable && !SupportsNullableParameter(luauType))
+            if (parameterTypeInfo.IsNullable && !LuauInteropTypeMapper.SupportsNullableValue(parameterTypeInfo.Type))
             {
                 var diagnostic = Diagnostic.Create(
                     DiagnosticDescriptors.UnsupportedTypeDescriptor,
@@ -99,7 +100,7 @@ internal static class CreateFunctionInterceptorsEmitter
                 return false;
             }
 
-            parameters.Add(new ParameterTypeInfo(luauType, isNullable, originalTypeName, null));
+            parameters.Add(parameterTypeInfo);
         }
         if (
             !TryExtractReturnParameters(
@@ -113,202 +114,66 @@ internal static class CreateFunctionInterceptorsEmitter
         )
             return false;
 
-        signature = new InvocationMethodSignature(parameters.ToImmutableArray(), returnTypes.ToImmutableArray());
+        signature = new InvocationMethodSignature(
+            parameters.ToImmutableEquatableArray(),
+            returnTypes.ToImmutableEquatableArray()
+        );
         return true;
     }
 
-    private static bool SupportsNullableParameter(LuauValueType type)
-    {
-        return type
-            is LuauValueType.Boolean
-                or LuauValueType.StringString
-                or LuauValueType.Number
-                or LuauValueType.NumberByte
-                or LuauValueType.NumberUShort
-                or LuauValueType.NumberUInt
-                or LuauValueType.NumberULong
-                or LuauValueType.NumberUInt128
-                or LuauValueType.NumberSByte
-                or LuauValueType.NumberShort
-                or LuauValueType.NumberInt
-                or LuauValueType.NumberLong
-                or LuauValueType.NumberInt128
-                or LuauValueType.NumberHalf
-                or LuauValueType.NumberFloat
-                or LuauValueType.NumberDecimal
-                or LuauValueType.Enum
-                or LuauValueType.ManagedUserdata;
-    }
-
-    private static bool TryMapManagedUserdataType(ITypeSymbol type, [NotNullWhen(true)] out string? typeName)
-    {
-        typeName = null;
-        if (type is not INamedTypeSymbol { TypeKind: TypeKind.Class } namedType)
-            return false;
-
-        foreach (INamedTypeSymbol implementedInterface in namedType.AllInterfaces)
-        {
-            if (
-                implementedInterface is not { Name: "ILuauUserData", Arity: 1, TypeArguments.Length: 1 }
-                || implementedInterface.ContainingNamespace.ToDisplayString() != "Darp.Luau"
-            )
-            {
-                continue;
-            }
-
-            if (!SymbolEqualityComparer.Default.Equals(implementedInterface.TypeArguments[0], namedType))
-                continue;
-
-            typeName = namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryMapTypeToLuauValueType(
+    private static bool TryMapTypeToParameterTypeInfo(
         ITypeSymbol type,
         Location diagnosticLocation,
         string usageDescription,
-        out LuauValueType luauType,
-        out bool isNullable,
-        out string? originalTypeName,
+        LuauInteropTypeUsage usage,
+        out ParameterTypeInfo parameterTypeInfo,
         List<Diagnostic> diagnostics
     )
     {
-        originalTypeName = null;
-        isNullable = type.NullableAnnotation is NullableAnnotation.Annotated;
-        if (
-            type is INamedTypeSymbol
-            {
-                OriginalDefinition.SpecialType: SpecialType.System_Nullable_T,
-                TypeArguments.Length: 1
-            } namedType
-        )
+        if (!LuauInteropTypeMapper.TryMapType(type, out LuauTypeMapping mapping))
         {
-            // Unwrap the nullable type and recursively check the underlying type
-            if (
-                !TryMapTypeToLuauValueType(
-                    namedType.TypeArguments[0],
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
                     diagnosticLocation,
-                    usageDescription,
-                    out luauType,
-                    out _,
-                    out originalTypeName,
-                    diagnostics
+                    type.ToDisplayString(),
+                    usageDescription
                 )
-            )
-            {
-                return false;
-            }
-            isNullable = true;
-            return true;
+            );
+            parameterTypeInfo = default;
+            return false;
         }
 
-        if (type.TypeKind == TypeKind.Enum)
+        if (!LuauInteropTypeMapper.SupportsUsage(mapping, usage))
         {
-            luauType = LuauValueType.Enum;
-            originalTypeName = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            return true;
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                    diagnosticLocation,
+                    type.ToDisplayString(),
+                    usageDescription
+                )
+            );
+            parameterTypeInfo = default;
+            return false;
         }
 
-        if (TryMapManagedUserdataType(type, out string? userdataTypeName))
+        if (mapping.IsNullable && !LuauInteropTypeMapper.SupportsNullableValue(mapping.Type))
         {
-            luauType = LuauValueType.ManagedUserdata;
-            originalTypeName = userdataTypeName;
-            return true;
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedTypeDescriptor,
+                    diagnosticLocation,
+                    type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    usageDescription
+                )
+            );
+            parameterTypeInfo = default;
+            return false;
         }
 
-        switch (type.SpecialType)
-        {
-            case SpecialType.System_Boolean:
-                luauType = LuauValueType.Boolean;
-                return true;
-            case SpecialType.System_String:
-                luauType = LuauValueType.StringString;
-                return true;
-            case SpecialType.System_Byte:
-                luauType = LuauValueType.NumberByte;
-                return true;
-            case SpecialType.System_UInt16:
-                luauType = LuauValueType.NumberUShort;
-                return true;
-            case SpecialType.System_UInt32:
-                luauType = LuauValueType.NumberUInt;
-                return true;
-            case SpecialType.System_UInt64:
-                luauType = LuauValueType.NumberULong;
-                return true;
-            case SpecialType.System_SByte:
-                luauType = LuauValueType.NumberSByte;
-                return true;
-            case SpecialType.System_Int16:
-                luauType = LuauValueType.NumberShort;
-                return true;
-            case SpecialType.System_Int32:
-                luauType = LuauValueType.NumberInt;
-                return true;
-            case SpecialType.System_Int64:
-                luauType = LuauValueType.NumberLong;
-                return true;
-            case SpecialType.System_Double:
-                luauType = LuauValueType.Number;
-                return true;
-            case SpecialType.System_Single:
-                luauType = LuauValueType.NumberFloat;
-                return true;
-            case SpecialType.System_Decimal:
-                luauType = LuauValueType.NumberDecimal;
-                return true;
-        }
-        string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        switch (name)
-        {
-            case "global::System.ReadOnlySpan<byte>":
-                luauType = LuauValueType.String;
-                return true;
-            case "global::System.ReadOnlySpan<char>":
-                luauType = LuauValueType.StringCharSpan;
-                return true;
-            case "global::System.Half":
-                luauType = LuauValueType.NumberHalf;
-                return true;
-            case "global::System.UInt128":
-                luauType = LuauValueType.NumberUInt128;
-                return true;
-            case "global::System.Int128":
-                luauType = LuauValueType.NumberInt128;
-                return true;
-            case "global::Darp.Luau.LuauValue":
-                luauType = LuauValueType.LuauValue;
-                return true;
-            case "global::Darp.Luau.LuauTableView":
-                luauType = LuauValueType.LuauTableView;
-                return true;
-            case "global::Darp.Luau.LuauFunctionView":
-                luauType = LuauValueType.LuauFunctionView;
-                return true;
-            case "global::Darp.Luau.LuauStringView":
-                luauType = LuauValueType.LuauStringView;
-                return true;
-            case "global::Darp.Luau.LuauBufferView":
-                luauType = LuauValueType.LuauBufferView;
-                return true;
-            case "global::Darp.Luau.LuauUserdataView":
-                luauType = LuauValueType.LuauUserdataView;
-                return true;
-        }
-
-        // Report unsupported type diagnostic at the call site
-        var diagnostic = Diagnostic.Create(
-            DiagnosticDescriptors.UnsupportedTypeDescriptor,
-            diagnosticLocation,
-            type.ToDisplayString(),
-            usageDescription
-        );
-        diagnostics.Add(diagnostic);
-        luauType = default;
-        return false;
+        parameterTypeInfo = new ParameterTypeInfo(mapping.Type, mapping.IsNullable, mapping.OriginalTypeName, null);
+        return true;
     }
 
     private static Location GetParameterLocation(IInvocationOperation invocationOperation, int parameterIndex)
@@ -461,19 +326,21 @@ internal static class CreateFunctionInterceptorsEmitter
     )
     {
         if (
-            !TryMapTypeToLuauValueType(
+            !TryMapTypeToParameterTypeInfo(
                 returnType,
                 returnLocation,
                 returnUsageDescription,
-                out LuauValueType mappedReturnType,
-                out bool isReturnNullable,
-                out string? returnOriginalTypeName,
+                LuauInteropTypeUsage.CreateFunctionReturn,
+                out ParameterTypeInfo mappedReturnParameter,
                 diagnostics
             )
         )
         {
             return false;
         }
+
+        LuauValueType mappedReturnType = mappedReturnParameter.Type;
+        bool isReturnNullable = mappedReturnParameter.IsNullable;
 
         if (nullableAnnotationOverride is NullableAnnotation.Annotated)
             isReturnNullable = true;
@@ -482,7 +349,7 @@ internal static class CreateFunctionInterceptorsEmitter
         if (nullableOverride is true)
             isReturnNullable = true;
 
-        if (isReturnNullable && !SupportsNullableParameter(mappedReturnType))
+        if (isReturnNullable && !LuauInteropTypeMapper.SupportsNullableValue(mappedReturnType))
         {
             diagnostics.Add(
                 Diagnostic.Create(
@@ -496,7 +363,12 @@ internal static class CreateFunctionInterceptorsEmitter
         }
 
         returnTypes.Add(
-            new ParameterTypeInfo(mappedReturnType, isReturnNullable, returnOriginalTypeName, tupleElementName)
+            new ParameterTypeInfo(
+                mappedReturnType,
+                isReturnNullable,
+                mappedReturnParameter.OriginalTypeName,
+                tupleElementName
+            )
         );
         return true;
     }
@@ -630,7 +502,8 @@ internal static class CreateFunctionInterceptorsEmitter
             or LuauValueType.LuauStringView
             or LuauValueType.LuauFunctionView
             or LuauValueType.LuauBufferView
-            or LuauValueType.LuauUserdataView => $"""
+            or LuauValueType.LuauUserdataView =>
+                $"""
                 if (!args.{GetTryFunction(
                     param.Type
                 )}(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
@@ -659,7 +532,7 @@ internal static class CreateFunctionInterceptorsEmitter
         writer.WriteLine($"if (!args.TryValidateArgumentCount({signature.Parameters.Length}, out string? error))");
         writer.WriteLine("    return global::Darp.Luau.LuauReturn.Error(error);");
         writer.WriteMultiLine(string.Join("\n", paramExtractions));
-        if (signature.ReturnParameters.IsEmpty)
+        if (signature.ReturnParameters.Length == 0)
         {
             writer.WriteLine($"{callExpression};");
             writer.WriteLine("return global::Darp.Luau.LuauReturn.Ok();");
@@ -710,9 +583,7 @@ internal static class CreateFunctionInterceptorsEmitter
         using var writer = new IndentedTextWriter(stringWriter);
         diagnostics = [];
 
-        var groups = new Dictionary<InvocationMethodSignature, HashSet<InterceptorLocationData>>(
-            InvocationSignatureComparer.Instance
-        );
+        var groups = new Dictionary<InvocationMethodSignature, HashSet<InterceptorLocationData>>();
         foreach (IInvocationOperation calledMethod in calls)
         {
             var syntax = (InvocationExpressionSyntax)calledMethod.Syntax;
@@ -838,65 +709,6 @@ internal readonly record struct ParameterTypeInfo(
 );
 
 internal readonly record struct InvocationMethodSignature(
-    ImmutableArray<ParameterTypeInfo> Parameters,
-    ImmutableArray<ParameterTypeInfo> ReturnParameters
+    ImmutableEquatableArray<ParameterTypeInfo> Parameters,
+    ImmutableEquatableArray<ParameterTypeInfo> ReturnParameters
 );
-
-internal sealed class InvocationSignatureComparer : IEqualityComparer<InvocationMethodSignature>
-{
-    public static readonly InvocationSignatureComparer Instance = new();
-
-    public bool Equals(InvocationMethodSignature x, InvocationMethodSignature y) =>
-        SequenceEqual(x.Parameters, y.Parameters) && SequenceEqual(x.ReturnParameters, y.ReturnParameters);
-
-    public int GetHashCode(InvocationMethodSignature obj)
-    {
-        unchecked
-        {
-            int hash = 17;
-
-            // Parameters
-            hash = (hash * 31) + obj.Parameters.Length;
-            for (int i = 0; i < obj.Parameters.Length; i++)
-            {
-                hash = (hash * 31) + (int)obj.Parameters[i].Type;
-                hash = (hash * 31) + (obj.Parameters[i].IsNullable ? 1 : 0);
-                hash =
-                    (hash * 31)
-                    + (obj.Parameters[i].OriginalTypeName is { } n ? StringComparer.Ordinal.GetHashCode(n) : 0);
-                hash =
-                    (hash * 31)
-                    + (obj.Parameters[i].TupleElementName is { } tn ? StringComparer.Ordinal.GetHashCode(tn) : 0);
-            }
-
-            // Separator to reduce accidental collisions between params/returns
-            hash = (int)(hash * 31 + 0x9E3779B9);
-
-            // ReturnParameters
-            hash = (hash * 31) + obj.ReturnParameters.Length;
-            for (int i = 0; i < obj.ReturnParameters.Length; i++)
-            {
-                hash = (hash * 31) + (int)obj.ReturnParameters[i].Type;
-                hash = (hash * 31) + (obj.ReturnParameters[i].IsNullable ? 1 : 0);
-                hash =
-                    (hash * 31)
-                    + (obj.ReturnParameters[i].OriginalTypeName is { } n ? StringComparer.Ordinal.GetHashCode(n) : 0);
-                hash =
-                    (hash * 31)
-                    + (obj.ReturnParameters[i].TupleElementName is { } tn ? StringComparer.Ordinal.GetHashCode(tn) : 0);
-            }
-
-            return hash;
-        }
-    }
-
-    private static bool SequenceEqual(ImmutableArray<ParameterTypeInfo> a, ImmutableArray<ParameterTypeInfo> b)
-    {
-        if (a.Length != b.Length)
-            return false;
-        for (int i = 0; i < a.Length; i++)
-            if (a[i] != b[i])
-                return false;
-        return true;
-    }
-}

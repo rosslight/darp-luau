@@ -75,6 +75,100 @@ public static class VerifyHelper
         );
     }
 
+    public static Task VerifyGeneratedExports(string source, [CallerFilePath] string? callerFilePath = null)
+    {
+        return VerifyGeneratedExports([source], callerFilePath);
+    }
+
+    public static Task VerifyGeneratedExportsSource(string source, [CallerFilePath] string? callerFilePath = null)
+    {
+        return VerifyGeneratedExportsSource([source], callerFilePath);
+    }
+
+    public static Task VerifyGeneratedExports(string[] sources, [CallerFilePath] string? callerFilePath = null)
+    {
+        string fileName =
+            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        AddReferenceAssemblyMarker<LuauState>();
+        AddReferenceAssemblyMarker<ILogger>();
+        return VerifyGenerator<GeneratedExportsGenerator>(
+            sources,
+            [],
+            null,
+            fileName,
+            static task => task,
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            LanguageVersion.CSharp13,
+            verifyCompilationDiagnosticsSnapshot: true
+        );
+    }
+
+    public static Task VerifyGeneratedExportsSource(string[] sources, [CallerFilePath] string? callerFilePath = null)
+    {
+        string fileName =
+            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        AddReferenceAssemblyMarker<LuauState>();
+        AddReferenceAssemblyMarker<ILogger>();
+        return VerifyGenerator<GeneratedExportsGenerator>(
+            sources,
+            [],
+            null,
+            fileName,
+            task => task.ScrubGeneratedCodeAttribute(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            LanguageVersion.CSharp13
+        );
+    }
+
+    public static Task VerifyGeneratedExportsSourceWithErrors(string source, [CallerFilePath] string? callerFilePath = null)
+    {
+        string fileName =
+            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        AddReferenceAssemblyMarker<LuauState>();
+        AddReferenceAssemblyMarker<ILogger>();
+        return VerifyGenerator<GeneratedExportsGenerator>(
+            [source],
+            [],
+            "DLUAU",
+            fileName,
+            task => task.ScrubGeneratedCodeAttribute(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            LanguageVersion.CSharp13,
+            allowCompilationErrors: true
+        );
+    }
+
+    public static Task VerifyGeneratedExportsWithErrors(string source, [CallerFilePath] string? callerFilePath = null)
+    {
+        return VerifyGeneratedExportsWithErrors([source], callerFilePath);
+    }
+
+    public static Task VerifyGeneratedExportsWithErrors(
+        string[] sources,
+        [CallerFilePath] string? callerFilePath = null
+    )
+    {
+        string fileName =
+            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        AddReferenceAssemblyMarker<LuauState>();
+        AddReferenceAssemblyMarker<ILogger>();
+        return VerifyGenerator<GeneratedExportsGenerator>(
+            sources,
+            [],
+            "DLUAU",
+            fileName,
+            static task => task,
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            LanguageVersion.CSharp13,
+            allowCompilationErrors: true,
+            verifyCompilationDiagnosticsSnapshot: true
+        );
+    }
+
     /// <summary>
     /// This functions ensures that the assembly is referenced and <see cref="AppDomain.GetAssemblies()"/> of the <see cref="AppDomain.CurrentDomain"/> contains this assembly
     /// </summary>
@@ -116,7 +210,8 @@ public static class VerifyHelper
         NullableContextOptions nullableContextOptions = NullableContextOptions.Enable,
         bool allowCompilationErrors = false,
         ImmutableArray<DiagnosticAnalyzer> analyzers = default,
-        bool verifyDiagnosticsSnapshot = false
+        bool verifyDiagnosticsSnapshot = false,
+        bool verifyCompilationDiagnosticsSnapshot = false
     )
         where TGenerator : IIncrementalGenerator, new()
     {
@@ -163,31 +258,43 @@ public static class VerifyHelper
             optionsProvider: provider
         );
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation newCompilation, out _);
+        ImmutableArray<Diagnostic> generatorDiagnostics = driver
+            .GetRunResult()
+            .Results.SelectMany(static x => x.Diagnostics)
+            .ToImmutableArray();
+        ImmutableArray<Diagnostic> compilationDiagnostics = newCompilation.GetDiagnostics();
         ImmutableArray<Diagnostic> analyzerDiagnostics = analyzers.IsDefaultOrEmpty
             ? []
             : await newCompilation.WithAnalyzers(analyzers).GetAllDiagnosticsAsync();
 
-        object verificationTarget = verifyDiagnosticsSnapshot
-            ? new
-            {
-                Diagnostics = analyzerDiagnostics
-                    .Where(x => x.Id is not "CS5001")
-                    .Select(ToSerializableDiagnostic)
-                    .ToArray(),
-            }
-            : driver;
+        IEnumerable<Diagnostic> snapshotDiagnostics = [];
+        if (verifyCompilationDiagnosticsSnapshot)
+            snapshotDiagnostics = snapshotDiagnostics.Concat(generatorDiagnostics).Concat(compilationDiagnostics);
+        if (verifyDiagnosticsSnapshot)
+            snapshotDiagnostics = snapshotDiagnostics.Concat(analyzerDiagnostics);
+
+        object verificationTarget =
+            verifyCompilationDiagnosticsSnapshot || verifyDiagnosticsSnapshot
+                ? new
+                {
+                    Diagnostics = snapshotDiagnostics
+                        .Where(x => x.Id is not "CS5001")
+                        .Select(ToSerializableDiagnostic)
+                        .ToArray(),
+                }
+                : driver;
         SettingsTask settingsTask = Verify(verificationTarget).UseDirectory(Path.Join("Snapshots", directory));
         await configureSettingsTask(settingsTask);
         // Assert that there are no compilation errors (except for CS5001 which informs about the missing program entry)
-        newCompilation
-            .GetDiagnostics()
+        compilationDiagnostics
+            .Concat(generatorDiagnostics)
             .Concat(analyzerDiagnostics)
             .ShouldNotContain(
                 x => IsDiagnosticInvalid(allowedDiagnosticCode, x),
                 string.Join(
                     "\n",
-                    newCompilation
-                        .GetDiagnostics()
+                    compilationDiagnostics
+                        .Concat(generatorDiagnostics)
                         .Concat(analyzerDiagnostics)
                         .Select(x => $"[{x.Location.GetLineSpan()}]: {x.GetMessage()}")
                 )

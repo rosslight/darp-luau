@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Darp.Luau.Generator.Helpers;
 
 internal static class EmitterHelper
@@ -61,8 +59,8 @@ internal static class EmitterHelper
 
     public static string GetFunctionRepresentation(InvocationMethodSignature signature)
     {
-        ImmutableArray<ParameterTypeInfo> parameters = signature.Parameters;
-        ImmutableArray<ParameterTypeInfo> returnParameters = signature.ReturnParameters;
+        ImmutableEquatableArray<ParameterTypeInfo> parameters = signature.Parameters;
+        ImmutableEquatableArray<ParameterTypeInfo> returnParameters = signature.ReturnParameters;
         return (parameters.Length, returnParameters.Length) switch
         {
             (0, 0) => "global::System.Action",

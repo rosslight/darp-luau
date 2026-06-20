@@ -1,0 +1,30 @@
+{
+  Diagnostics: [
+    {
+      Location: SourceFile([19..38)),
+      Message: Type marked with [LuauLibrary] must be partial,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1001,
+        Title: Luau library type must be partial,
+        MessageFormat: Type marked with [LuauLibrary] must be partial,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: SourceFile([78..90)),
+      Message: Type marked with [LuauUserdata] must be partial,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1002,
+        Title: Luau userdata type must be partial,
+        MessageFormat: Type marked with [LuauUserdata] must be partial,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

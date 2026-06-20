@@ -1,0 +1,44 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+{
+    [LuauMember("foo-bar")]
+     ^^^^^^^^^^^^^^^^^^^^^
+    public static int FooBar() => 1;
+*/
+ : (5,5)-(5,26),
+      Message: Luau export path 'foo-bar' contains a segment that requires bracket access and is not valid for dot-path syntax,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: DLUAU1013,
+        Title: Luau export path segment requires bracket access,
+        MessageFormat: Luau export path '{0}' contains a segment that requires bracket access and is not valid for dot-path syntax,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("tools.create item")]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    public static int CreateItem() => 2;
+*/
+ : (8,5)-(8,36),
+      Message: Luau export path 'tools.create item' contains a segment that requires bracket access and is not valid for dot-path syntax,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: DLUAU1013,
+        Title: Luau export path segment requires bracket access,
+        MessageFormat: Luau export path '{0}' contains a segment that requires bracket access and is not valid for dot-path syntax,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

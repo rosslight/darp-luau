@@ -1,0 +1,30 @@
+{
+  Diagnostics: [
+    {
+      Location: SourceFile([87..108)),
+      Message: Exported library property 'Current' must be read-only because libraries are snapshot tables after registration,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1009,
+        Title: Library properties must be read-only,
+        MessageFormat: Exported library property '{0}' must be read-only because libraries are snapshot tables after registration,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: SourceFile([160..180)),
+      Message: Generated library function 'Create' uses an unsupported parameter or return shape: parameter 'value' is optional,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1006,
+        Title: Unsupported generated function shape,
+        MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}
