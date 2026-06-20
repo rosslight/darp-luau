@@ -23,12 +23,11 @@ internal sealed class GeneratedExportsModelBuilder
         var diagnostics = new List<Diagnostic>();
         DiscoveredExportType? discoveredType = GeneratedExportsDiscovery.DiscoverType(type, _context, diagnostics);
         if (discoveredType is null)
-            return new GeneratedExportsTypeAnalysis(null, diagnostics.ToImmutableArray(), CanEmit: false);
+            return new GeneratedExportsTypeAnalysis(null, diagnostics.ToImmutableArray(), CanEmitRegisterMethod: false);
 
-        GeneratedExportsValidation.ValidateTypeShape(discoveredType, _context, diagnostics);
-        bool canEmit = !diagnostics.Any(static x =>
-            x.Severity == DiagnosticSeverity.Error || x.IsWarningAsError
-        );
+        // Type-level errors are fatal for the generated registration surface. Member-level errors below are
+        // recoverable and only remove the invalid member from the generated library tree.
+        bool hasFatalTypeErrors = GeneratedExportsValidation.ValidateTypeShape(discoveredType, _context, diagnostics);
         NormalizedExportType normalizedType = GeneratedExportsNormalization.Normalize(
             discoveredType,
             _context,
@@ -40,6 +39,10 @@ internal sealed class GeneratedExportsModelBuilder
             diagnostics
         );
         GeneratedExportSurfaceIr model = GeneratedExportsIrProjector.Project(validatedType);
-        return new GeneratedExportsTypeAnalysis(model, diagnostics.ToImmutableArray(), canEmit);
+        return new GeneratedExportsTypeAnalysis(
+            model,
+            diagnostics.ToImmutableArray(),
+            CanEmitRegisterMethod: !hasFatalTypeErrors
+        );
     }
 }

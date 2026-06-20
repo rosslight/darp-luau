@@ -51,7 +51,10 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
                     foreach (Diagnostic diagnostic in analysis.Diagnostics)
                         spc.ReportDiagnostic(diagnostic);
 
-                    if (analysis.Model is not { Kind: LuauExportedTypeKind.Library } model || !analysis.CanEmit)
+                    if (
+                        analysis.Model is not { Kind: LuauExportedTypeKind.Library } model
+                        || !analysis.CanEmitRegisterMethod
+                    )
                         continue;
 
                     if (!GeneratedLibraryExportsEmitter.TryEmit(type, model, out string? source, out List<Diagnostic> emitDiagnostics))

@@ -16,16 +16,6 @@ internal static class GeneratedExportsNormalization
         if (discoveredType.Kind == LuauExportedTypeKind.Library)
         {
             libraryName = GeneratedExportsCompilationContext.GetStringConstructorArgument(discoveredType.Attribute);
-            if (string.IsNullOrWhiteSpace(libraryName))
-            {
-                diagnostics.Add(
-                    Diagnostic.Create(
-                        DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                        discoveredType.Origin.Location,
-                        "root libraries must supply a non-empty name via [LuauLibrary(\"...\")]"
-                    )
-                );
-            }
         }
 
         var members = new List<NormalizedExportMember>();

@@ -5,13 +5,13 @@ namespace Darp.Luau.Generator.GeneratedExports;
 
 internal static class GeneratedExportsValidation
 {
-    public static void ValidateTypeShape(
+    public static bool ValidateTypeShape(
         DiscoveredExportType discoveredType,
         GeneratedExportsCompilationContext context,
         List<Diagnostic> diagnostics
     )
     {
-        ValidateType(discoveredType, context, diagnostics);
+        return ValidateType(discoveredType, context, diagnostics);
     }
 
     public static ValidatedExportType ValidateMembers(
@@ -27,14 +27,16 @@ internal static class GeneratedExportsValidation
         return new ValidatedExportType(normalizedType, libraryRoot);
     }
 
-    private static void ValidateType(
+    private static bool ValidateType(
         DiscoveredExportType discoveredType,
         GeneratedExportsCompilationContext context,
         List<Diagnostic> diagnostics
     )
     {
+        bool hasFatalTypeErrors = false;
         if (!GeneratedExportsCompilationContext.IsPartial(discoveredType.Symbol))
         {
+            hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
                     discoveredType.Kind == LuauExportedTypeKind.Library
@@ -47,8 +49,24 @@ internal static class GeneratedExportsValidation
 
         if (discoveredType.Kind == LuauExportedTypeKind.Library)
         {
+            string? libraryName = GeneratedExportsCompilationContext.GetStringConstructorArgument(
+                discoveredType.Attribute
+            );
+            if (string.IsNullOrWhiteSpace(libraryName))
+            {
+                hasFatalTypeErrors = true;
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                        discoveredType.Origin.Location,
+                        "root libraries must supply a non-empty name via [LuauLibrary(\"...\")]"
+                    )
+                );
+            }
+
             if (discoveredType.Symbol.ContainingType is not null)
             {
+                hasFatalTypeErrors = true;
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
@@ -60,6 +78,7 @@ internal static class GeneratedExportsValidation
 
             if (discoveredType.Symbol.TypeParameters.Length > 0)
             {
+                hasFatalTypeErrors = true;
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
@@ -71,6 +90,7 @@ internal static class GeneratedExportsValidation
 
             if (HasGeneratedLibraryMemberNameConflict(discoveredType.Symbol))
             {
+                hasFatalTypeErrors = true;
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
@@ -82,6 +102,7 @@ internal static class GeneratedExportsValidation
 
             if (discoveredType.Symbol.TypeKind == TypeKind.Struct)
             {
+                hasFatalTypeErrors = true;
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InstanceLibraryStructNotSupportedDescriptor,
@@ -90,11 +111,12 @@ internal static class GeneratedExportsValidation
                 );
             }
 
-            return;
+            return hasFatalTypeErrors;
         }
 
         if (discoveredType.Symbol.TypeKind != TypeKind.Class)
         {
+            hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
                     DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
@@ -106,6 +128,7 @@ internal static class GeneratedExportsValidation
 
         if (context.ImplementsManualUserdataHooks(discoveredType.Symbol))
         {
+            hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
                     DiagnosticDescriptors.GeneratedUserdataManualInteropConflictDescriptor,
@@ -114,6 +137,8 @@ internal static class GeneratedExportsValidation
                 )
             );
         }
+
+        return hasFatalTypeErrors;
     }
 
     private static bool HasGeneratedLibraryMemberNameConflict(INamedTypeSymbol type)
