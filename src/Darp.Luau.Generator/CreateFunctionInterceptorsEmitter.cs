@@ -373,154 +373,10 @@ internal static class CreateFunctionInterceptorsEmitter
         return true;
     }
 
-    private static string GetTryFunction(LuauValueType type)
-    {
-        return type switch
-        {
-            LuauValueType.Boolean => "TryReadBoolean",
-            LuauValueType.String or LuauValueType.StringCharSpan or LuauValueType.StringString => "TryReadUtf8String",
-            LuauValueType.Number
-            or LuauValueType.NumberByte
-            or LuauValueType.NumberUShort
-            or LuauValueType.NumberUInt
-            or LuauValueType.NumberULong
-            or LuauValueType.NumberUInt128
-            or LuauValueType.NumberSByte
-            or LuauValueType.NumberShort
-            or LuauValueType.NumberInt
-            or LuauValueType.NumberLong
-            or LuauValueType.NumberInt128
-            or LuauValueType.NumberHalf
-            or LuauValueType.NumberFloat
-            or LuauValueType.NumberDecimal
-            or LuauValueType.Enum => "TryReadNumber",
-            LuauValueType.LuauValue => "TryReadLuauValue",
-            LuauValueType.LuauStringView => "TryReadLuauString",
-            LuauValueType.LuauTableView => "TryReadLuauTable",
-            LuauValueType.LuauFunctionView => "TryReadLuauFunction",
-            LuauValueType.LuauBufferView => "TryReadLuauBuffer",
-            LuauValueType.LuauUserdataView => "TryReadLuauUserdata",
-            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not get the TryRead function"),
-        };
-    }
-
-    private static string GenerateCheckParameter(int parameterIndex, ParameterTypeInfo param)
-    {
-        string dotnetType = GetDotnetType(param);
-
-        return param.Type switch
-        {
-            LuauValueType.Boolean => param.IsNullable
-                ? $"""
-                    if (!args.TryReadBooleanOrNil(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    """
-                : $"""
-                    if (!args.TryReadBoolean(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    """,
-            LuauValueType.String => param.IsNullable
-                ? $"""
-                    if (!args.TryReadUtf8StringOrNil(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out var isNil, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    """
-                : $"""
-                    if (!args.TryReadUtf8String(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    """,
-            LuauValueType.StringCharSpan => $"""
-                if (!args.TryReadUtf8String(parameterIndex: {parameterIndex}, out global::System.ReadOnlySpan<byte> a{parameterIndex}Raw, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                global::System.Span<char> a{parameterIndex} = stackalloc char[global::System.Text.Encoding.UTF8.GetCharCount(a{parameterIndex}Raw)];
-                _ = global::System.Text.Encoding.UTF8.GetChars(a{parameterIndex}Raw, a{parameterIndex});
-                """,
-            LuauValueType.StringString => param.IsNullable
-                ? $"""
-                    if (!args.TryReadUtf8StringOrNil(parameterIndex: {parameterIndex}, out global::System.ReadOnlySpan<byte> a{parameterIndex}Raw, out bool a{parameterIndex}IsNil, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    {dotnetType} a{parameterIndex} = a{parameterIndex}IsNil ? null : global::System.Text.Encoding.UTF8.GetString(a{parameterIndex}Raw);
-                    """
-                : $"""
-                    if (!args.TryReadUtf8String(parameterIndex: {parameterIndex}, out global::System.ReadOnlySpan<byte> a{parameterIndex}Raw, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    string a{parameterIndex} = global::System.Text.Encoding.UTF8.GetString(a{parameterIndex}Raw);
-                    """,
-            LuauValueType.Number => param.IsNullable
-                ? $"""
-                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    """
-                : $"""
-                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    """,
-            LuauValueType.NumberByte
-            or LuauValueType.NumberUShort
-            or LuauValueType.NumberUInt
-            or LuauValueType.NumberULong
-            or LuauValueType.NumberUInt128
-            or LuauValueType.NumberSByte
-            or LuauValueType.NumberShort
-            or LuauValueType.NumberInt
-            or LuauValueType.NumberLong
-            or LuauValueType.NumberInt128
-            or LuauValueType.NumberHalf
-            or LuauValueType.NumberFloat
-            or LuauValueType.NumberDecimal => param.IsNullable
-                ? $"""
-                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out double? a{parameterIndex}Raw, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    {dotnetType} a{parameterIndex} = ({dotnetType})a{parameterIndex}Raw;
-                    """
-                : $"""
-                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out double a{parameterIndex}Raw, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    {dotnetType} a{parameterIndex} = ({dotnetType})a{parameterIndex}Raw;
-                    """,
-            LuauValueType.Enum => param.IsNullable
-                ? $"""
-                    if (!args.TryReadNumberOrNil(parameterIndex: {parameterIndex}, out double? a{parameterIndex}Raw, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    {dotnetType} a{parameterIndex} = a{parameterIndex}Raw.HasValue ? ({param.OriginalTypeName})a{parameterIndex}Raw.Value : null;
-                    """
-                : $"""
-                    if (!args.TryReadNumber(parameterIndex: {parameterIndex}, out double a{parameterIndex}Raw, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    {dotnetType} a{parameterIndex} = ({param.OriginalTypeName})a{parameterIndex}Raw;
-                    """,
-            LuauValueType.ManagedUserdata => param.IsNullable
-                ? $"""
-                    if (!args.TryReadUserdataOrNil<{param.OriginalTypeName}>(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    """
-                : $"""
-                    if (!args.TryReadUserdata<{param.OriginalTypeName}>(parameterIndex: {parameterIndex}, out {dotnetType}? a{parameterIndex}, out error))
-                        return global::Darp.Luau.LuauReturn.Error(error);
-                    """,
-            LuauValueType.LuauValue
-            or LuauValueType.LuauTableView
-            or LuauValueType.LuauStringView
-            or LuauValueType.LuauFunctionView
-            or LuauValueType.LuauBufferView
-            or LuauValueType.LuauUserdataView =>
-                $"""
-                if (!args.{GetTryFunction(
-                    param.Type
-                )}(parameterIndex: {parameterIndex}, out {dotnetType} a{parameterIndex}, out error))
-                    return global::Darp.Luau.LuauReturn.Error(error);
-                """,
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(param),
-                param.Type,
-                "Could not generate the Check parameter"
-            ),
-        };
-    }
-
     private static void EmitFunctionBody(IndentedTextWriter writer, InvocationMethodSignature signature)
     {
         string[] paramExtractions = signature
-            .Parameters.Select((paramType, i) => GenerateCheckParameter(i + 1, paramType))
+            .Parameters.Select((paramType, i) => LuauMarshallingEmitter.GenerateParameterRead(i + 1, paramType))
             .ToArray();
 
         string callExpression =
@@ -543,34 +399,18 @@ internal static class CreateFunctionInterceptorsEmitter
             if (signature.ReturnParameters.Length == 1)
             {
                 writer.WriteLine(
-                    $"return global::Darp.Luau.LuauReturn.Ok({FormatReturnValueExpression("returns", signature.ReturnParameters[0])});"
+                    $"return global::Darp.Luau.LuauReturn.Ok({LuauMarshallingEmitter.FormatIntoLuauExpression("returns", signature.ReturnParameters[0])});"
                 );
             }
             else
             {
                 writer.WriteLine(
-                    $"return global::Darp.Luau.LuauReturn.Ok({string.Join(", ", signature.ReturnParameters.Select((x, i) => FormatReturnValueExpression($"returns.Item{i + 1}", x)))});"
+                    $"return global::Darp.Luau.LuauReturn.Ok({string.Join(", ", signature.ReturnParameters.Select((x, i) => LuauMarshallingEmitter.FormatIntoLuauExpression($"returns.Item{i + 1}", x)))});"
                 );
             }
         }
         writer.Indent--;
         writer.WriteLine("}");
-    }
-
-    private static string FormatReturnValueExpression(string valueExpression, ParameterTypeInfo returnParameter)
-    {
-        return returnParameter.Type switch
-        {
-            LuauValueType.NumberDecimal or LuauValueType.NumberUInt128 or LuauValueType.NumberInt128 =>
-                returnParameter.IsNullable ? $"(double?){valueExpression}" : $"(double){valueExpression}",
-            LuauValueType.Enum => returnParameter.IsNullable
-                ? $"(double?){valueExpression}"
-                : $"(double){valueExpression}",
-            LuauValueType.ManagedUserdata => returnParameter.IsNullable
-                ? $"{valueExpression} is null ? default(global::Darp.Luau.IntoLuau) : global::Darp.Luau.IntoLuau.FromUserdata({valueExpression})"
-                : $"global::Darp.Luau.IntoLuau.FromUserdata({valueExpression})",
-            _ => valueExpression,
-        };
     }
 
     public static bool TryEmit(

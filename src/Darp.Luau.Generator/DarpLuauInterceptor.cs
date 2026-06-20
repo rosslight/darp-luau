@@ -38,10 +38,7 @@ public sealed class DarpLuauInterceptor : IIncrementalGenerator
                     node
                         is InvocationExpressionSyntax
                         {
-                            Expression:
-                                //asd
-                                MemberAccessExpressionSyntax { Name.Identifier.ValueText: "CreateFunction" }
-                                //asd
+                            Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "CreateFunction" }
                                 or IdentifierNameSyntax { Identifier.ValueText: "CreateFunction" }
                         },
                 transform: static (ctx, token) =>
