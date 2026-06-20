@@ -23,7 +23,7 @@ internal sealed class GeneratedExportsModelBuilder
         var diagnostics = new List<Diagnostic>();
         DiscoveredExportType? discoveredType = GeneratedExportsDiscovery.DiscoverType(type, _context, diagnostics);
         if (discoveredType is null)
-            return new GeneratedExportsTypeAnalysis(null, diagnostics.ToImmutableArray(), CanEmitRegisterMethod: false);
+            return new GeneratedExportsTypeAnalysis(null, diagnostics.ToImmutableArray(), CanEmitSource: false);
 
         // Type-level errors are fatal for the generated registration surface. Member-level errors below are
         // recoverable and only remove the invalid member from the generated library tree.
@@ -42,7 +42,7 @@ internal sealed class GeneratedExportsModelBuilder
         return new GeneratedExportsTypeAnalysis(
             model,
             diagnostics.ToImmutableArray(),
-            CanEmitRegisterMethod: !hasFatalTypeErrors
+            CanEmitSource: !hasFatalTypeErrors
         );
     }
 }

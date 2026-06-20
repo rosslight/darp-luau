@@ -26,6 +26,11 @@ internal static class LuauMarshallingEmitter
         );
     }
 
+    public static string GenerateSingleArgumentRead(string variableName, LuauTypeMapping param)
+    {
+        return GenerateSingleArgumentRead(variableName, param.Type, param.IsNullable, param.OriginalTypeName, GetDotnetType(param));
+    }
+
     public static string FormatIntoLuauExpression(string valueExpression, ParameterTypeInfo parameter)
     {
         return FormatIntoLuauExpression(valueExpression, parameter.Type, parameter.IsNullable);
@@ -144,6 +149,90 @@ internal static class LuauMarshallingEmitter
                     return global::Darp.Luau.LuauReturn.Error(error);
                 """,
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not generate parameter reads"),
+        };
+    }
+
+    private static string GenerateSingleArgumentRead(
+        string variableName,
+        LuauValueType type,
+        bool isNullable,
+        string? originalTypeName,
+        string dotnetType
+    )
+    {
+        return type switch
+        {
+            LuauValueType.Boolean => isNullable
+                ? $"""
+                    if (!args.TryReadBooleanOrNil(out {dotnetType} {variableName}, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    """
+                : $"""
+                    if (!args.TryReadBoolean(out {dotnetType} {variableName}, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    """,
+            LuauValueType.StringString => isNullable
+                ? $"""
+                    if (!args.TryReadUtf8StringOrNil(out {dotnetType} {variableName}, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    """
+                : $"""
+                    if (!args.TryReadUtf8String(out {dotnetType}? {variableName}, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    """,
+            LuauValueType.Number => isNullable
+                ? $"""
+                    if (!args.TryReadNumberOrNil(out {dotnetType} {variableName}, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    """
+                : $"""
+                    if (!args.TryReadNumber(out {dotnetType} {variableName}, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    """,
+            LuauValueType.NumberByte
+            or LuauValueType.NumberUShort
+            or LuauValueType.NumberUInt
+            or LuauValueType.NumberULong
+            or LuauValueType.NumberUInt128
+            or LuauValueType.NumberSByte
+            or LuauValueType.NumberShort
+            or LuauValueType.NumberInt
+            or LuauValueType.NumberLong
+            or LuauValueType.NumberInt128
+            or LuauValueType.NumberHalf
+            or LuauValueType.NumberFloat
+            or LuauValueType.NumberDecimal => isNullable
+                ? $"""
+                    if (!args.TryReadNumberOrNil(out double? {variableName}Raw, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    {dotnetType} {variableName} = ({dotnetType}){variableName}Raw;
+                    """
+                : $"""
+                    if (!args.TryReadNumber(out double {variableName}Raw, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    {dotnetType} {variableName} = ({dotnetType}){variableName}Raw;
+                    """,
+            LuauValueType.Enum => isNullable
+                ? $"""
+                    if (!args.TryReadNumberOrNil(out double? {variableName}Raw, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    {dotnetType} {variableName} = {variableName}Raw.HasValue ? ({originalTypeName}){variableName}Raw.Value : null;
+                    """
+                : $"""
+                    if (!args.TryReadNumber(out double {variableName}Raw, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    {dotnetType} {variableName} = ({originalTypeName}){variableName}Raw;
+                    """,
+            LuauValueType.ManagedUserdata => isNullable
+                ? $"""
+                    if (!args.TryReadUserdataOrNil<{originalTypeName}>(out {dotnetType} {variableName}, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    """
+                : $"""
+                    if (!args.TryReadUserdata<{originalTypeName}>(out {dotnetType}? {variableName}, out string? error))
+                        return global::Darp.Luau.LuauOutcome.Error(error);
+                    """,
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Could not generate single argument reads"),
         };
     }
 

@@ -51,13 +51,29 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
                     foreach (Diagnostic diagnostic in analysis.Diagnostics)
                         spc.ReportDiagnostic(diagnostic);
 
-                    if (
-                        analysis.Model is not { Kind: LuauExportedTypeKind.Library } model
-                        || !analysis.CanEmitRegisterMethod
-                    )
+                    if (analysis.Model is not { } model || !analysis.CanEmitSource)
                         continue;
 
-                    if (!GeneratedLibraryExportsEmitter.TryEmit(type, model, out string? source, out List<Diagnostic> emitDiagnostics))
+                    string? source;
+                    List<Diagnostic> emitDiagnostics;
+                    bool emitted = model.Kind switch
+                    {
+                        LuauExportedTypeKind.Library => GeneratedLibraryExportsEmitter.TryEmit(
+                            type,
+                            model,
+                            out source,
+                            out emitDiagnostics
+                        ),
+                        LuauExportedTypeKind.Userdata => GeneratedUserdataExportsEmitter.TryEmit(
+                            type,
+                            model,
+                            out source,
+                            out emitDiagnostics
+                        ),
+                        _ => throw new InvalidOperationException($"Unsupported export kind '{model.Kind}'."),
+                    };
+
+                    if (!emitted)
                     {
                         foreach (Diagnostic diagnostic in emitDiagnostics)
                             spc.ReportDiagnostic(diagnostic);
@@ -68,20 +84,20 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
                         spc.ReportDiagnostic(diagnostic);
 
                     var sourceText = SourceText.From(source ?? string.Empty, Encoding.UTF8, SourceHashAlgorithm.Sha256);
-                    spc.AddSource(GetHintName(type), sourceText);
+                    spc.AddSource(GetHintName(type, model.Kind), sourceText);
                 }
             }
         );
     }
 
-    private static string GetHintName(INamedTypeSymbol type)
+    private static string GetHintName(INamedTypeSymbol type, LuauExportedTypeKind kind)
     {
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var builder = new StringBuilder(name.Length + 32);
         foreach (char c in name)
             builder.Append(char.IsLetterOrDigit(c) ? c : '_');
 
-        builder.Append(".LuauLibrary.g.cs");
+        builder.Append(kind == LuauExportedTypeKind.Library ? ".LuauLibrary.g.cs" : ".LuauUserdata.g.cs");
         return builder.ToString();
     }
 }
