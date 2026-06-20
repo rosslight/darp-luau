@@ -175,6 +175,8 @@ internal static class LuauInteropTypeMapper
     {
         return usage switch
         {
+            LuauInteropTypeUsage.LibraryFunctionReturn or LuauInteropTypeUsage.UserdataMethodReturn =>
+                SupportsReturnType(mapping.Type),
             LuauInteropTypeUsage.LibraryProperty
             or LuauInteropTypeUsage.UserdataPropertyGet
             or LuauInteropTypeUsage.UserdataPropertySet
@@ -182,6 +184,8 @@ internal static class LuauInteropTypeMapper
             _ => true,
         };
     }
+
+    private static bool SupportsReturnType(LuauValueType type) => type is not LuauValueType.String;
 
     private static bool SupportsStoredPropertyType(LuauValueType type)
     {

@@ -173,6 +173,24 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task LibraryFunctionByteSpanReturn_ShouldFail()
+    {
+        const string code = """
+            using System;
+            using Darp.Luau;
+
+            [LuauLibrary("game")]
+            public static partial class GameLibrary
+            {
+                [LuauMember("bytes")]
+                public static ReadOnlySpan<byte> Bytes() => "abc"u8;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
     public async Task InstanceLibraryProperty_ShouldFail()
     {
         const string code = """
