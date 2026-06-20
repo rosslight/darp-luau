@@ -1,12 +1,14 @@
 using System.Collections.Immutable;
+using System.Text;
 using Darp.Luau.Generator.GeneratedExports;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Darp.Luau.Generator;
 
 /// <summary>
-/// Reports phase-1 diagnostics for generator-owned Luau exports.
+/// Reports diagnostics and emits runtime registration code for generator-owned Luau libraries.
 /// </summary>
 [Generator]
 public sealed class GeneratedExportsGenerator : IIncrementalGenerator
@@ -35,7 +37,12 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
                     return;
 
                 var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-                foreach (INamedTypeSymbol type in data.Types)
+                foreach (
+                    INamedTypeSymbol type in data.Types.OrderBy(
+                        static x => x.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                        StringComparer.Ordinal
+                    )
+                )
                 {
                     if (!visited.Add(type))
                         continue;
@@ -43,8 +50,35 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
                     GeneratedExportsTypeAnalysis analysis = builder.AnalyzeType(type);
                     foreach (Diagnostic diagnostic in analysis.Diagnostics)
                         spc.ReportDiagnostic(diagnostic);
+
+                    if (analysis.Model is not { Kind: LuauExportedTypeKind.Library } model || !analysis.CanEmit)
+                        continue;
+
+                    if (!GeneratedLibraryExportsEmitter.TryEmit(type, model, out string? source, out List<Diagnostic> emitDiagnostics))
+                    {
+                        foreach (Diagnostic diagnostic in emitDiagnostics)
+                            spc.ReportDiagnostic(diagnostic);
+                        continue;
+                    }
+
+                    foreach (Diagnostic diagnostic in emitDiagnostics)
+                        spc.ReportDiagnostic(diagnostic);
+
+                    var sourceText = SourceText.From(source ?? string.Empty, Encoding.UTF8, SourceHashAlgorithm.Sha256);
+                    spc.AddSource(GetHintName(type), sourceText);
                 }
             }
         );
+    }
+
+    private static string GetHintName(INamedTypeSymbol type)
+    {
+        string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var builder = new StringBuilder(name.Length + 32);
+        foreach (char c in name)
+            builder.Append(char.IsLetterOrDigit(c) ? c : '_');
+
+        builder.Append(".LuauLibrary.g.cs");
+        return builder.ToString();
     }
 }

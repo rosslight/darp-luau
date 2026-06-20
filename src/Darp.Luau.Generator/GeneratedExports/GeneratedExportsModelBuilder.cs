@@ -23,9 +23,12 @@ internal sealed class GeneratedExportsModelBuilder
         var diagnostics = new List<Diagnostic>();
         DiscoveredExportType? discoveredType = GeneratedExportsDiscovery.DiscoverType(type, _context, diagnostics);
         if (discoveredType is null)
-            return new GeneratedExportsTypeAnalysis(null, diagnostics.ToImmutableArray());
+            return new GeneratedExportsTypeAnalysis(null, diagnostics.ToImmutableArray(), CanEmit: false);
 
         GeneratedExportsValidation.ValidateTypeShape(discoveredType, _context, diagnostics);
+        bool canEmit = !diagnostics.Any(static x =>
+            x.Severity == DiagnosticSeverity.Error || x.IsWarningAsError
+        );
         NormalizedExportType normalizedType = GeneratedExportsNormalization.Normalize(
             discoveredType,
             _context,
@@ -37,6 +40,6 @@ internal sealed class GeneratedExportsModelBuilder
             diagnostics
         );
         GeneratedExportSurfaceIr model = GeneratedExportsIrProjector.Project(validatedType);
-        return new GeneratedExportsTypeAnalysis(model, diagnostics.ToImmutableArray());
+        return new GeneratedExportsTypeAnalysis(model, diagnostics.ToImmutableArray(), canEmit);
     }
 }

@@ -84,6 +84,18 @@ internal static class GeneratedExportsNormalization
             return null;
         }
 
+        if (discoveredType.Kind == LuauExportedTypeKind.Library && !property.IsStatic)
+        {
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                    location,
+                    $"instance library property '{property.Name}' is not supported in v1 because live property generation is not implemented"
+                )
+            );
+            return null;
+        }
+
         string? exportedName = GeneratedExportsCompilationContext.GetStringConstructorArgument(
             discoveredProperty.Attribute
         );
@@ -638,7 +650,8 @@ internal static class GeneratedExportsNormalization
         mapping = new LuauTypeMapping(
             LuauValueType.ManagedUserdata,
             type.NullableAnnotation is NullableAnnotation.Annotated,
-            namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            IsGeneratedUserdata: true
         );
         return true;
     }

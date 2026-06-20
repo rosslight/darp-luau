@@ -9,7 +9,7 @@ public class GeneratedExportsTests
             using Darp.Luau;
 
             [LuauUserdata]
-            public sealed partial class Player
+            public sealed partial class Character
             {
                 [LuauMember("name")]
                 public string Name { get; set; } = "unknown";
@@ -24,8 +24,8 @@ public class GeneratedExportsTests
                 [LuauMember("answer")]
                 public static int Answer => 42;
 
-                [LuauMember("create_player")]
-                public static Player CreatePlayer(string name) => new() { Name = name };
+                [LuauMember("clamp")]
+                public static int Clamp(int value, int min, int max) => value;
             }
             """;
 
@@ -125,6 +125,25 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task InstanceLibraryProperty_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauLibrary("game")]
+            public sealed partial class GameLibrary
+            {
+                public int CurrentValue { get; set; }
+
+                [LuauMember("current")]
+                public int Current => CurrentValue;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
     public async Task UserdataPropertyAndManualHookConflicts_ShouldFail()
     {
         const string code = """
@@ -144,6 +163,55 @@ public class GeneratedExportsTests
                 public static LuauReturnSingle OnIndex(Player self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
                 public static LuauOutcome OnSetIndex(Player self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
                 public static LuauReturn OnMethodCall(Player self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task GenericLibraryType_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauLibrary("vault")]
+            public sealed partial class VaultLibrary<T>
+            {
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task NestedLibraryType_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public static class Container
+            {
+                [LuauLibrary("quests")]
+                public static partial class QuestLibrary
+                {
+                }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task GeneratedMemberNameConflicts_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauLibrary("ledger")]
+            public sealed partial class LedgerLibrary
+            {
+                public const string LuauLibraryName = "ledger";
             }
             """;
 

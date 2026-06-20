@@ -144,5 +144,6 @@ internal sealed record GeneratedLibraryExportNodeIr(
 
 internal sealed record GeneratedExportsTypeAnalysis(
     GeneratedExportSurfaceIr? Model,
-    ImmutableArray<Diagnostic> Diagnostics
+    ImmutableArray<Diagnostic> Diagnostics,
+    bool CanEmit
 );

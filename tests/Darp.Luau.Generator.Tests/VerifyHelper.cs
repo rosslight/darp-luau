@@ -80,6 +80,11 @@ public static class VerifyHelper
         return VerifyGeneratedExports([source], callerFilePath);
     }
 
+    public static Task VerifyGeneratedExportsSource(string source, [CallerFilePath] string? callerFilePath = null)
+    {
+        return VerifyGeneratedExportsSource([source], callerFilePath);
+    }
+
     public static Task VerifyGeneratedExports(string[] sources, [CallerFilePath] string? callerFilePath = null)
     {
         string fileName =
@@ -96,6 +101,43 @@ public static class VerifyHelper
             new Dictionary<string, string>(),
             LanguageVersion.CSharp13,
             verifyCompilationDiagnosticsSnapshot: true
+        );
+    }
+
+    public static Task VerifyGeneratedExportsSource(string[] sources, [CallerFilePath] string? callerFilePath = null)
+    {
+        string fileName =
+            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        AddReferenceAssemblyMarker<LuauState>();
+        AddReferenceAssemblyMarker<ILogger>();
+        return VerifyGenerator<GeneratedExportsGenerator>(
+            sources,
+            [],
+            null,
+            fileName,
+            task => task.ScrubGeneratedCodeAttribute(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            LanguageVersion.CSharp13
+        );
+    }
+
+    public static Task VerifyGeneratedExportsSourceWithErrors(string source, [CallerFilePath] string? callerFilePath = null)
+    {
+        string fileName =
+            Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
+        AddReferenceAssemblyMarker<LuauState>();
+        AddReferenceAssemblyMarker<ILogger>();
+        return VerifyGenerator<GeneratedExportsGenerator>(
+            [source],
+            [],
+            "DLUAU",
+            fileName,
+            task => task.ScrubGeneratedCodeAttribute(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            LanguageVersion.CSharp13,
+            allowCompilationErrors: true
         );
     }
 

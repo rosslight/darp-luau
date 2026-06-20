@@ -47,6 +47,39 @@ internal static class GeneratedExportsValidation
 
         if (discoveredType.Kind == LuauExportedTypeKind.Library)
         {
+            if (discoveredType.Symbol.ContainingType is not null)
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                        discoveredType.Origin.Location,
+                        "nested library types are not supported in v1"
+                    )
+                );
+            }
+
+            if (discoveredType.Symbol.TypeParameters.Length > 0)
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                        discoveredType.Origin.Location,
+                        "generic library types are not supported in v1"
+                    )
+                );
+            }
+
+            if (HasGeneratedLibraryMemberNameConflict(discoveredType.Symbol))
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                        discoveredType.Origin.Location,
+                        "library types cannot declare members named 'Register' or 'LuauLibraryName' because those names are generated"
+                    )
+                );
+            }
+
             if (discoveredType.Symbol.TypeKind == TypeKind.Struct)
             {
                 diagnostics.Add(
@@ -81,6 +114,20 @@ internal static class GeneratedExportsValidation
                 )
             );
         }
+    }
+
+    private static bool HasGeneratedLibraryMemberNameConflict(INamedTypeSymbol type)
+    {
+        foreach (ISymbol member in type.GetMembers())
+        {
+            if (member.IsImplicitlyDeclared)
+                continue;
+
+            if (member.Name is "Register" or "LuauLibraryName")
+                return true;
+        }
+
+        return false;
     }
 
     private static void ReportDuplicateNames(
