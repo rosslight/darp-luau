@@ -2,52 +2,52 @@ namespace Darp.Luau.Generator.Helpers;
 
 internal static class EmitterHelper
 {
-    internal static string GetDotnetType(ParameterTypeInfo param)
+    internal static string GetDotnetType(InteropType param)
     {
-        if (param is { Type: LuauValueType.Enum or LuauValueType.ManagedUserdata, OriginalTypeName: { } name })
+        if (param is { Type: LuauInteropKind.Enum or LuauInteropKind.ManagedUserdata, OriginalTypeName: { } name })
             return param.IsNullable ? $"{name}?" : name;
         return GetDotnetType(param.Type, param.IsNullable);
     }
 
-    internal static string GetTupleReturnType(ParameterTypeInfo param, int index)
+    internal static string GetTupleReturnType(InteropType param, int index)
     {
         string type = GetDotnetType(param);
         string defaultName = $"Item{index}";
         return param.TupleElementName is { Length: > 0 } name && name != defaultName ? $"{type} {name}" : type;
     }
 
-    internal static string GetDotnetType((LuauValueType Type, bool IsNullable) tuple) =>
+    internal static string GetDotnetType((LuauInteropKind Type, bool IsNullable) tuple) =>
         GetDotnetType(tuple.Type, tuple.IsNullable);
 
-    private static string GetDotnetType(LuauValueType type, bool isNullable)
+    private static string GetDotnetType(LuauInteropKind type, bool isNullable)
     {
         string dotnetType = type switch
         {
-            LuauValueType.Boolean => "bool",
-            LuauValueType.String => "global::System.ReadOnlySpan<byte>",
-            LuauValueType.StringCharSpan => "global::System.ReadOnlySpan<char>",
-            LuauValueType.StringString => "string",
-            LuauValueType.Number => "double",
-            LuauValueType.NumberByte => "byte",
-            LuauValueType.NumberUShort => "ushort",
-            LuauValueType.NumberUInt => "uint",
-            LuauValueType.NumberULong => "ulong",
-            LuauValueType.NumberUInt128 => "global::System.UInt128",
-            LuauValueType.NumberSByte => "sbyte",
-            LuauValueType.NumberShort => "short",
-            LuauValueType.NumberInt => "int",
-            LuauValueType.NumberLong => "long",
-            LuauValueType.NumberInt128 => "global::System.Int128",
-            LuauValueType.NumberHalf => "global::System.Half",
-            LuauValueType.NumberFloat => "float",
-            LuauValueType.NumberDecimal => "decimal",
-            LuauValueType.LuauValue => "global::Darp.Luau.LuauValue",
-            LuauValueType.LuauTableView => "global::Darp.Luau.LuauTableView",
-            LuauValueType.LuauFunctionView => "global::Darp.Luau.LuauFunctionView",
-            LuauValueType.LuauStringView => "global::Darp.Luau.LuauStringView",
-            LuauValueType.LuauBufferView => "global::Darp.Luau.LuauBufferView",
-            LuauValueType.LuauUserdataView => "global::Darp.Luau.LuauUserdataView",
-            LuauValueType.Enum or LuauValueType.ManagedUserdata => throw new ArgumentOutOfRangeException(
+            LuauInteropKind.Boolean => "bool",
+            LuauInteropKind.String => "global::System.ReadOnlySpan<byte>",
+            LuauInteropKind.StringCharSpan => "global::System.ReadOnlySpan<char>",
+            LuauInteropKind.StringString => "string",
+            LuauInteropKind.Number => "double",
+            LuauInteropKind.NumberByte => "byte",
+            LuauInteropKind.NumberUShort => "ushort",
+            LuauInteropKind.NumberUInt => "uint",
+            LuauInteropKind.NumberULong => "ulong",
+            LuauInteropKind.NumberUInt128 => "global::System.UInt128",
+            LuauInteropKind.NumberSByte => "sbyte",
+            LuauInteropKind.NumberShort => "short",
+            LuauInteropKind.NumberInt => "int",
+            LuauInteropKind.NumberLong => "long",
+            LuauInteropKind.NumberInt128 => "global::System.Int128",
+            LuauInteropKind.NumberHalf => "global::System.Half",
+            LuauInteropKind.NumberFloat => "float",
+            LuauInteropKind.NumberDecimal => "decimal",
+            LuauInteropKind.LuauValue => "global::Darp.Luau.LuauValue",
+            LuauInteropKind.LuauTableView => "global::Darp.Luau.LuauTableView",
+            LuauInteropKind.LuauFunctionView => "global::Darp.Luau.LuauFunctionView",
+            LuauInteropKind.LuauStringView => "global::Darp.Luau.LuauStringView",
+            LuauInteropKind.LuauBufferView => "global::Darp.Luau.LuauBufferView",
+            LuauInteropKind.LuauUserdataView => "global::Darp.Luau.LuauUserdataView",
+            LuauInteropKind.Enum or LuauInteropKind.ManagedUserdata => throw new ArgumentOutOfRangeException(
                 nameof(type),
                 type,
                 "Use GetDotnetType(ParameterTypeInfo) for enum and managed userdata types"
@@ -57,10 +57,10 @@ internal static class EmitterHelper
         return isNullable ? $"{dotnetType}?" : dotnetType;
     }
 
-    public static string GetFunctionRepresentation(InvocationMethodSignature signature)
+    public static string GetFunctionRepresentation(InteropSignature signature)
     {
-        ImmutableEquatableArray<ParameterTypeInfo> parameters = signature.Parameters;
-        ImmutableEquatableArray<ParameterTypeInfo> returnParameters = signature.ReturnParameters;
+        ImmutableEquatableArray<InteropType> parameters = signature.Parameters;
+        ImmutableEquatableArray<InteropType> returnParameters = signature.ReturnTypes;
         return (parameters.Length, returnParameters.Length) switch
         {
             (0, 0) => "global::System.Action",

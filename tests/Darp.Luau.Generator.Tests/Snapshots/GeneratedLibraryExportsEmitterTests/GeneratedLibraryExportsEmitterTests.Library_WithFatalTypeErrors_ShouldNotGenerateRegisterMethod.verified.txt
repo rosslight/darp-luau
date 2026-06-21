@@ -3,12 +3,31 @@
     {
       Location: /*
 
-[LuauLibrary(" ")]
- ^^^^^^^^^^^^^^^^
-public static partial class BlankLibraryName
+[LuauLibrary("nonpartial")]
+ ^^^^^^^^^^^^^^^^^^^^^^^^^
+public static class NonPartialLibrary
 */
- : (18,1)-(18,17),
-      Message: Invalid generated export shape: root libraries must supply a non-empty name via [LuauLibrary("...")],
+ : (2,1)-(2,26),
+      Message: Type marked with [LuauLibrary] must be partial,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1001,
+        Title: Luau library type must be partial,
+        MessageFormat: Type marked with [LuauLibrary] must be partial,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+[LuauLibrary("ledger")]
+ ^^^^^^^^^^^^^^^^^^^^^
+public sealed partial class LedgerLibrary
+*/
+ : (9,1)-(9,22),
+      Message: Invalid generated export shape: library types cannot declare members named 'Register' or 'LuauLibraryName' because those names are generated,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,
@@ -21,13 +40,13 @@ public static partial class BlankLibraryName
     },
     {
       Location: /*
-{
-    [LuauLibrary("nested")]
-     ^^^^^^^^^^^^^^^^^^^^^
-    public static partial class NestedLibrary
+
+[LuauLibrary(" ")]
+ ^^^^^^^^^^^^^^^^
+public static partial class BlankLibraryName
 */
- : (32,5)-(32,26),
-      Message: Invalid generated export shape: nested library types are not supported in v1,
+ : (18,1)-(18,17),
+      Message: Invalid generated export shape: root libraries must supply a non-empty name via [LuauLibrary("...")],
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,
@@ -59,37 +78,18 @@ public sealed partial class GenericLibrary<T>
     },
     {
       Location: /*
-
-[LuauLibrary("ledger")]
- ^^^^^^^^^^^^^^^^^^^^^
-public sealed partial class LedgerLibrary
+{
+    [LuauLibrary("nested")]
+     ^^^^^^^^^^^^^^^^^^^^^
+    public static partial class NestedLibrary
 */
- : (9,1)-(9,22),
-      Message: Invalid generated export shape: library types cannot declare members named 'Register' or 'LuauLibraryName' because those names are generated,
+ : (32,5)-(32,26),
+      Message: Invalid generated export shape: nested library types are not supported in v1,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,
         Title: Invalid generated export shape,
         MessageFormat: Invalid generated export shape: {0},
-        Category: Darp.Luau.Generator,
-        DefaultSeverity: Error,
-        IsEnabledByDefault: true
-      }
-    },
-    {
-      Location: /*
-
-[LuauLibrary("nonpartial")]
- ^^^^^^^^^^^^^^^^^^^^^^^^^
-public static class NonPartialLibrary
-*/
- : (2,1)-(2,26),
-      Message: Type marked with [LuauLibrary] must be partial,
-      Severity: Error,
-      Descriptor: {
-        Id: DLUAU1001,
-        Title: Luau library type must be partial,
-        MessageFormat: Type marked with [LuauLibrary] must be partial,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

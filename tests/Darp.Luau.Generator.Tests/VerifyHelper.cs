@@ -19,7 +19,7 @@ public static class VerifyHelper
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         AddReferenceAssemblyMarker<ILogger>();
-        return VerifyGenerator<DarpLuauInterceptor>(
+        return VerifyGenerator<CreateFunctionGenerator>(
             [source],
             [],
             "DBO0",
@@ -37,7 +37,7 @@ public static class VerifyHelper
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         AddReferenceAssemblyMarker<ILogger>();
-        return VerifyGenerator<DarpLuauInterceptor>(
+        return VerifyGenerator<CreateFunctionGenerator>(
             [source],
             [],
             "DLUAU",
@@ -60,7 +60,7 @@ public static class VerifyHelper
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         AddReferenceAssemblyMarker<ILogger>();
-        return VerifyGenerator<DarpLuauInterceptor>(
+        return VerifyGenerator<CreateFunctionGenerator>(
             [source],
             [],
             "DLUAU",

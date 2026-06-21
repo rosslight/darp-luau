@@ -1,32 +1,6 @@
 ﻿{
   Diagnostics: [
     {
-      Location: SourceFile([78..99)),
-      Message: Luau export path 'foo bar' contains a segment that requires bracket access and is not valid for dot-path syntax,
-      Severity: Warning,
-      Descriptor: {
-        Id: DLUAU1013,
-        Title: Luau export path segment requires bracket access,
-        MessageFormat: Luau export path '{0}' contains a segment that requires bracket access and is not valid for dot-path syntax,
-        Category: Darp.Luau.Generator,
-        DefaultSeverity: Warning,
-        IsEnabledByDefault: true
-      }
-    },
-    {
-      Location: SourceFile([157..176)),
-      Message: Luau export path 'local' contains a segment that requires bracket access and is not valid for dot-path syntax,
-      Severity: Warning,
-      Descriptor: {
-        Id: DLUAU1013,
-        Title: Luau export path segment requires bracket access,
-        MessageFormat: Luau export path '{0}' contains a segment that requires bracket access and is not valid for dot-path syntax,
-        Category: Darp.Luau.Generator,
-        DefaultSeverity: Warning,
-        IsEnabledByDefault: true
-      }
-    },
-    {
       Location: SourceFile([377..397)),
       Message: Luau export path '123abc' contains a segment that requires bracket access and is not valid for dot-path syntax,
       Severity: Warning,
@@ -68,6 +42,32 @@
     {
       Location: SourceFile([592..625)),
       Message: Luau export path 'bad-name.end.123abc' contains a segment that requires bracket access and is not valid for dot-path syntax,
+      Severity: Warning,
+      Descriptor: {
+        Id: DLUAU1013,
+        Title: Luau export path segment requires bracket access,
+        MessageFormat: Luau export path '{0}' contains a segment that requires bracket access and is not valid for dot-path syntax,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: SourceFile([78..99)),
+      Message: Luau export path 'foo bar' contains a segment that requires bracket access and is not valid for dot-path syntax,
+      Severity: Warning,
+      Descriptor: {
+        Id: DLUAU1013,
+        Title: Luau export path segment requires bracket access,
+        MessageFormat: Luau export path '{0}' contains a segment that requires bracket access and is not valid for dot-path syntax,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: SourceFile([157..176)),
+      Message: Luau export path 'local' contains a segment that requires bracket access and is not valid for dot-path syntax,
       Severity: Warning,
       Descriptor: {
         Id: DLUAU1013,
