@@ -21,24 +21,32 @@ public sealed class CreateFunctionGenerator : IIncrementalGenerator
             .Where(static op => op is not null)
             .Select(static (op, _) => op!);
 
-        context.RegisterSourceOutput(
-            matchingInvocations,
-            static (spc, invocation) =>
-            {
-                CreateFunctionAnalysisResult result = CreateFunctionSignatureAnalyzer.Analyze(invocation);
-                foreach (Diagnostic diagnostic in result.Diagnostics)
-                    spc.ReportDiagnostic(diagnostic);
-
-                if (result.Model is not { } model)
-                    return;
-
-                bool emitsSource = CreateFunctionEmitter.TryEmit(model, out string? source);
-                if (!emitsSource)
-                    return;
-
-                var sourceText = SourceText.From(source ?? string.Empty, Encoding.UTF8, SourceHashAlgorithm.Sha256);
-                spc.AddSource(CreateFunctionEmitter.GetHintName(model), sourceText);
-            }
+        IncrementalValuesProvider<CreateFunctionAnalysisResult> analyses = matchingInvocations.Select(
+            static (invocation, _) => CreateFunctionSignatureAnalyzer.Analyze(invocation)
         );
+
+        IncrementalValuesProvider<CreateFunctionModel> models = analyses
+            .Select(static (analysis, _) => analysis.Model)
+            .Where(static model => model is not null)
+            .Select(static (model, _) => model!);
+
+        context.RegisterSourceOutput(analyses, ReportDiagnostics);
+        context.RegisterSourceOutput(models, Emit);
+    }
+
+    private static void ReportDiagnostics(SourceProductionContext spc, CreateFunctionAnalysisResult analysis)
+    {
+        foreach (Diagnostic diagnostic in analysis.Diagnostics)
+            spc.ReportDiagnostic(diagnostic);
+    }
+
+    private static void Emit(SourceProductionContext spc, CreateFunctionModel model)
+    {
+        bool emitsSource = CreateFunctionEmitter.TryEmit(model, out string? source);
+        if (!emitsSource)
+            return;
+
+        var sourceText = SourceText.From(source ?? string.Empty, Encoding.UTF8, SourceHashAlgorithm.Sha256);
+        spc.AddSource(CreateFunctionEmitter.GetHintName(model), sourceText);
     }
 }
