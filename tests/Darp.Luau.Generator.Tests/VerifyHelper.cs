@@ -46,7 +46,10 @@ public static class VerifyHelper
             new Dictionary<string, string>(),
             new Dictionary<string, string> { { "InterceptorsNamespaces", "Darp.Luau.Generator" } },
             LanguageVersion.CSharp13,
-            allowCompilationErrors: true
+            allowCompilationErrors: true,
+            analyzers: ImmutableArray.Create<DiagnosticAnalyzer>(new CreateFunctionUsageAnalyzer()),
+            verifyDiagnosticsSnapshot: true,
+            verifyGeneratedSources: false
         );
     }
 
@@ -71,7 +74,8 @@ public static class VerifyHelper
             LanguageVersion.CSharp13,
             allowCompilationErrors: true,
             analyzers: ImmutableArray.Create(analyzer),
-            verifyDiagnosticsSnapshot: true
+            verifyDiagnosticsSnapshot: true,
+            verifyGeneratedSources: false
         );
     }
 
@@ -100,7 +104,10 @@ public static class VerifyHelper
             new Dictionary<string, string>(),
             new Dictionary<string, string>(),
             LanguageVersion.CSharp13,
-            verifyCompilationDiagnosticsSnapshot: true
+            analyzers: ImmutableArray.Create<DiagnosticAnalyzer>(new GeneratedExportsAnalyzer()),
+            verifyDiagnosticsSnapshot: true,
+            verifyCompilationDiagnosticsSnapshot: true,
+            verifyGeneratedSources: false
         );
     }
 
@@ -118,7 +125,8 @@ public static class VerifyHelper
             task => task.ScrubGeneratedCodeAttribute(),
             new Dictionary<string, string>(),
             new Dictionary<string, string>(),
-            LanguageVersion.CSharp13
+            LanguageVersion.CSharp13,
+            analyzers: ImmutableArray.Create<DiagnosticAnalyzer>(new GeneratedExportsAnalyzer())
         );
     }
 
@@ -137,7 +145,10 @@ public static class VerifyHelper
             new Dictionary<string, string>(),
             new Dictionary<string, string>(),
             LanguageVersion.CSharp13,
-            allowCompilationErrors: true
+            allowCompilationErrors: true,
+            analyzers: ImmutableArray.Create<DiagnosticAnalyzer>(new GeneratedExportsAnalyzer()),
+            verifyDiagnosticsSnapshot: true,
+            verifyGeneratedSources: true
         );
     }
 
@@ -165,7 +176,10 @@ public static class VerifyHelper
             new Dictionary<string, string>(),
             LanguageVersion.CSharp13,
             allowCompilationErrors: true,
-            verifyCompilationDiagnosticsSnapshot: true
+            analyzers: ImmutableArray.Create<DiagnosticAnalyzer>(new GeneratedExportsAnalyzer()),
+            verifyDiagnosticsSnapshot: true,
+            verifyCompilationDiagnosticsSnapshot: true,
+            verifyGeneratedSources: false
         );
     }
 
@@ -211,7 +225,8 @@ public static class VerifyHelper
         bool allowCompilationErrors = false,
         ImmutableArray<DiagnosticAnalyzer> analyzers = default,
         bool verifyDiagnosticsSnapshot = false,
-        bool verifyCompilationDiagnosticsSnapshot = false
+        bool verifyCompilationDiagnosticsSnapshot = false,
+        bool verifyGeneratedSources = true
     )
         where TGenerator : IIncrementalGenerator, new()
     {
@@ -265,7 +280,7 @@ public static class VerifyHelper
         ImmutableArray<Diagnostic> compilationDiagnostics = newCompilation.GetDiagnostics();
         ImmutableArray<Diagnostic> analyzerDiagnostics = analyzers.IsDefaultOrEmpty
             ? []
-            : await newCompilation.WithAnalyzers(analyzers).GetAllDiagnosticsAsync();
+            : await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync();
 
         IEnumerable<Diagnostic> snapshotDiagnostics = [];
         if (verifyCompilationDiagnosticsSnapshot)
@@ -273,16 +288,18 @@ public static class VerifyHelper
         if (verifyDiagnosticsSnapshot)
             snapshotDiagnostics = snapshotDiagnostics.Concat(analyzerDiagnostics);
 
-        object verificationTarget =
-            verifyCompilationDiagnosticsSnapshot || verifyDiagnosticsSnapshot
-                ? new
-                {
-                    Diagnostics = snapshotDiagnostics
-                        .Where(x => x.Id is not "CS5001")
-                        .Select(ToSerializableDiagnostic)
-                        .ToArray(),
-                }
-                : driver;
+        ImmutableArray<Diagnostic> diagnosticsToVerify = snapshotDiagnostics
+            .Where(x => x.Id is not "CS5001")
+            .OrderBy(static x => x.Location.SourceTree?.FilePath ?? "", StringComparer.Ordinal)
+            .ThenBy(static x => x.Location.SourceSpan.Start)
+            .ThenBy(static x => x.Id, StringComparer.Ordinal)
+            .ThenBy(static x => x.GetMessage(), StringComparer.Ordinal)
+            .ToImmutableArray();
+        object verificationTarget = verifyGeneratedSources
+            ? diagnosticsToVerify.IsEmpty
+                ? driver
+                : new GeneratorDriverWithDiagnostics(driver.GetRunResult(), diagnosticsToVerify)
+            : new { Diagnostics = diagnosticsToVerify.ToArray() };
         SettingsTask settingsTask = Verify(verificationTarget).UseDirectory(Path.Join("Snapshots", directory));
         await configureSettingsTask(settingsTask);
         // Assert that there are no compilation errors (except for CS5001 which informs about the missing program entry)
@@ -301,25 +318,6 @@ public static class VerifyHelper
                     + "\n"
                     + string.Join("\n", driver.GetRunResult().ToReadableString())
             );
-    }
-
-    private static object ToSerializableDiagnostic(Diagnostic diagnostic)
-    {
-        return new
-        {
-            Location = diagnostic.Location.ToString(),
-            Message = diagnostic.GetMessage(),
-            Severity = diagnostic.Severity.ToString(),
-            Descriptor = new
-            {
-                diagnostic.Descriptor.Id,
-                diagnostic.Descriptor.Title,
-                diagnostic.Descriptor.MessageFormat,
-                diagnostic.Descriptor.Category,
-                DefaultSeverity = diagnostic.Descriptor.DefaultSeverity.ToString(),
-                diagnostic.Descriptor.IsEnabledByDefault,
-            },
-        };
     }
 
     private static string NormalizeLineEndings(string source)

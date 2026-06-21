@@ -8,13 +8,8 @@ namespace Darp.Luau.Generator.GeneratedExports;
 
 internal static class UserdataEmitter
 {
-    public static bool TryEmit(
-        GeneratedExportSurfaceIr model,
-        [NotNullWhen(true)] out string? source,
-        out List<Diagnostic> diagnostics
-    )
+    public static bool TryEmit(GeneratedExportSurfaceIr model, [NotNullWhen(true)] out string? source)
     {
-        diagnostics = [];
         if (model.Kind != LuauExportedTypeKind.Userdata)
         {
             source = null;

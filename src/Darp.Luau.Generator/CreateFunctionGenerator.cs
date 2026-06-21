@@ -13,31 +13,22 @@ public sealed class CreateFunctionGenerator : IIncrementalGenerator
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        IncrementalValuesProvider<IInvocationOperation> matchingInvocations = context
+        IncrementalValuesProvider<CreateFunctionModel> models = context
             .SyntaxProvider.CreateSyntaxProvider(
                 predicate: CreateFunctionDiscovery.IsCandidate,
-                transform: CreateFunctionDiscovery.GetMatchingInvocation
+                transform: AnalyzeCandidate
             )
-            .Where(static op => op is not null)
-            .Select(static (op, _) => op!);
-
-        IncrementalValuesProvider<CreateFunctionAnalysisResult> analyses = matchingInvocations.Select(
-            static (invocation, _) => CreateFunctionSignatureAnalyzer.Analyze(invocation)
-        );
-
-        IncrementalValuesProvider<CreateFunctionModel> models = analyses
-            .Select(static (analysis, _) => analysis.Model)
             .Where(static model => model is not null)
-            .Select(static (model, _) => model!);
+            .Select(static (model, _) => model!)
+            .WithTrackingName("CreateFunctionModels");
 
-        context.RegisterSourceOutput(analyses, ReportDiagnostics);
         context.RegisterSourceOutput(models, Emit);
     }
 
-    private static void ReportDiagnostics(SourceProductionContext spc, CreateFunctionAnalysisResult analysis)
+    private static CreateFunctionModel? AnalyzeCandidate(GeneratorSyntaxContext context, CancellationToken cancellationToken)
     {
-        foreach (Diagnostic diagnostic in analysis.Diagnostics)
-            spc.ReportDiagnostic(diagnostic);
+        IInvocationOperation? invocation = CreateFunctionDiscovery.GetMatchingInvocation(context, cancellationToken);
+        return invocation is null ? null : CreateFunctionSignatureAnalyzer.Analyze(invocation).Model;
     }
 
     private static void Emit(SourceProductionContext spc, CreateFunctionModel model)

@@ -1,4 +1,4 @@
-{
+﻿{
   Diagnostics: [
     {
       Location: /*
@@ -14,44 +14,6 @@
         Id: DLUAU1006,
         Title: Unsupported generated function shape,
         MessageFormat: Generated {0} '{1}' uses an unsupported parameter or return shape: {2},
-        Category: Darp.Luau.Generator,
-        DefaultSeverity: Error,
-        IsEnabledByDefault: true
-      }
-    },
-    {
-      Location: /*
-
-    [LuauMember("bad..path")]
-     ^^^^^^^^^^^^^^^^^^^^^^^
-    public int BadPath() => 0;
-*/
- : (25,5)-(25,28),
-      Message: Invalid Luau export path 'bad..path'; empty path segments are not allowed,
-      Severity: Error,
-      Descriptor: {
-        Id: DLUAU1008,
-        Title: Invalid Luau export path,
-        MessageFormat: Invalid Luau export path '{0}'; empty path segments are not allowed,
-        Category: Darp.Luau.Generator,
-        DefaultSeverity: Error,
-        IsEnabledByDefault: true
-      }
-    },
-    {
-      Location: /*
-
-    [LuauMember("current")]
-     ^^^^^^^^^^^^^^^^^^^^^
-    public int Current => CurrentValue;
-*/
- : (28,5)-(28,26),
-      Message: Invalid generated export shape: instance library property 'Current' is not supported in v1 because live property generation is not implemented,
-      Severity: Error,
-      Descriptor: {
-        Id: DLUAU1012,
-        Title: Invalid generated export shape,
-        MessageFormat: Invalid generated export shape: {0},
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
@@ -90,6 +52,44 @@
         Id: DLUAU1007,
         Title: Luau export path conflict,
         MessageFormat: Luau export path conflict: '{0}' cannot be both a leaf member and a namespace for '{1}',
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("bad..path")]
+     ^^^^^^^^^^^^^^^^^^^^^^^
+    public int BadPath() => 0;
+*/
+ : (25,5)-(25,28),
+      Message: Invalid Luau export path 'bad..path'; empty path segments are not allowed,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1008,
+        Title: Invalid Luau export path,
+        MessageFormat: Invalid Luau export path '{0}'; empty path segments are not allowed,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    [LuauMember("current")]
+     ^^^^^^^^^^^^^^^^^^^^^
+    public int Current => CurrentValue;
+*/
+ : (28,5)-(28,26),
+      Message: Invalid generated export shape: instance library property 'Current' is not supported in v1 because live property generation is not implemented,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

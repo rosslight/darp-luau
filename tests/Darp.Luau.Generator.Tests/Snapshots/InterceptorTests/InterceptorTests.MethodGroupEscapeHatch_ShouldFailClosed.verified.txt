@@ -1,7 +1,13 @@
-{
+﻿{
   Diagnostics: [
     {
-      Location: SourceFile([159..179)),
+      Location: /*
+    {
+        Func<Action, LuauFunction> create = state.CreateFunction;
+                                            ^^^^^^^^^^^^^^^^^^^^
+        create(() => {});
+*/
+ : (7,44)-(7,64),
       Message: CreateFunction must be invoked directly so the compiler can intercept it; converting it to a delegate would hit the runtime stub,
       Severity: Error,
       Descriptor: {

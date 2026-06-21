@@ -1,7 +1,13 @@
-{
+﻿{
   Diagnostics: [
     {
-      Location: SourceFile([130..151)),
+      Location: /*
+
+    [LuauMember("current")]
+     ^^^^^^^^^^^^^^^^^^^^^
+    public int Current => CurrentValue;
+*/
+ : (7,5)-(7,26),
       Message: Invalid generated export shape: instance library property 'Current' is not supported in v1 because live property generation is not implemented,
       Severity: Error,
       Descriptor: {

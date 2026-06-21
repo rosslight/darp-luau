@@ -8,13 +8,8 @@ namespace Darp.Luau.Generator.GeneratedExports;
 
 internal static class LibraryEmitter
 {
-    public static bool TryEmit(
-        GeneratedExportSurfaceIr model,
-        [NotNullWhen(true)] out string? source,
-        out List<Diagnostic> diagnostics
-    )
+    public static bool TryEmit(GeneratedExportSurfaceIr model, [NotNullWhen(true)] out string? source)
     {
-        diagnostics = [];
         if (model.LibraryRoot is null || string.IsNullOrWhiteSpace(model.LibraryName))
         {
             source = null;

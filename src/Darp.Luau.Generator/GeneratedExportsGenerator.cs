@@ -15,54 +15,55 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        IncrementalValuesProvider<GeneratedExportsTypeAnalysis> libraryAnalyses =
+        IncrementalValuesProvider<GeneratedExportSurfaceIr> libraryModels =
             context.SyntaxProvider.ForAttributeWithMetadataName(
                 "Darp.Luau.LuauLibraryAttribute",
                 static (node, _) => node is TypeDeclarationSyntax,
                 static (ctx, _) => AnalyzeType(ctx, LuauExportedTypeKind.Library)
-            );
+            )
+            .Where(static model => model is not null)
+            .Select(static (model, _) => model!)
+            .WithTrackingName("GeneratedExportsLibraryModels");
 
-        IncrementalValuesProvider<GeneratedExportsTypeAnalysis> userdataAnalyses =
+        IncrementalValuesProvider<GeneratedExportSurfaceIr> userdataModels =
             context.SyntaxProvider.ForAttributeWithMetadataName(
                 "Darp.Luau.LuauUserdataAttribute",
                 static (node, _) => node is TypeDeclarationSyntax,
                 static (ctx, _) => AnalyzeType(ctx, LuauExportedTypeKind.Userdata)
-            );
+            )
+            .Where(static model => model is not null)
+            .Select(static (model, _) => model!)
+            .WithTrackingName("GeneratedExportsUserdataModels");
 
-        context.RegisterSourceOutput(libraryAnalyses, Emit);
-        context.RegisterSourceOutput(userdataAnalyses, Emit);
+        context.RegisterSourceOutput(libraryModels, Emit);
+        context.RegisterSourceOutput(userdataModels, Emit);
     }
 
-    private static GeneratedExportsTypeAnalysis AnalyzeType(
+    private static GeneratedExportSurfaceIr? AnalyzeType(
         GeneratorAttributeSyntaxContext context,
         LuauExportedTypeKind expectedKind
     )
     {
         if (context.TargetSymbol is not INamedTypeSymbol type)
-            return new GeneratedExportsTypeAnalysis(null, [], CanEmitSource: false);
+            return null;
 
-        return ExportAnalyzer.AnalyzeType(type, expectedKind, context.SemanticModel.Compilation);
+        GeneratedExportsTypeAnalysis analysis = ExportAnalyzer.AnalyzeType(
+            type,
+            expectedKind,
+            context.SemanticModel.Compilation
+        );
+        return analysis.CanEmitSource ? analysis.Model : null;
     }
 
-    private static void Emit(SourceProductionContext spc, GeneratedExportsTypeAnalysis analysis)
+    private static void Emit(SourceProductionContext spc, GeneratedExportSurfaceIr model)
     {
-        foreach (Diagnostic diagnostic in analysis.Diagnostics)
-            spc.ReportDiagnostic(diagnostic);
-
-        if (analysis.Model is not { } model || !analysis.CanEmitSource)
-            return;
-
         string? source;
-        List<Diagnostic> emitDiagnostics;
         bool emitted = model.Kind switch
         {
-            LuauExportedTypeKind.Library => LibraryEmitter.TryEmit(model, out source, out emitDiagnostics),
-            LuauExportedTypeKind.Userdata => UserdataEmitter.TryEmit(model, out source, out emitDiagnostics),
+            LuauExportedTypeKind.Library => LibraryEmitter.TryEmit(model, out source),
+            LuauExportedTypeKind.Userdata => UserdataEmitter.TryEmit(model, out source),
             _ => throw new InvalidOperationException($"Unsupported export kind '{model.Kind}'."),
         };
-
-        foreach (Diagnostic diagnostic in emitDiagnostics)
-            spc.ReportDiagnostic(diagnostic);
 
         if (!emitted)
             return;
