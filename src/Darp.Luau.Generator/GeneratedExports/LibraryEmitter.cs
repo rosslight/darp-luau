@@ -31,10 +31,12 @@ internal static class LibraryEmitter
         writer.WriteLine(model.TypeDeclaration);
         writer.WriteLine("{");
         writer.Indent++;
+        writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
         writer.WriteLine(
             $"public const string LuauLibraryName = {SymbolDisplay.FormatLiteral(model.LibraryName!, quote: true)};"
         );
         writer.WriteLine();
+        writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
         writer.WriteLine($"public {GetRegisterModifier(model)}void Register(global::Darp.Luau.LuauState lua)");
         writer.WriteLine("{");
         writer.Indent++;

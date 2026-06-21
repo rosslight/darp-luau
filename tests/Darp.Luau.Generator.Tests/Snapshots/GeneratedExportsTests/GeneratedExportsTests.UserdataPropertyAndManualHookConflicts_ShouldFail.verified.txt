@@ -2,25 +2,6 @@
   Diagnostics: [
     {
       Location: /*
-
-[LuauUserdata]
- ^^^^^^^^^^^^
-public sealed partial class Player : ILuauUserData<Player>
-*/
- : (4,1)-(4,13),
-      Message: Generated userdata surface for 'Player' cannot be combined with manual ILuauUserData hooks in v1,
-      Severity: Error,
-      Descriptor: {
-        Id: DLUAU1011,
-        Title: Generated and manual userdata hooks cannot mix,
-        MessageFormat: Generated userdata surface for '{0}' cannot be combined with manual ILuauUserData hooks in v1,
-        Category: Darp.Luau.Generator,
-        DefaultSeverity: Error,
-        IsEnabledByDefault: true
-      }
-    },
-    {
-      Location: /*
 {
     [LuauMember("stats")]
      ^^^^^^^^^^^^^^^^^^^
@@ -52,6 +33,63 @@ public sealed partial class Player : ILuauUserData<Player>
         Id: DLUAU1012,
         Title: Invalid generated export shape,
         MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+    public static LuauReturnSingle OnIndex(Player self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+                                   ^^^^^^^
+    public static LuauOutcome OnSetIndex(Player self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+*/
+ : (13,35)-(13,42),
+      Message: Generated userdata surface for 'Player' cannot be combined with manual ILuauUserData hooks in v1,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1011,
+        Title: Generated and manual userdata hooks cannot mix,
+        MessageFormat: Generated userdata surface for '{0}' cannot be combined with manual ILuauUserData hooks in v1,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+    public static LuauReturnSingle OnIndex(Player self, in LuauState state, in ReadOnlySpan<char> fieldName) => LuauReturnSingle.NotHandled;
+    public static LuauOutcome OnSetIndex(Player self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+                              ^^^^^^^^^^
+    public static LuauReturn OnMethodCall(Player self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+*/
+ : (14,30)-(14,40),
+      Message: Generated userdata surface for 'Player' cannot be combined with manual ILuauUserData hooks in v1,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1011,
+        Title: Generated and manual userdata hooks cannot mix,
+        MessageFormat: Generated userdata surface for '{0}' cannot be combined with manual ILuauUserData hooks in v1,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+    public static LuauOutcome OnSetIndex(Player self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) => LuauOutcome.NotHandledError;
+    public static LuauReturn OnMethodCall(Player self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) => LuauReturn.NotHandledError;
+                             ^^^^^^^^^^^^
+}
+*/
+ : (15,29)-(15,41),
+      Message: Generated userdata surface for 'Player' cannot be combined with manual ILuauUserData hooks in v1,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1011,
+        Title: Generated and manual userdata hooks cannot mix,
+        MessageFormat: Generated userdata surface for '{0}' cannot be combined with manual ILuauUserData hooks in v1,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

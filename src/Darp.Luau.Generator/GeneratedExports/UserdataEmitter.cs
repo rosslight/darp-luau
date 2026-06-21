@@ -1,7 +1,6 @@
 using System.CodeDom.Compiler;
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Generator.Helpers;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
 namespace Darp.Luau.Generator.GeneratedExports;
@@ -50,6 +49,7 @@ internal static class UserdataEmitter
     private static void WriteOnIndex(IndentedTextWriter writer, GeneratedExportSurfaceIr model)
     {
         GeneratedExportPropertyIr[] properties = model.Members.OfType<GeneratedExportPropertyIr>().ToArray();
+        writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
         if (properties.Length == 0)
         {
             writer.WriteLine(
@@ -97,6 +97,7 @@ internal static class UserdataEmitter
     private static void WriteOnSetIndex(IndentedTextWriter writer, GeneratedExportSurfaceIr model)
     {
         GeneratedExportPropertyIr[] properties = model.Members.OfType<GeneratedExportPropertyIr>().ToArray();
+        writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
         if (properties.Length == 0)
         {
             writer.WriteLine(
@@ -152,6 +153,7 @@ internal static class UserdataEmitter
     private static void WriteOnMethodCall(IndentedTextWriter writer, GeneratedExportSurfaceIr model)
     {
         GeneratedExportMethodIr[] methods = model.Members.OfType<GeneratedExportMethodIr>().ToArray();
+        writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
         if (methods.Length == 0)
         {
             writer.WriteLine(

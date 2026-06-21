@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Testing.Platform.Logging;
 using Shouldly;
@@ -10,6 +12,48 @@ namespace Darp.Luau.Generator.Tests;
 
 public sealed class IncrementalPipelineTests
 {
+    [Fact]
+    public async Task GeneratedExportsAnalyzer_ShouldIgnoreGeneratedPartialMembers()
+    {
+        const string source = """
+            using Darp.Luau;
+
+            [LuauUserdata]
+            public sealed partial class HeroCard
+            {
+                [LuauMember("name")]
+                public string Name { get; set; } = "unknown";
+            }
+
+            [LuauLibrary("guild")]
+            public sealed partial class GuildLibrary
+            {
+                [LuauMember("heroes.create")]
+                public HeroCard CreateHero(string name) => new() { Name = name };
+            }
+            """;
+
+        CSharpParseOptions parseOptions = CreateParseOptions();
+        CSharpCompilation compilation = CreateCompilation(source, parseOptions);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [new GeneratedExportsGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions
+        );
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        driver.RunGeneratorsAndUpdateCompilation(
+            compilation,
+            out Compilation generatedCompilation,
+            out _,
+            cancellationToken
+        );
+
+        ImmutableArray<Diagnostic> diagnostics = await generatedCompilation
+            .WithAnalyzers([new GeneratedExportsAnalyzer()])
+            .GetAnalyzerDiagnosticsAsync(cancellationToken);
+
+        diagnostics.ShouldBeEmpty();
+    }
+
     [Fact]
     public void CreateFunctionModelStage_ShouldBeCacheable()
     {
@@ -65,29 +109,8 @@ public sealed class IncrementalPipelineTests
     )
         where TGenerator : IIncrementalGenerator
     {
-        VerifyHelper.AddReferenceAssemblyMarker<LuauState>();
-        VerifyHelper.AddReferenceAssemblyMarker<ILogger>();
-
-        CSharpParseOptions parseOptions = CSharpParseOptions
-            .Default.WithLanguageVersion(LanguageVersion.CSharp13)
-            .WithFeatures([new KeyValuePair<string, string>("InterceptorsNamespaces", "Darp.Luau.Generator")]);
-        SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(
-            SourceText.From(source.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n')),
-            parseOptions
-        );
-        PortableExecutableReference[] references = AppDomain
-            .CurrentDomain.GetAssemblies()
-            .Where(static x => !x.IsDynamic && !string.IsNullOrEmpty(x.Location))
-            .Where(static x => x.FullName?.Contains("JetBrains") is not true)
-            .Select(static x => MetadataReference.CreateFromFile(x.Location))
-            .ToArray();
-
-        var compilation = CSharpCompilation.Create(
-            assemblyName: Assembly.GetExecutingAssembly().FullName,
-            syntaxTrees: [syntaxTree],
-            references: references,
-            new CSharpCompilationOptions(OutputKind.NetModule, nullableContextOptions: NullableContextOptions.Enable)
-        );
+        CSharpParseOptions parseOptions = CreateParseOptions();
+        CSharpCompilation compilation = CreateCompilation(source, parseOptions);
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             generators: [generator.AsSourceGenerator()],
@@ -102,6 +125,37 @@ public sealed class IncrementalPipelineTests
         driver = driver.RunGenerators(compilation);
         secondRun = driver.GetRunResult();
         return firstRun;
+    }
+
+    private static CSharpParseOptions CreateParseOptions()
+    {
+        return CSharpParseOptions
+            .Default.WithLanguageVersion(LanguageVersion.CSharp13)
+            .WithFeatures([new KeyValuePair<string, string>("InterceptorsNamespaces", "Darp.Luau.Generator")]);
+    }
+
+    private static CSharpCompilation CreateCompilation(string source, CSharpParseOptions parseOptions)
+    {
+        VerifyHelper.AddReferenceAssemblyMarker<LuauState>();
+        VerifyHelper.AddReferenceAssemblyMarker<ILogger>();
+
+        SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(
+            SourceText.From(source.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n')),
+            parseOptions
+        );
+        PortableExecutableReference[] references = AppDomain
+            .CurrentDomain.GetAssemblies()
+            .Where(static x => !x.IsDynamic && !string.IsNullOrEmpty(x.Location))
+            .Where(static x => x.FullName?.Contains("JetBrains") is not true)
+            .Select(static x => MetadataReference.CreateFromFile(x.Location))
+            .ToArray();
+
+        return CSharpCompilation.Create(
+            assemblyName: Assembly.GetExecutingAssembly().FullName,
+            syntaxTrees: [syntaxTree],
+            references: references,
+            new CSharpCompilationOptions(OutputKind.NetModule, nullableContextOptions: NullableContextOptions.Enable)
+        );
     }
 
     private static void AssertCacheableStep(

@@ -21,12 +21,12 @@ public static class NonPartialLibrary
     },
     {
       Location: /*
+{
+    public const string LuauLibraryName = "ledger";
+                        ^^^^^^^^^^^^^^^
 
-[LuauLibrary("ledger")]
- ^^^^^^^^^^^^^^^^^^^^^
-public sealed partial class LedgerLibrary
 */
- : (9,1)-(9,22),
+ : (12,24)-(12,39),
       Message: Invalid generated export shape: library types cannot declare members named 'Register' or 'LuauLibraryName' because those names are generated,
       Severity: Error,
       Descriptor: {

@@ -2,12 +2,12 @@
   Diagnostics: [
     {
       Location: /*
-
-[LuauLibrary("ledger")]
- ^^^^^^^^^^^^^^^^^^^^^
-public sealed partial class LedgerLibrary
+{
+    public const string LuauLibraryName = "ledger";
+                        ^^^^^^^^^^^^^^^
+}
 */
- : (2,1)-(2,22),
+ : (5,24)-(5,39),
       Message: Invalid generated export shape: library types cannot declare members named 'Register' or 'LuauLibraryName' because those names are generated,
       Severity: Error,
       Descriptor: {

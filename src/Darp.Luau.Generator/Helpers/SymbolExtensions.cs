@@ -16,10 +16,40 @@ internal static class SymbolExtensions
 
     public static bool ImplementsManualUserdataHooks(this INamedTypeSymbol type, LuauApiSymbols apiSymbols)
     {
-        return type.AllInterfaces.Any(@interface =>
-            SymbolEqualityComparer.Default.Equals(@interface.OriginalDefinition, apiSymbols.LuauUserdataInterfaceSymbol)
-        );
+        return type.GetManualUserdataHookMembers(apiSymbols).Any();
     }
+
+    public static IEnumerable<ISymbol> GetManualUserdataHookMembers(this INamedTypeSymbol type, LuauApiSymbols apiSymbols)
+    {
+        if (
+            !type.AllInterfaces.Any(@interface =>
+                SymbolEqualityComparer.Default.Equals(
+                    @interface.OriginalDefinition,
+                    apiSymbols.LuauUserdataInterfaceSymbol
+                )
+            )
+        )
+            yield break;
+
+        foreach (ISymbol member in type.GetMembers())
+        {
+            if (
+                member.Name is "OnIndex" or "OnSetIndex" or "OnMethodCall"
+                && member.HasNonGeneratedDeclaration()
+            )
+            {
+                yield return member;
+            }
+        }
+    }
+
+    public static bool HasNonGeneratedDeclaration(this ISymbol symbol)
+    {
+        return !symbol.HasGeneratedCodeAttribute();
+    }
+
+    public static bool HasGeneratedCodeAttribute(this ISymbol symbol) =>
+        symbol.GetAttributes().Any(static attribute => attribute.AttributeClass.IsGeneratedCodeAttribute());
 
     public static Location GetAttributeLocation(AttributeData attribute, ISymbol fallbackSymbol)
     {
@@ -29,5 +59,11 @@ internal static class SymbolExtensions
     public static Location GetSymbolLocation(ISymbol symbol)
     {
         return symbol.Locations.FirstOrDefault() ?? Location.None;
+    }
+
+    private static bool IsGeneratedCodeAttribute(this INamedTypeSymbol? attributeType)
+    {
+        return attributeType is { Name: "GeneratedCodeAttribute" }
+            && attributeType.ContainingNamespace.ToDisplayString() == "System.CodeDom.Compiler";
     }
 }

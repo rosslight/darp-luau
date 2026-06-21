@@ -90,17 +90,7 @@ internal static class ExportValidator
                 );
             }
 
-            if (HasGeneratedLibraryMemberNameConflict(discoveredType.Symbol))
-            {
-                hasFatalTypeErrors = true;
-                diagnostics.Add(
-                    Diagnostic.Create(
-                        DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                        discoveredType.Origin.Location,
-                        "library types cannot declare members named 'Register' or 'LuauLibraryName' because those names are generated"
-                    )
-                );
-            }
+            hasFatalTypeErrors |= ReportGeneratedLibraryMemberNameConflicts(discoveredType.Symbol, diagnostics);
 
             if (discoveredType.Symbol.TypeKind == TypeKind.Struct)
             {
@@ -128,33 +118,46 @@ internal static class ExportValidator
             );
         }
 
-        if (context.ImplementsManualUserdataHooks(discoveredType.Symbol))
+        foreach (ISymbol hookMember in discoveredType.Symbol.GetManualUserdataHookMembers(context))
         {
-            hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
                     DiagnosticDescriptors.GeneratedUserdataManualInteropConflictDescriptor,
-                    discoveredType.Origin.Location,
+                    SymbolExtensions.GetSymbolLocation(hookMember),
                     discoveredType.Symbol.Name
                 )
             );
+            hasFatalTypeErrors = true;
         }
 
         return hasFatalTypeErrors;
     }
 
-    private static bool HasGeneratedLibraryMemberNameConflict(INamedTypeSymbol type)
+    private static bool ReportGeneratedLibraryMemberNameConflicts(
+        INamedTypeSymbol type,
+        List<Diagnostic> diagnostics
+    )
     {
+        bool hasConflicts = false;
         foreach (ISymbol member in type.GetMembers())
         {
             if (member.IsImplicitlyDeclared)
                 continue;
 
-            if (member.Name is "Register" or "LuauLibraryName")
-                return true;
+            if ((member.Name is "Register" or "LuauLibraryName") && member.HasNonGeneratedDeclaration())
+            {
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                        SymbolExtensions.GetSymbolLocation(member),
+                        "library types cannot declare members named 'Register' or 'LuauLibraryName' because those names are generated"
+                    )
+                );
+                hasConflicts = true;
+            }
         }
 
-        return false;
+        return hasConflicts;
     }
 
     private static void ReportDuplicateNames(
