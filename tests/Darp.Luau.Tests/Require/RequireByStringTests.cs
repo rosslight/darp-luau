@@ -1,3 +1,4 @@
+using Darp.Luau.Internal.Require;
 using Darp.Luau.Utils;
 using Shouldly;
 
@@ -61,7 +62,7 @@ public sealed class RequireByStringTests
 
         foreach ((string input, string expected) in cases)
         {
-            LuauRequireByString.Navigator.NormalizePath(input).ShouldBe(expected);
+            LuauModuleNavigator.NormalizePath(input).ShouldBe(expected);
         }
     }
 

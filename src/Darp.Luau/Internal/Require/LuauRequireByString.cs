@@ -8,7 +8,7 @@ using static Darp.Luau.Native.LuauNative;
 
 [assembly: DisableRuntimeMarshalling]
 
-namespace Darp.Luau;
+namespace Darp.Luau.Internal.Require;
 
 /// <summary>
 /// Implements require-by-string
@@ -16,192 +16,6 @@ namespace Darp.Luau;
 /// </summary>
 internal static unsafe partial class LuauRequireByString
 {
-    /// <summary>internal require context</summary>
-    internal sealed class Context : IDisposable, IRequireContext
-    {
-        internal enum RequireResolutionKind
-        {
-            NotFound = 0,
-            HostModule = 1,
-            ScriptModule = 2,
-            Error = 3,
-        }
-
-        internal readonly record struct RequireResolution(RequireResolutionKind Kind, LuauTable Module, string? Error)
-        {
-            public static RequireResolution NotFound { get; } = new(RequireResolutionKind.NotFound, default, null);
-
-            public static RequireResolution ScriptModule { get; } =
-                new(RequireResolutionKind.ScriptModule, default, null);
-
-            public static RequireResolution LoadedHostModule(LuauTable module) =>
-                new(RequireResolutionKind.HostModule, module, null);
-
-            public static RequireResolution LoadError(string error) => new(RequireResolutionKind.Error, default, error);
-        }
-
-        private delegate RequireResolution RequireResolver(Context context, string moduleName);
-
-        private sealed class HostModule(string name, LuauState.OnModuleLoad onLoad)
-        {
-            public string Name { get; } = name;
-            public LuauState.OnModuleLoad OnLoad { get; } = onLoad;
-            public LuauTable? CachedValue { get; set; }
-            public bool IsLoading { get; set; }
-        }
-
-        private readonly LuauState _state;
-        private GCHandle _handle;
-        private readonly Dictionary<string, HostModule> _hostModules = new(StringComparer.Ordinal);
-        private readonly List<RequireResolver> _resolvers;
-
-        internal Context(LuauState state)
-        {
-            _state = state;
-            _handle = GCHandle.Alloc(this);
-            _resolvers = [ResolveHostModule, ResolveScriptModule];
-        }
-
-        internal Navigators Navigators { get; } = new();
-
-        internal bool ScriptModulesEnabled { get; set; }
-
-        public string? LoadError { get; internal set; }
-
-        internal LuauState State => _state;
-
-        internal void RegisterHostModule(string name, LuauState.OnModuleLoad onLoad)
-        {
-            if (!_hostModules.TryAdd(name, new HostModule(name, onLoad)))
-                throw new InvalidOperationException($"Module '{name}' is already registered.");
-        }
-
-        internal unsafe void PushModule(lua_State* L, LuauTable module)
-        {
-            ulong handle = module.GetHandleOrThrow();
-            RegistryReferenceTracker.TrackedReference trackedReference = _state.GetTrackedReferenceOrThrow(handle);
-#if DEBUG
-            using var guard = new StackGuard(_state.L, expectedDelta: (nint)L == (nint)_state.L ? 1 : 0);
-#endif
-#pragma warning disable CA2000 // The pushed value is returned to the caller stack.
-            _ = trackedReference.PushToTop();
-#pragma warning restore CA2000
-            if ((nint)L != (nint)_state.L)
-                lua_xmove(_state.L, L, 1);
-        }
-
-        internal RequireResolution ResolveRequire(string moduleName)
-        {
-            foreach (RequireResolver resolver in _resolvers)
-            {
-                RequireResolution resolution = resolver(this, moduleName);
-                if (resolution.Kind != RequireResolutionKind.NotFound)
-                    return resolution;
-            }
-
-            return RequireResolution.NotFound;
-        }
-
-        internal void PushResolution(lua_State* L, RequireResolution resolution)
-        {
-            lua_pushinteger(L, (int)resolution.Kind);
-            switch (resolution.Kind)
-            {
-                case RequireResolutionKind.HostModule:
-                    PushModule(L, resolution.Module);
-                    break;
-                case RequireResolutionKind.Error:
-                    LuauStateMarshal.PushString(L, resolution.Error ?? "require failed");
-                    break;
-            }
-        }
-
-        private static RequireResolution ResolveHostModule(Context context, string name)
-        {
-            if (!context._hostModules.TryGetValue(name, out HostModule? registration))
-                return RequireResolution.NotFound;
-
-            if (registration.CachedValue is { } cached)
-                return RequireResolution.LoadedHostModule(cached);
-
-            if (registration.IsLoading)
-                return RequireResolution.LoadError($"module '{name}' is already loading");
-
-            registration.IsLoading = true;
-            try
-            {
-                LuauTable loaded = context._state.CreateTable();
-                try
-                {
-                    registration.OnLoad(context._state, loaded);
-                }
-                catch
-                {
-                    loaded.Dispose();
-                    throw;
-                }
-
-                registration.CachedValue = loaded;
-                return RequireResolution.LoadedHostModule(loaded);
-            }
-            catch (Exception exception)
-            {
-                return RequireResolution.LoadError(
-                    $"failed to load module '{name}': {exception.GetType().Name}: {exception.Message}"
-                );
-            }
-            finally
-            {
-                registration.IsLoading = false;
-            }
-        }
-
-        private static RequireResolution ResolveScriptModule(Context context, string path)
-        {
-            if (IsScriptModulePath(path))
-            {
-                return context.ScriptModulesEnabled
-                    ? RequireResolution.ScriptModule
-                    : RequireResolution.LoadError("script module require is not enabled");
-            }
-
-            return IsInvalidScriptModulePath(path)
-                ? RequireResolution.LoadError("require path must start with a valid prefix: ./, ../, or @")
-                : RequireResolution.NotFound;
-        }
-
-        /// <inheritdoc />
-        public void Dispose()
-        {
-            foreach (HostModule module in _hostModules.Values)
-            {
-                module.CachedValue?.Dispose();
-                module.CachedValue = null;
-            }
-            _hostModules.Clear();
-
-            if (_handle.IsAllocated)
-                _handle.Free();
-        }
-
-        internal void* ToVoidPtr()
-        {
-            return (void*)GCHandle.ToIntPtr(_handle);
-        }
-
-        internal static Context FromVoidPtr(void* pCtx)
-        {
-            var gchCtx = GCHandle.FromIntPtr((IntPtr)pCtx);
-            return gchCtx.Target as Context ?? throw new ArgumentException("invalid context pointer");
-        }
-
-        internal static Context FromUpvalue(lua_State* L)
-        {
-            void* pCtx = lua_tolightuserdata(L, unchecked((int)lua_upvalueindex(1)));
-            return FromVoidPtr(pCtx);
-        }
-    }
-
     /// <summary>Enables file-backed script modules for <see cref="LuauState"/>.</summary>
     /// <param name="state"></param>
     public static void EnableScriptModules(this LuauState state)
@@ -209,11 +23,11 @@ internal static unsafe partial class LuauRequireByString
         ArgumentNullException.ThrowIfNull(state);
         state.ThrowIfDisposed();
 
-        Context context = state.GetOrCreateRequireContext();
+        LuauModuleContext context = state.GetOrCreateRequireContext();
         context.ScriptModulesEnabled = true;
     }
 
-    internal static Context EnsureRequireInstalled(this LuauState state)
+    internal static LuauModuleContext EnsureRequireInstalled(this LuauState state)
     {
         ArgumentNullException.ThrowIfNull(state);
         state.ThrowIfDisposed();
@@ -238,9 +52,9 @@ internal static unsafe partial class LuauRequireByString
         config->load = &Load;
     }
 
-    internal static Context CreateAndInstallContext(LuauState state)
+    internal static LuauModuleContext CreateAndInstallContext(LuauState state)
     {
-        var context = new Context(state);
+        var context = new LuauModuleContext(state);
         try
         {
             InstallRequireFunction(state, context);
@@ -253,7 +67,7 @@ internal static unsafe partial class LuauRequireByString
         }
     }
 
-    private static void InstallRequireFunction(LuauState state, Context context)
+    private static void InstallRequireFunction(LuauState state, LuauModuleContext context)
     {
 #if DEBUG
         using var guard = new StackGuard(state.L, expectedDelta: 0);
@@ -297,7 +111,7 @@ internal static unsafe partial class LuauRequireByString
 
     private static LuauFunction CreateContextFunction(
         LuauState state,
-        Context context,
+        LuauModuleContext context,
         delegate* unmanaged[Cdecl]<lua_State*, int> callback
     )
     {
@@ -310,7 +124,7 @@ internal static unsafe partial class LuauRequireByString
         return new LuauFunction(state, reference);
     }
 
-    private static LuauFunction CreateProxyRequireFunction(LuauState state, Context context)
+    private static LuauFunction CreateProxyRequireFunction(LuauState state, LuauModuleContext context)
     {
 #if DEBUG
         using var guard = new StackGuard(state.L, expectedDelta: 0);
@@ -320,30 +134,33 @@ internal static unsafe partial class LuauRequireByString
         return new LuauFunction(state, reference);
     }
 
-    private static bool IsScriptModulePath(string path) =>
+    internal static bool IsScriptModulePath(string path) =>
         path.StartsWith("./", StringComparison.Ordinal)
         || path.StartsWith("../", StringComparison.Ordinal)
         || path.StartsWith('@');
 
-    private static bool IsInvalidScriptModulePath(string path) =>
+    internal static bool IsInvalidScriptModulePath(string path) =>
         path.Contains('/', StringComparison.Ordinal) || path.Contains('\\', StringComparison.Ordinal);
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int ResolveRequire(lua_State* L)
     {
-        Context context = Context.FromUpvalue(L);
+        LuauModuleContext context = LuauModuleContext.FromUpvalue(L);
         if (!LuauStateMarshal.TryGetString(L, 1, out ReadOnlySpan<byte> utf8ModuleName))
         {
-            lua_pushinteger(L, (int)Context.RequireResolutionKind.Error);
+            lua_pushinteger(L, (int)LuauModuleContext.RequireResolutionKind.Error);
             LuauStateMarshal.PushString(L, "bad argument #1 to 'require' (string expected)");
             return 2;
         }
 
         string moduleName = Encoding.UTF8.GetString(utf8ModuleName);
-        Context.RequireResolution resolution = context.ResolveRequire(moduleName);
+        LuauModuleContext.RequireResolution resolution = context.ResolveRequire(moduleName);
         context.PushResolution(L, resolution);
 
-        return resolution.Kind is Context.RequireResolutionKind.HostModule or Context.RequireResolutionKind.Error
+        return
+            resolution.Kind
+                is LuauModuleContext.RequireResolutionKind.HostModule
+                    or LuauModuleContext.RequireResolutionKind.Error
             ? 2
             : 1;
     }
@@ -398,8 +215,8 @@ internal static unsafe partial class LuauRequireByString
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult Reset(lua_State* L, void* ctx, byte* requirerChunkname)
     {
-        var context = Context.FromVoidPtr(ctx);
-        Navigator navigator = context.Navigators[L];
+        var context = LuauModuleContext.FromVoidPtr(ctx);
+        LuauModuleNavigator navigator = context.Navigators[L];
 
         string strChunkName = new((sbyte*)requirerChunkname);
         if (Equals(strChunkName, ChunkNameStdIn))
@@ -414,8 +231,8 @@ internal static unsafe partial class LuauRequireByString
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult JumpToAlias(lua_State* L, void* ctx, byte* path)
     {
-        var context = Context.FromVoidPtr(ctx);
-        Navigator navigator = context.Navigators[L];
+        var context = LuauModuleContext.FromVoidPtr(ctx);
+        LuauModuleNavigator navigator = context.Navigators[L];
 
         string strPath = new((sbyte*)path);
         if (!IsAbsolutePath(strPath))
@@ -427,8 +244,8 @@ internal static unsafe partial class LuauRequireByString
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult ToParent(lua_State* L, void* ctx)
     {
-        var context = Context.FromVoidPtr(ctx);
-        Navigator navigator = context.Navigators[L];
+        var context = LuauModuleContext.FromVoidPtr(ctx);
+        LuauModuleNavigator navigator = context.Navigators[L];
 
         return navigator.ToParent();
     }
@@ -436,8 +253,8 @@ internal static unsafe partial class LuauRequireByString
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult ToChild(lua_State* L, void* ctx, byte* name)
     {
-        var context = Context.FromVoidPtr(ctx);
-        Navigator navigator = context.Navigators[L];
+        var context = LuauModuleContext.FromVoidPtr(ctx);
+        LuauModuleNavigator navigator = context.Navigators[L];
 
         string strName = new((sbyte*)name);
         return navigator.ToChild(strName);
@@ -446,8 +263,8 @@ internal static unsafe partial class LuauRequireByString
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static bool IsModulePresent(lua_State* L, void* ctx)
     {
-        var context = Context.FromVoidPtr(ctx);
-        Navigator navigator = context.Navigators[L];
+        var context = LuauModuleContext.FromVoidPtr(ctx);
+        LuauModuleNavigator navigator = context.Navigators[L];
 
         return FileExists(navigator.FilePath);
     }
@@ -461,8 +278,8 @@ internal static unsafe partial class LuauRequireByString
         nuint* sizeOut
     )
     {
-        var context = Context.FromVoidPtr(ctx);
-        Navigator navigator = context.Navigators[L];
+        var context = LuauModuleContext.FromVoidPtr(ctx);
+        LuauModuleNavigator navigator = context.Navigators[L];
 
         string strChunkName = ChunkNamePrefix + navigator.FilePath;
         return Write(strChunkName, buffer, bufferSize, sizeOut);
@@ -477,8 +294,8 @@ internal static unsafe partial class LuauRequireByString
         nuint* sizeOut
     )
     {
-        var context = Context.FromVoidPtr(ctx);
-        Navigator navigator = context.Navigators[L];
+        var context = LuauModuleContext.FromVoidPtr(ctx);
+        LuauModuleNavigator navigator = context.Navigators[L];
 
         string strLoadName = navigator.AbsoluteFilePath;
         return Write(strLoadName, buffer, bufferSize, sizeOut);
@@ -493,8 +310,8 @@ internal static unsafe partial class LuauRequireByString
         nuint* sizeOut
     )
     {
-        var context = Context.FromVoidPtr(ctx);
-        Navigator navigator = context.Navigators[L];
+        var context = LuauModuleContext.FromVoidPtr(ctx);
+        LuauModuleNavigator navigator = context.Navigators[L];
 
         string strCacheKey = navigator.AbsoluteFilePath;
         return Write(strCacheKey, buffer, bufferSize, sizeOut);
@@ -503,8 +320,8 @@ internal static unsafe partial class LuauRequireByString
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_ConfigStatus GetConfigStatus(lua_State* L, void* ctx)
     {
-        var context = Context.FromVoidPtr(ctx);
-        Navigator navigator = context.Navigators[L];
+        var context = LuauModuleContext.FromVoidPtr(ctx);
+        LuauModuleNavigator navigator = context.Navigators[L];
 
         return navigator.GetConfigStatus();
     }
@@ -518,8 +335,8 @@ internal static unsafe partial class LuauRequireByString
         nuint* sizeOut
     )
     {
-        var context = Context.FromVoidPtr(ctx);
-        Navigator navigator = context.Navigators[L];
+        var context = LuauModuleContext.FromVoidPtr(ctx);
+        LuauModuleNavigator navigator = context.Navigators[L];
 
         string? strConfig = navigator.GetConfig();
         return Write(strConfig, buffer, bufferSize, sizeOut);
@@ -532,7 +349,7 @@ internal static unsafe partial class LuauRequireByString
         string strChunkName = new((sbyte*)chunkname);
         string strLoadName = new((sbyte*)loadname);
 
-        var context = Context.FromVoidPtr(ctx);
+        var context = LuauModuleContext.FromVoidPtr(ctx);
         context.LoadError = null;
 
         int nResults = 1; // default number of results pushed onto stack
@@ -631,7 +448,7 @@ internal static unsafe partial class LuauRequireByString
         return nResults;
     }
 
-    private static int ReportLoadError(lua_State* L, Context context, string strMsg)
+    private static int ReportLoadError(lua_State* L, LuauModuleContext context, string strMsg)
     {
         context.LoadError = strMsg;
 
@@ -667,7 +484,7 @@ internal static unsafe partial class LuauRequireByString
     [GeneratedRegex(@"^([a-zA-Z]:)?[\\/]")]
     private static partial Regex RegexAbsoluteWinPath();
 
-    private static bool IsAbsolutePath(string strPath)
+    internal static bool IsAbsolutePath(string strPath)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -681,7 +498,7 @@ internal static unsafe partial class LuauRequireByString
         }
     }
 
-    private static bool FileExists(string? strPath)
+    internal static bool FileExists(string? strPath)
     {
         if (OperatingSystem.IsWindows() && strPath is not null)
             strPath = strPath.Replace('/', '\\');
@@ -689,7 +506,7 @@ internal static unsafe partial class LuauRequireByString
         return File.Exists(strPath);
     }
 
-    private static bool DirectoryExists(string? strPath)
+    internal static bool DirectoryExists(string? strPath)
     {
         if (OperatingSystem.IsWindows() && strPath is not null)
             strPath = strPath.Replace('/', '\\');
@@ -697,7 +514,7 @@ internal static unsafe partial class LuauRequireByString
         return Directory.Exists(strPath);
     }
 
-    private static int RequiredIndexOfFirstSlash(this string str)
+    internal static int RequiredIndexOfFirstSlash(this string str)
     {
         int nPos = str.IndexOf('/', StringComparison.InvariantCulture);
         if (nPos < 0)
@@ -705,7 +522,7 @@ internal static unsafe partial class LuauRequireByString
         return nPos;
     }
 
-    private static int RequiredIndexOfLastSlash(this string str)
+    internal static int RequiredIndexOfLastSlash(this string str)
     {
         int nPos = str.LastIndexOf('/');
         if (nPos < 0)
@@ -713,17 +530,17 @@ internal static unsafe partial class LuauRequireByString
         return nPos;
     }
 
-    private static bool HasSuffix(this string str, string strSuffix)
+    internal static bool HasSuffix(this string str, string strSuffix)
     {
         return str.EndsWith(strSuffix, StringComparison.InvariantCulture);
     }
 
-    private static string RemoveSuffix(this string str, string strSuffix)
+    internal static string RemoveSuffix(this string str, string strSuffix)
     {
         return str.Remove(str.Length - strSuffix.Length);
     }
 
-    private static string? ReadFile(string strFileName)
+    internal static string? ReadFile(string strFileName)
     {
         try
         {
@@ -733,329 +550,5 @@ internal static unsafe partial class LuauRequireByString
         catch { }
 
         return null;
-    }
-
-    internal class Navigator
-    {
-        private static readonly string[] s_suffixes = [".luau", ".lua"];
-        private static readonly string[] s_initSuffixes = ["/init.luau", "/init.lua"];
-        private const string ConfigName = ".luaurc";
-        private const string LuauConfigName = ".config.luau";
-
-        private string _strModulePath = ""; // modulePath
-        private string _strAbsoluteModulePath = ""; // absoluteModulePath
-        private string _strAbsolutePathPrefix = ""; // absolutePathPrefix
-
-        public string FilePath { get; private set; } = ""; // realPath
-        public string AbsoluteFilePath { get; private set; } = ""; // absoluteRealPath
-
-        public luarequire_NavigateResult ResetToStdIn()
-        {
-            FilePath = "./stdin";
-            AbsoluteFilePath = NormalizePath(Directory.GetCurrentDirectory() + "/stdin");
-            _strModulePath = "./stdin";
-            _strAbsoluteModulePath = GetModulePath(AbsoluteFilePath);
-
-            int nPosFirstSlash = AbsoluteFilePath.RequiredIndexOfFirstSlash();
-            _strAbsolutePathPrefix = AbsoluteFilePath.Substring(0, nPosFirstSlash);
-
-            return luarequire_NavigateResult.NAVIGATE_SUCCESS;
-        }
-
-        public luarequire_NavigateResult ResetToPath(string strPath)
-        {
-            strPath = NormalizePath(strPath);
-
-            if (IsAbsolutePath(strPath))
-            {
-                _strAbsoluteModulePath = _strModulePath = GetModulePath(strPath);
-
-                int nPosFirstSlash = strPath.RequiredIndexOfFirstSlash();
-                _strAbsolutePathPrefix = strPath.Substring(0, nPosFirstSlash);
-            }
-            else
-            {
-                _strModulePath = GetModulePath(strPath);
-                string strJoinedPath = NormalizePath(Directory.GetCurrentDirectory() + "/" + strPath);
-                _strAbsoluteModulePath = GetModulePath(strJoinedPath);
-
-                int nPosFirstSlash = strJoinedPath.RequiredIndexOfFirstSlash();
-                _strAbsolutePathPrefix = strJoinedPath.Substring(0, nPosFirstSlash);
-            }
-
-            return UpdateRealPaths();
-        }
-
-        public luarequire_NavigateResult ToParent()
-        {
-            if (Equals(_strAbsoluteModulePath, "/"))
-                return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
-
-            int nNumSlashes = _strAbsoluteModulePath.Count(c => c == '/');
-            if (nNumSlashes <= 0)
-                throw new LuaException("No slashes found");
-            if (nNumSlashes == 1)
-                return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
-
-            _strModulePath = NormalizePath(_strModulePath + "/..");
-            _strAbsoluteModulePath = NormalizePath(_strAbsoluteModulePath + "/..");
-
-            // There is no ambiguity when navigating up in a tree.
-            luarequire_NavigateResult eResult = UpdateRealPaths();
-            if (eResult == luarequire_NavigateResult.NAVIGATE_AMBIGUOUS)
-                eResult = luarequire_NavigateResult.NAVIGATE_SUCCESS;
-            return eResult;
-        }
-
-        public luarequire_NavigateResult ToChild(string strName)
-        {
-            if (Equals(strName, ".config"))
-                return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
-
-            _strModulePath = NormalizePath(_strModulePath + "/" + strName);
-            _strAbsoluteModulePath = NormalizePath(_strAbsoluteModulePath + "/" + strName);
-            return UpdateRealPaths();
-        }
-
-        public luarequire_ConfigStatus GetConfigStatus()
-        {
-            bool bConfig = FileExists(GetConfigPath(ConfigName));
-            bool bLuauConfig = FileExists(GetConfigPath(LuauConfigName));
-
-            if (bConfig && bLuauConfig)
-                return luarequire_ConfigStatus.CONFIG_AMBIGUOUS;
-            if (bLuauConfig)
-                return luarequire_ConfigStatus.CONFIG_PRESENT_LUAU;
-            if (bConfig)
-                return luarequire_ConfigStatus.CONFIG_PRESENT_JSON;
-
-            return luarequire_ConfigStatus.CONFIG_ABSENT;
-        }
-
-        public string? GetConfig()
-        {
-            luarequire_ConfigStatus eStatus = GetConfigStatus();
-            return eStatus switch
-            {
-                luarequire_ConfigStatus.CONFIG_PRESENT_JSON => ReadFile(GetConfigPath(ConfigName)),
-                luarequire_ConfigStatus.CONFIG_PRESENT_LUAU => ReadFile(GetConfigPath(LuauConfigName)),
-                _ => throw new LuaException("Invalid config state"),
-            };
-        }
-
-        private luarequire_NavigateResult UpdateRealPaths()
-        {
-            var resolved = ResolvedRealPath.For(_strModulePath);
-            if (resolved.Result != luarequire_NavigateResult.NAVIGATE_SUCCESS)
-                return resolved.Result;
-
-            var absoluteResolved = ResolvedRealPath.For(_strAbsoluteModulePath);
-            if (absoluteResolved.Result != luarequire_NavigateResult.NAVIGATE_SUCCESS)
-                return absoluteResolved.Result;
-
-            FilePath = IsAbsolutePath(resolved.Path) ? _strAbsolutePathPrefix + resolved.Path : resolved.Path;
-            AbsoluteFilePath = _strAbsolutePathPrefix + absoluteResolved.Path;
-            return luarequire_NavigateResult.NAVIGATE_SUCCESS;
-        }
-
-        internal static string NormalizePath(string strPath)
-        {
-            string[] parts = strPath.Split('/', '\\');
-            bool bIsAbsolute = IsAbsolutePath(strPath);
-
-            //
-            // 1. Normalize path components
-            //
-
-            List<string> partsNormalized = [];
-            for (int i = bIsAbsolute ? 1 : 0; i < parts.Length; ++i)
-            {
-                string strPart = parts[i];
-                if (Equals(strPart, ".."))
-                {
-                    if (partsNormalized.Count == 0)
-                    {
-                        if (!bIsAbsolute)
-                            partsNormalized.Add("..");
-                    }
-                    else if (Equals(partsNormalized.Last(), ".."))
-                    {
-                        partsNormalized.Add("..");
-                    }
-                    else
-                    {
-                        partsNormalized.RemoveAt(partsNormalized.Count - 1);
-                    }
-                }
-                else if (strPart.Length > 0 && !Equals(strPart, "."))
-                {
-                    partsNormalized.Add(strPart);
-                }
-            }
-
-            var sbNormalized = new StringBuilder();
-
-            //
-            // 2. Add correct prefix to formatted path
-            //
-
-            if (bIsAbsolute)
-            {
-                sbNormalized.Append(parts[0]).Append('/');
-            }
-            else if (partsNormalized.Count == 0 || !Equals(partsNormalized[0], ".."))
-            {
-                sbNormalized.Append("./");
-            }
-
-            //
-            // 3. Join path components to form the normalized path
-            //
-
-            for (int i = 0; i < partsNormalized.Count; ++i)
-            {
-                if (i > 0)
-                    sbNormalized.Append('/');
-                sbNormalized.Append(partsNormalized[i]);
-            }
-
-            string strNormalized = sbNormalized.ToString();
-            if (strNormalized.HasSuffix(".."))
-                strNormalized += "/";
-            return strNormalized;
-        }
-
-        private string GetConfigPath(string strFileName)
-        {
-            string strDirectory = FilePath;
-
-            foreach (string strSuffix in s_initSuffixes)
-            {
-                if (strDirectory.HasSuffix(strSuffix))
-                {
-                    strDirectory = strDirectory.RemoveSuffix(strSuffix);
-                    return strDirectory + "/" + strFileName;
-                }
-            }
-
-            foreach (string strSuffix in s_suffixes)
-            {
-                if (strDirectory.HasSuffix(strSuffix))
-                {
-                    strDirectory = strDirectory.RemoveSuffix(strSuffix);
-                    return strDirectory + "/" + strFileName;
-                }
-            }
-
-            return strDirectory + "/" + strFileName;
-        }
-
-        private static string GetModulePath(string strFilePath)
-        {
-            strFilePath = strFilePath.Replace('\\', '/');
-
-            if (IsAbsolutePath(strFilePath))
-            {
-                int nPosFirstSlash = strFilePath.RequiredIndexOfFirstSlash();
-                strFilePath = strFilePath.Remove(0, nPosFirstSlash);
-            }
-
-            foreach (string strSuffix in s_initSuffixes)
-            {
-                if (strFilePath.HasSuffix(strSuffix))
-                    return strFilePath.RemoveSuffix(strSuffix);
-            }
-
-            foreach (string strSuffix in s_suffixes)
-            {
-                if (strFilePath.HasSuffix(strSuffix))
-                    return strFilePath.RemoveSuffix(strSuffix);
-            }
-
-            return strFilePath;
-        }
-
-        private class ResolvedRealPath
-        {
-            public luarequire_NavigateResult Result { get; }
-            public string Path { get; init; }
-
-            private ResolvedRealPath(luarequire_NavigateResult eResult)
-            {
-                Result = eResult;
-                Path = "";
-            }
-
-            public static ResolvedRealPath For(string strModulePath)
-            {
-                int nPosLastSlash = strModulePath.RequiredIndexOfLastSlash();
-                string strLastPart = strModulePath.Substring(nPosLastSlash + 1);
-                string? strSuffix = null;
-
-                if (!Equals(strLastPart, "init"))
-                {
-                    foreach (string strPotentialSuffix in s_suffixes)
-                    {
-                        if (FileExists(strModulePath + strPotentialSuffix))
-                        {
-                            if (strSuffix is not null)
-                                return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
-
-                            strSuffix = strPotentialSuffix;
-                        }
-                    }
-                }
-
-                if (DirectoryExists(strModulePath))
-                {
-                    if (strSuffix is not null)
-                        return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
-
-                    foreach (string strPotentialSuffix in s_initSuffixes)
-                    {
-                        if (FileExists(strModulePath + strPotentialSuffix))
-                        {
-                            if (strSuffix is not null)
-                                return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_AMBIGUOUS);
-
-                            strSuffix = strPotentialSuffix;
-                        }
-                    }
-
-                    strSuffix ??= ""; // if no suffix was found yet strModulePath (without suffix) is the real path
-                }
-
-                if (strSuffix is null)
-                    return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_NOT_FOUND);
-
-                return new ResolvedRealPath(luarequire_NavigateResult.NAVIGATE_SUCCESS)
-                {
-                    Path = strModulePath + strSuffix,
-                };
-            }
-        }
-    }
-
-    internal class Navigators
-    {
-        private readonly Lock _dictLock = new();
-        private readonly Dictionary<nint, Navigator> _dict = [];
-
-        public Navigator this[lua_State* L]
-        {
-            get
-            {
-                lock (_dictLock)
-                {
-                    nint nKey = (nint)L;
-                    if (!_dict.TryGetValue(nKey, out Navigator? nav))
-                    {
-                        nav = new Navigator();
-                        _dict.Add(nKey, nav);
-                    }
-                    return nav;
-                }
-            }
-        }
     }
 }

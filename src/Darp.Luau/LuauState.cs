@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Darp.Luau.Internal.Require;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -20,7 +21,7 @@ public sealed unsafe class LuauState : IDisposable
     private readonly ulong _callbackWrapperReference;
     private readonly UserdataRegistrationCache _cache;
 
-    internal LuauRequireByString.Context? _requireContext;
+    internal LuauModuleContext? _requireContext;
 
     /// <summary>require-by-string context for state. is created if require-by-string gets enabled</summary>
     public IRequireContext? RequireContext => _requireContext;
@@ -155,7 +156,7 @@ public sealed unsafe class LuauState : IDisposable
                 nameof(name)
             );
 
-        LuauRequireByString.Context context = this.EnsureRequireInstalled();
+        LuauModuleContext context = this.EnsureRequireInstalled();
         context.RegisterHostModule(name, onLoad);
     }
 
@@ -180,12 +181,12 @@ public sealed unsafe class LuauState : IDisposable
         return module;
     }
 
-    internal LuauRequireByString.Context GetOrCreateRequireContext()
+    internal LuauModuleContext GetOrCreateRequireContext()
     {
         if (_requireContext is { } context)
             return context;
 
-        _requireContext = LuauRequireByString.CreateAndInstallContext(this);
+        _requireContext = Internal.Require.LuauRequireByString.CreateAndInstallContext(this);
         return _requireContext;
     }
 
