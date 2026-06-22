@@ -178,6 +178,32 @@ public class InterceptorTests
     }
 
     [Fact]
+    public async Task GeneratedUserdataParameterAndReturn()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata]
+            public sealed partial class HeroCard
+            {
+                [LuauMember("name")]
+                public string Name { get; set; } = "";
+            }
+
+            public static class Hi
+            {
+                public static void DoSomething(LuauState state, HeroCard hero)
+                {
+                    state.CreateFunction((HeroCard value) => value.Name);
+                    state.CreateFunction(() => hero);
+                }
+            }
+            """;
+
+        await VerifyHelper.VerifyCreateFunctionWithGeneratedExportsSucceeds(code);
+    }
+
+    [Fact]
     public async Task ReturnParameters()
     {
         const string code = """

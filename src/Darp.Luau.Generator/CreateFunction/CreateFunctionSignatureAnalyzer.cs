@@ -26,6 +26,7 @@ internal static class CreateFunctionSignatureAnalyzer
         }
 
         InterceptableLocation? location = semanticModel.GetInterceptableLocation(syntax);
+        LuauApiSymbols? apiSymbols = LuauApiSymbols.Create(semanticModel.Compilation);
         if (location is null)
         {
             diagnostics.Add(
@@ -38,7 +39,7 @@ internal static class CreateFunctionSignatureAnalyzer
             return new CreateFunctionAnalysisResult(null, diagnostics.ToImmutableArray());
         }
 
-        if (!TryExtractSignature(invocationOperation, out InteropSignature signature, diagnostics))
+        if (!TryExtractSignature(invocationOperation, apiSymbols, out InteropSignature signature, diagnostics))
             return new CreateFunctionAnalysisResult(null, diagnostics.ToImmutableArray());
 
         return new CreateFunctionAnalysisResult(
@@ -49,6 +50,7 @@ internal static class CreateFunctionSignatureAnalyzer
 
     private static bool TryExtractSignature(
         IInvocationOperation invocationOperation,
+        LuauApiSymbols? apiSymbols,
         out InteropSignature signature,
         List<Diagnostic> diagnostics
     )
@@ -108,6 +110,7 @@ internal static class CreateFunctionSignatureAnalyzer
                     parameterLocation,
                     usageDescription,
                     LuauInteropTypeUsage.CreateFunctionParameter,
+                    apiSymbols,
                     out InteropType parameterType,
                     diagnostics
                 )
@@ -138,6 +141,7 @@ internal static class CreateFunctionSignatureAnalyzer
         if (
             !TryExtractReturnTypes(
                 invocationOperation,
+                apiSymbols,
                 invokeMethod.ReturnType,
                 invokeMethod.ReturnNullableAnnotation,
                 returnOverrides,
@@ -161,11 +165,18 @@ internal static class CreateFunctionSignatureAnalyzer
         Location diagnosticLocation,
         string usageDescription,
         LuauInteropTypeUsage usage,
+        LuauApiSymbols? apiSymbols,
         out InteropType interopType,
         List<Diagnostic> diagnostics
     )
     {
-        if (!InteropTypeMapper.TryMapType(type, out InteropType mapping))
+        if (
+            !InteropTypeMapper.TryMapType(type, out InteropType mapping)
+            && (
+                apiSymbols is null
+                || !InteropTypeMapper.TryMapGeneratedUserdataType(type, apiSymbols, out mapping)
+            )
+        )
         {
             diagnostics.Add(
                 Diagnostic.Create(
@@ -213,6 +224,7 @@ internal static class CreateFunctionSignatureAnalyzer
 
     private static bool TryExtractReturnTypes(
         IInvocationOperation invocationOperation,
+        LuauApiSymbols? apiSymbols,
         ITypeSymbol returnType,
         NullableAnnotation returnNullableAnnotation,
         ImmutableArray<LambdaReturnOverride> returnOverrides,
@@ -231,6 +243,7 @@ internal static class CreateFunctionSignatureAnalyzer
                 "the return value",
                 returnTypes,
                 diagnostics,
+                apiSymbols,
                 nullableAnnotationOverride: returnNullableAnnotation,
                 nullableOverride: returnOverrides is [var singleOverride] ? singleOverride.IsNullable : null
             );
@@ -274,6 +287,7 @@ internal static class CreateFunctionSignatureAnalyzer
                     usageDescription,
                     returnTypes,
                     diagnostics,
+                    apiSymbols,
                     tupleElement.NullableAnnotation,
                     tupleElement.Name,
                     returnOverrides.Length > i ? returnOverrides[i].IsNullable : null
@@ -293,6 +307,7 @@ internal static class CreateFunctionSignatureAnalyzer
         string returnUsageDescription,
         ImmutableArray<InteropType>.Builder returnTypes,
         List<Diagnostic> diagnostics,
+        LuauApiSymbols? apiSymbols,
         NullableAnnotation? nullableAnnotationOverride = null,
         string? tupleElementName = null,
         bool? nullableOverride = null
@@ -304,6 +319,7 @@ internal static class CreateFunctionSignatureAnalyzer
                 returnLocation,
                 returnUsageDescription,
                 LuauInteropTypeUsage.CreateFunctionReturn,
+                apiSymbols,
                 out InteropType mappedReturnType,
                 diagnostics
             )

@@ -118,6 +118,30 @@ internal static class ExportValidator
             );
         }
 
+        if (discoveredType.Symbol.ContainingType is not null)
+        {
+            hasFatalTypeErrors = true;
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                    discoveredType.Origin.Location,
+                    "nested userdata types are not supported in v1"
+                )
+            );
+        }
+
+        if (discoveredType.Symbol.TypeParameters.Length > 0)
+        {
+            hasFatalTypeErrors = true;
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                    discoveredType.Origin.Location,
+                    "generic userdata types are not supported in v1"
+                )
+            );
+        }
+
         foreach (ISymbol hookMember in discoveredType.Symbol.GetManualUserdataHookMembers(context))
         {
             diagnostics.Add(

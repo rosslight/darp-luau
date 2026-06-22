@@ -643,38 +643,14 @@ internal static class ExportAnalyzer
         if (InteropTypeMapper.TryMapType(type, out mapping) && IsMappingSupportedForUsage(mapping, usage))
             return true;
 
-        if (TryMapGeneratedUserdataType(type, context, out mapping) && IsMappingSupportedForUsage(mapping, usage))
+        if (
+            InteropTypeMapper.TryMapGeneratedUserdataType(type, context, out mapping)
+            && IsMappingSupportedForUsage(mapping, usage)
+        )
             return true;
 
         mapping = default;
         return false;
-    }
-
-    private static bool TryMapGeneratedUserdataType(
-        ITypeSymbol type,
-        LuauApiSymbols context,
-        out InteropType mapping
-    )
-    {
-        if (type is not INamedTypeSymbol namedType)
-        {
-            mapping = default;
-            return false;
-        }
-
-        if (context.GetUserdataAttribute(namedType) is null)
-        {
-            mapping = default;
-            return false;
-        }
-
-        mapping = new InteropType(
-            LuauInteropKind.ManagedUserdata,
-            type.NullableAnnotation is NullableAnnotation.Annotated,
-            namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-            IsGeneratedUserdata: true
-        );
-        return true;
     }
 
     private static bool IsMappingSupportedForUsage(InteropType mapping, LuauInteropTypeUsage usage)

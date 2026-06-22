@@ -82,6 +82,39 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task GenericUserdataType_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauUserdata]
+            public sealed partial class Player<T>
+            {
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task NestedUserdataType_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            public static class Container
+            {
+                [LuauUserdata]
+                public sealed partial class Player
+                {
+                }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
     public async Task LibraryPathConflictsAndInvalidPaths_ShouldFail()
     {
         const string code = """

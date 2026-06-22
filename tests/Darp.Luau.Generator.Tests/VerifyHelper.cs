@@ -183,6 +183,80 @@ public static class VerifyHelper
         );
     }
 
+    public static async Task VerifyCreateFunctionWithGeneratedExportsSucceeds(string source)
+    {
+        AddReferenceAssemblyMarker<LuauState>();
+        AddReferenceAssemblyMarker<ILogger>();
+
+        CSharpParseOptions parseOptions = CSharpParseOptions
+            .Default.WithLanguageVersion(LanguageVersion.CSharp13)
+            .WithFeatures(new Dictionary<string, string> { { "InterceptorsNamespaces", "Darp.Luau.Generator" } });
+        SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(NormalizeLineEndings(source), parseOptions);
+
+        PortableExecutableReference[] references = AppDomain
+            .CurrentDomain.GetAssemblies()
+            .Where(static assembly => !assembly.IsDynamic && !string.IsNullOrEmpty(assembly.Location))
+            .Where(static assembly => assembly.FullName?.Contains("JetBrains") is not true)
+            .Select(static assembly => MetadataReference.CreateFromFile(assembly.Location))
+            .ToArray();
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: Assembly.GetExecutingAssembly().FullName,
+            syntaxTrees: [syntaxTree],
+            references: references,
+            new CSharpCompilationOptions(OutputKind.NetModule, nullableContextOptions: NullableContextOptions.Enable)
+        );
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators:
+            [
+                new GeneratedExportsGenerator().AsSourceGenerator(),
+                new CreateFunctionGenerator().AsSourceGenerator(),
+            ],
+            parseOptions: parseOptions
+        );
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation newCompilation, out _);
+
+        GeneratorDriverRunResult runResult = driver.GetRunResult();
+        ImmutableArray<Diagnostic> generatorDiagnostics = runResult.Results
+            .SelectMany(static result => result.Diagnostics)
+            .ToImmutableArray();
+        ImmutableArray<Diagnostic> compilationDiagnostics = newCompilation.GetDiagnostics();
+        ImmutableArray<Diagnostic> analyzerDiagnostics = await compilation
+            .WithAnalyzers(
+                ImmutableArray.Create<DiagnosticAnalyzer>(
+                    new GeneratedExportsAnalyzer(),
+                    new CreateFunctionUsageAnalyzer()
+                )
+            )
+            .GetAnalyzerDiagnosticsAsync();
+
+        Diagnostic[] invalidDiagnostics = compilationDiagnostics
+            .Concat(generatorDiagnostics)
+            .Concat(analyzerDiagnostics)
+            .Where(static diagnostic => IsDiagnosticInvalid(null, diagnostic))
+            .OrderBy(static diagnostic => diagnostic.Location.SourceTree?.FilePath ?? "", StringComparer.Ordinal)
+            .ThenBy(static diagnostic => diagnostic.Location.SourceSpan.Start)
+            .ThenBy(static diagnostic => diagnostic.Id, StringComparer.Ordinal)
+            .ThenBy(static diagnostic => diagnostic.GetMessage(), StringComparer.Ordinal)
+            .ToArray();
+        invalidDiagnostics.ShouldBeEmpty(
+            string.Join(
+                "\n",
+                invalidDiagnostics.Select(static diagnostic =>
+                    $"[{diagnostic.Location.GetLineSpan()}] {diagnostic.Id}: {diagnostic.GetMessage()}"
+                )
+            )
+                + "\n"
+                + string.Join("\n", runResult.ToReadableString())
+        );
+
+        runResult.Results
+            .SelectMany(static result => result.GeneratedSources)
+            .Count(static source => source.HintName.Contains("CreateFunctionInterceptors", StringComparison.Ordinal))
+            .ShouldBe(2);
+    }
+
     /// <summary>
     /// This functions ensures that the assembly is referenced and <see cref="AppDomain.GetAssemblies()"/> of the <see cref="AppDomain.CurrentDomain"/> contains this assembly
     /// </summary>

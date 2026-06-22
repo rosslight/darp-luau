@@ -30,6 +30,35 @@ internal static class InteropTypeMapper
         return false;
     }
 
+    public static bool TryMapGeneratedUserdataType(
+        ITypeSymbol type,
+        LuauApiSymbols apiSymbols,
+        out InteropType mapping
+    )
+    {
+        if (
+            type is not INamedTypeSymbol
+            {
+                TypeKind: TypeKind.Class,
+                ContainingType: null,
+                TypeParameters.Length: 0,
+            } namedType
+            || apiSymbols.GetUserdataAttribute(namedType) is null
+        )
+        {
+            mapping = default;
+            return false;
+        }
+
+        mapping = new InteropType(
+            LuauInteropKind.ManagedUserdata,
+            type.NullableAnnotation is NullableAnnotation.Annotated,
+            namedType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            IsGeneratedUserdata: true
+        );
+        return true;
+    }
+
     public static bool TryMapType(ITypeSymbol type, out InteropType mapping)
     {
         bool isNullable = type.NullableAnnotation is NullableAnnotation.Annotated;
