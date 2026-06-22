@@ -19,7 +19,7 @@ public sealed partial class RecoverableLibrary
             {
                 if (!args.TryValidateArgumentCount(0, out string? error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                var returns = CreateField();
+                var returns = this.CreateField();
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             });
             lib.Set("Field", __var0);
@@ -27,7 +27,7 @@ public sealed partial class RecoverableLibrary
             {
                 if (!args.TryValidateArgumentCount(0, out string? error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                var returns = DuplicateOne();
+                var returns = this.DuplicateOne();
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             });
             lib.Set("duplicate", __var1);
@@ -35,7 +35,7 @@ public sealed partial class RecoverableLibrary
             {
                 if (!args.TryValidateArgumentCount(0, out string? error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                var returns = Ok();
+                var returns = this.Ok();
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             });
             lib.Set("ok", __var2);

@@ -82,6 +82,26 @@ public class GeneratedExportsTests
     }
 
     [Fact]
+    public async Task FileLocalExportTypes_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauLibrary("file_local")]
+            file static partial class FileLocalLibrary
+            {
+            }
+
+            [LuauUserdata]
+            file sealed partial class FileLocalUserdata
+            {
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
     public async Task GenericUserdataType_ShouldFail()
     {
         const string code = """

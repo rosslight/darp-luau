@@ -25,7 +25,7 @@ public static partial class ArcadeLibrary
                 if (!args.TryReadNumber(parameterIndex: 2, out double a2Raw, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 int a2 = (int)a2Raw;
-                var returns = AddScore(a1, a2);
+                var returns = global::ArcadeLibrary.AddScore(a1, a2);
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             });
             lib.Set("add_score", __var0);

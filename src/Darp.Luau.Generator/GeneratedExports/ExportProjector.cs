@@ -36,6 +36,8 @@ internal static class ExportProjector
                 property.Property.Setter is null ? null : new GeneratedExportAccessorIr(property.Property.Setter.Type)
             ),
             NormalizedExportMethodMember method => new GeneratedExportMethodIr(
+                method.MethodSymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                method.MethodSymbol.IsStatic,
                 method.ManagedName,
                 method.LuauName,
                 method.PathSegments,

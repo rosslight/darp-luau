@@ -49,6 +49,18 @@ internal static class ExportValidator
             );
         }
 
+        if (discoveredType.Symbol.IsFileLocal())
+        {
+            hasFatalTypeErrors = true;
+            diagnostics.Add(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                    discoveredType.Origin.Location,
+                    "file-local generated export types are not supported because generated partial sources are emitted into separate files"
+                )
+            );
+        }
+
         if (discoveredType.Kind == LuauExportedTypeKind.Library)
         {
             string? libraryName = AttributeReader.GetStringConstructorArgument(

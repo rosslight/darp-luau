@@ -14,6 +14,13 @@ internal static class SymbolExtensions
                 .All(static x => x.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.PartialKeyword)));
     }
 
+    public static bool IsFileLocal(this INamedTypeSymbol type)
+    {
+        return type.DeclaringSyntaxReferences.Select(static x => x.GetSyntax())
+            .OfType<TypeDeclarationSyntax>()
+            .Any(static x => x.Modifiers.Any(static modifier => modifier.IsKind(SyntaxKind.FileKeyword)));
+    }
+
     public static bool ImplementsManualUserdataHooks(this INamedTypeSymbol type, LuauApiSymbols apiSymbols)
     {
         return type.GetManualUserdataHookMembers(apiSymbols).Any();
@@ -31,14 +38,26 @@ internal static class SymbolExtensions
         )
             yield break;
 
-        foreach (ISymbol member in type.GetMembers())
+        foreach (INamedTypeSymbol @interface in type.AllInterfaces)
         {
             if (
-                member.Name is "OnIndex" or "OnSetIndex" or "OnMethodCall"
-                && member.HasNonGeneratedDeclaration()
+                !SymbolEqualityComparer.Default.Equals(
+                    @interface.OriginalDefinition,
+                    apiSymbols.LuauUserdataInterfaceSymbol
+                )
             )
+                continue;
+
+            foreach (ISymbol interfaceMember in @interface.GetMembers())
             {
-                yield return member;
+                ISymbol? implementation = type.FindImplementationForInterfaceMember(interfaceMember);
+                if (
+                    implementation is IMethodSymbol { Name: "OnIndex" or "OnSetIndex" or "OnMethodCall" }
+                    && implementation.HasNonGeneratedDeclaration()
+                )
+                {
+                    yield return implementation;
+                }
             }
         }
     }

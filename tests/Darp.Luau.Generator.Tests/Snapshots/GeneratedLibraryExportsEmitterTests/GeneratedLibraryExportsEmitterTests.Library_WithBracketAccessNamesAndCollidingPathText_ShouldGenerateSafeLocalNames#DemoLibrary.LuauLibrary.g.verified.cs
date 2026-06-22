@@ -20,7 +20,7 @@ public static partial class DemoLibrary
             {
                 if (!args.TryValidateArgumentCount(0, out string? error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                var returns = One();
+                var returns = global::DemoLibrary.One();
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             });
             __var0.Set("b_c", __var1);
@@ -31,7 +31,7 @@ public static partial class DemoLibrary
             {
                 if (!args.TryValidateArgumentCount(0, out string? error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                var returns = Two();
+                var returns = global::DemoLibrary.Two();
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             });
             __var2.Set("c", __var3);
@@ -41,7 +41,7 @@ public static partial class DemoLibrary
             {
                 if (!args.TryValidateArgumentCount(0, out string? error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                var returns = FooBar();
+                var returns = global::DemoLibrary.FooBar();
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             });
             lib.Set("foo-bar", __var4);
@@ -50,7 +50,7 @@ public static partial class DemoLibrary
             {
                 if (!args.TryValidateArgumentCount(0, out string? error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                var returns = CreateItem();
+                var returns = global::DemoLibrary.CreateItem();
                 return global::Darp.Luau.LuauReturn.Ok(returns);
             });
             __var5.Set("create item", __var6);

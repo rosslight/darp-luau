@@ -15,6 +15,7 @@ internal static class CreateFunctionDiscovery
             {
                 Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "CreateFunction" }
                     or IdentifierNameSyntax { Identifier.ValueText: "CreateFunction" }
+                    or GenericNameSyntax { Identifier.ValueText: "CreateFunction" }
             };
     }
 

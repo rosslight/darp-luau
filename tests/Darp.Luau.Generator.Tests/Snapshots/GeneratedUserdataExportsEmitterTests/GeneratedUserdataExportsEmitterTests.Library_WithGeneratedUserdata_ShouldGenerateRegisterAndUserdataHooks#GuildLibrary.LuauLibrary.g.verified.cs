@@ -23,7 +23,7 @@ public static partial class GuildLibrary
                 if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
-                var returns = CreateHero(a1);
+                var returns = global::GuildLibrary.CreateHero(a1);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             });
             __var0.Set("create", __var1);
@@ -36,7 +36,7 @@ public static partial class GuildLibrary
                 if (!args.TryReadUtf8String(parameterIndex: 2, out global::System.ReadOnlySpan<byte> a2Raw, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 string a2 = global::System.Text.Encoding.UTF8.GetString(a2Raw);
-                RenameHero(a1, a2);
+                global::GuildLibrary.RenameHero(a1, a2);
                 return global::Darp.Luau.LuauReturn.Ok();
             });
             __var0.Set("rename", __var2);

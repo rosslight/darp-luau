@@ -23,7 +23,7 @@ public sealed partial class GuildLibrary
                 if (!args.TryReadUtf8String(parameterIndex: 1, out global::System.ReadOnlySpan<byte> a1Raw, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
                 string a1 = global::System.Text.Encoding.UTF8.GetString(a1Raw);
-                var returns = CreateHero(a1);
+                var returns = this.CreateHero(a1);
                 return global::Darp.Luau.LuauReturn.Ok(global::Darp.Luau.IntoLuau.FromUserdata(returns));
             });
             __var0.Set("create", __var1);

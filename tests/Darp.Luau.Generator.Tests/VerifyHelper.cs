@@ -222,7 +222,7 @@ public static class VerifyHelper
             .SelectMany(static result => result.Diagnostics)
             .ToImmutableArray();
         ImmutableArray<Diagnostic> compilationDiagnostics = newCompilation.GetDiagnostics();
-        ImmutableArray<Diagnostic> analyzerDiagnostics = await compilation
+        ImmutableArray<Diagnostic> analyzerDiagnostics = await newCompilation
             .WithAnalyzers(
                 ImmutableArray.Create<DiagnosticAnalyzer>(
                     new GeneratedExportsAnalyzer(),
@@ -354,7 +354,7 @@ public static class VerifyHelper
         ImmutableArray<Diagnostic> compilationDiagnostics = newCompilation.GetDiagnostics();
         ImmutableArray<Diagnostic> analyzerDiagnostics = analyzers.IsDefaultOrEmpty
             ? []
-            : await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync();
+            : await newCompilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync();
 
         IEnumerable<Diagnostic> snapshotDiagnostics = [];
         if (verifyCompilationDiagnosticsSnapshot)

@@ -18,8 +18,9 @@ internal static class ExportCallbackEmitter
 
     public static void WriteStaticMethodBody(IndentedTextWriter writer, GeneratedExportMethodIr method)
     {
+        string receiverExpression = method.IsStatic ? method.ContainingTypeName : "this";
         string callExpression =
-            $"{method.ManagedName}({string.Join(", ", Enumerable.Range(1, method.Parameters.Length).Select(static i => $"a{i}"))})";
+            $"{receiverExpression}.{method.ManagedName}({string.Join(", ", Enumerable.Range(1, method.Parameters.Length).Select(static i => $"a{i}"))})";
         WriteBody(writer, method, callExpression);
     }
 

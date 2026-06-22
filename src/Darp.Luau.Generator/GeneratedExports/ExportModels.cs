@@ -131,6 +131,8 @@ internal sealed record GeneratedExportPropertyIr(
 ) : GeneratedExportMemberIr(ManagedName, LuauName, PathSegments);
 
 internal sealed record GeneratedExportMethodIr(
+    string ContainingTypeName,
+    bool IsStatic,
     string ManagedName,
     string LuauName,
     ImmutableEquatableArray<string> PathSegments,
