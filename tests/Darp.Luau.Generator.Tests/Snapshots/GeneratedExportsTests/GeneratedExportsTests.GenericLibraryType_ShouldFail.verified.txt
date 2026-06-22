@@ -1,7 +1,13 @@
-{
+﻿{
   Diagnostics: [
     {
-      Location: SourceFile([19..39)),
+      Location: /*
+
+[LuauLibrary("vault")]
+ ^^^^^^^^^^^^^^^^^^^^
+public sealed partial class VaultLibrary<T>
+*/
+ : (2,1)-(2,21),
       Message: Invalid generated export shape: generic library types are not supported in v1,
       Severity: Error,
       Descriptor: {

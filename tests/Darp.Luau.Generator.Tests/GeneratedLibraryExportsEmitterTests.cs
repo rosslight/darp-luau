@@ -32,6 +32,23 @@ public sealed class GeneratedLibraryExportsEmitterTests
     }
 
     [Fact]
+    public async Task StaticLibrary_WithMethodNameCollidingWithGeneratedLocal_ShouldGenerateQualifiedCall()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauLibrary("collisions")]
+            public static partial class CollisionLibrary
+            {
+                [LuauMember("returns")]
+                public static int returns() => 7;
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsSource(code);
+    }
+
+    [Fact]
     public async Task InstanceLibrary_ShouldGenerateRegisterMethod()
     {
         const string code = """

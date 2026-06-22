@@ -12,12 +12,9 @@ public sealed class GeneratedLibraryRegistrationTests
         ArcadeLibrary.Register(state);
         state.Load("sum = arcade.add_score(40, 2); tokens = arcade.tokens; difficulty = arcade.difficulty").Execute();
 
-        state.Globals.TryGet("sum", out int sum).ShouldBeTrue();
-        sum.ShouldBe(42);
-        state.Globals.TryGet("tokens", out int tokens).ShouldBeTrue();
-        tokens.ShouldBe(7);
-        state.Globals.TryGet("difficulty", out int difficulty).ShouldBeTrue();
-        difficulty.ShouldBe((int)ArcadeDifficulty.Hard);
+        state.Globals.GetNumber("sum").ShouldBe(42);
+        state.Globals.GetNumber("tokens").ShouldBe(7);
+        state.Globals.GetNumber("difficulty").ShouldBe((int)ArcadeDifficulty.Hard);
     }
 
     [Fact]
@@ -29,8 +26,7 @@ public sealed class GeneratedLibraryRegistrationTests
         workshop.Register(state);
         state.Load("bundle = workshop.tools.hammer(5)").Execute();
 
-        state.Globals.TryGet("bundle", out int bundle).ShouldBeTrue();
-        bundle.ShouldBe(10);
+        state.Globals.GetNumber("bundle").ShouldBe(10);
     }
 
     [Fact]
@@ -42,9 +38,7 @@ public sealed class GeneratedLibraryRegistrationTests
         guild.Register(state);
         state.Load("champion = guild.heroes.create('Ada')").Execute();
 
-        state.Globals.TryGetUserdata("champion", out HeroCard? champion).ShouldBeTrue();
-        champion.ShouldNotBeNull();
-        champion.Name.ShouldBe("Ada");
+        state.Globals.GetUserdata<HeroCard>("champion").Name.ShouldBe("Ada");
     }
 
     [Fact]

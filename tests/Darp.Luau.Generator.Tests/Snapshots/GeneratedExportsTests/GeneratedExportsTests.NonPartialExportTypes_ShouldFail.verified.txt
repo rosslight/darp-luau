@@ -1,7 +1,13 @@
-{
+﻿{
   Diagnostics: [
     {
-      Location: SourceFile([19..38)),
+      Location: /*
+
+[LuauLibrary("game")]
+ ^^^^^^^^^^^^^^^^^^^
+public static class GameLibrary
+*/
+ : (2,1)-(2,20),
       Message: Type marked with [LuauLibrary] must be partial,
       Severity: Error,
       Descriptor: {
@@ -14,7 +20,13 @@
       }
     },
     {
-      Location: SourceFile([78..90)),
+      Location: /*
+
+[LuauUserdata]
+ ^^^^^^^^^^^^
+public sealed class Player
+*/
+ : (7,1)-(7,13),
       Message: Type marked with [LuauUserdata] must be partial,
       Severity: Error,
       Descriptor: {

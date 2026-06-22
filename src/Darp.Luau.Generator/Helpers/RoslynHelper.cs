@@ -19,8 +19,8 @@ internal static class RoslynHelper
 
     public static string GetGeneratedVersionAttribute()
     {
-        var generatorName = typeof(DarpLuauInterceptor).Assembly.GetName().Name;
-        Version generatorVersion = typeof(DarpLuauInterceptor).Assembly.GetName().Version;
+        var generatorName = typeof(CreateFunctionGenerator).Assembly.GetName().Name;
+        Version generatorVersion = typeof(CreateFunctionGenerator).Assembly.GetName().Version;
         return $"""[global::System.CodeDom.Compiler.GeneratedCodeAttribute("{generatorName}", "{generatorVersion}")]""";
     }
 }

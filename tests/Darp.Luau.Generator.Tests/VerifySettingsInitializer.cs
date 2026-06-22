@@ -17,6 +17,7 @@ public static partial class VerifySettingsInitializer
             builder.Append(text);
         });
         VerifySourceGenerators.Initialize();
+        VerifierSettings.RegisterFileConverter<GeneratorDriverWithDiagnostics>(GeneratorDriverWithDiagnostics.Convert);
     }
 
     [GeneratedRegex("""InterceptsLocationAttribute\(1,\s*"[^"]+"\)""")]

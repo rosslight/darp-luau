@@ -1,0 +1,42 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+
+[LuauLibrary("file_local")]
+ ^^^^^^^^^^^^^^^^^^^^^^^^^
+file static partial class FileLocalLibrary
+*/
+ : (2,1)-(2,26),
+      Message: Invalid generated export shape: file-local generated export types are not supported because generated partial sources are emitted into separate files,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+[LuauUserdata]
+ ^^^^^^^^^^^^
+file sealed partial class FileLocalUserdata
+*/
+ : (7,1)-(7,13),
+      Message: Invalid generated export shape: file-local generated export types are not supported because generated partial sources are emitted into separate files,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

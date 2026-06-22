@@ -19,7 +19,7 @@ public static class VerifyHelper
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         AddReferenceAssemblyMarker<ILogger>();
-        return VerifyGenerator<DarpLuauInterceptor>(
+        return VerifyGenerator<CreateFunctionGenerator>(
             [source],
             [],
             "DBO0",
@@ -37,7 +37,7 @@ public static class VerifyHelper
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         AddReferenceAssemblyMarker<ILogger>();
-        return VerifyGenerator<DarpLuauInterceptor>(
+        return VerifyGenerator<CreateFunctionGenerator>(
             [source],
             [],
             "DLUAU",
@@ -46,7 +46,10 @@ public static class VerifyHelper
             new Dictionary<string, string>(),
             new Dictionary<string, string> { { "InterceptorsNamespaces", "Darp.Luau.Generator" } },
             LanguageVersion.CSharp13,
-            allowCompilationErrors: true
+            allowCompilationErrors: true,
+            analyzers: ImmutableArray.Create<DiagnosticAnalyzer>(new CreateFunctionUsageAnalyzer()),
+            verifyDiagnosticsSnapshot: true,
+            verifyGeneratedSources: false
         );
     }
 
@@ -60,7 +63,7 @@ public static class VerifyHelper
             Path.GetFileNameWithoutExtension(callerFilePath) ?? throw new ArgumentNullException(nameof(callerFilePath));
         AddReferenceAssemblyMarker<LuauState>();
         AddReferenceAssemblyMarker<ILogger>();
-        return VerifyGenerator<DarpLuauInterceptor>(
+        return VerifyGenerator<CreateFunctionGenerator>(
             [source],
             [],
             "DLUAU",
@@ -71,7 +74,8 @@ public static class VerifyHelper
             LanguageVersion.CSharp13,
             allowCompilationErrors: true,
             analyzers: ImmutableArray.Create(analyzer),
-            verifyDiagnosticsSnapshot: true
+            verifyDiagnosticsSnapshot: true,
+            verifyGeneratedSources: false
         );
     }
 
@@ -100,7 +104,10 @@ public static class VerifyHelper
             new Dictionary<string, string>(),
             new Dictionary<string, string>(),
             LanguageVersion.CSharp13,
-            verifyCompilationDiagnosticsSnapshot: true
+            analyzers: ImmutableArray.Create<DiagnosticAnalyzer>(new GeneratedExportsAnalyzer()),
+            verifyDiagnosticsSnapshot: true,
+            verifyCompilationDiagnosticsSnapshot: true,
+            verifyGeneratedSources: false
         );
     }
 
@@ -118,7 +125,8 @@ public static class VerifyHelper
             task => task.ScrubGeneratedCodeAttribute(),
             new Dictionary<string, string>(),
             new Dictionary<string, string>(),
-            LanguageVersion.CSharp13
+            LanguageVersion.CSharp13,
+            analyzers: ImmutableArray.Create<DiagnosticAnalyzer>(new GeneratedExportsAnalyzer())
         );
     }
 
@@ -137,7 +145,10 @@ public static class VerifyHelper
             new Dictionary<string, string>(),
             new Dictionary<string, string>(),
             LanguageVersion.CSharp13,
-            allowCompilationErrors: true
+            allowCompilationErrors: true,
+            analyzers: ImmutableArray.Create<DiagnosticAnalyzer>(new GeneratedExportsAnalyzer()),
+            verifyDiagnosticsSnapshot: true,
+            verifyGeneratedSources: true
         );
     }
 
@@ -165,8 +176,85 @@ public static class VerifyHelper
             new Dictionary<string, string>(),
             LanguageVersion.CSharp13,
             allowCompilationErrors: true,
-            verifyCompilationDiagnosticsSnapshot: true
+            analyzers: ImmutableArray.Create<DiagnosticAnalyzer>(new GeneratedExportsAnalyzer()),
+            verifyDiagnosticsSnapshot: true,
+            verifyCompilationDiagnosticsSnapshot: true,
+            verifyGeneratedSources: false
         );
+    }
+
+    public static async Task VerifyCreateFunctionWithGeneratedExportsSucceeds(string source)
+    {
+        AddReferenceAssemblyMarker<LuauState>();
+        AddReferenceAssemblyMarker<ILogger>();
+
+        CSharpParseOptions parseOptions = CSharpParseOptions
+            .Default.WithLanguageVersion(LanguageVersion.CSharp13)
+            .WithFeatures(new Dictionary<string, string> { { "InterceptorsNamespaces", "Darp.Luau.Generator" } });
+        SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(NormalizeLineEndings(source), parseOptions);
+
+        PortableExecutableReference[] references = AppDomain
+            .CurrentDomain.GetAssemblies()
+            .Where(static assembly => !assembly.IsDynamic && !string.IsNullOrEmpty(assembly.Location))
+            .Where(static assembly => assembly.FullName?.Contains("JetBrains") is not true)
+            .Select(static assembly => MetadataReference.CreateFromFile(assembly.Location))
+            .ToArray();
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: Assembly.GetExecutingAssembly().FullName,
+            syntaxTrees: [syntaxTree],
+            references: references,
+            new CSharpCompilationOptions(OutputKind.NetModule, nullableContextOptions: NullableContextOptions.Enable)
+        );
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators:
+            [
+                new GeneratedExportsGenerator().AsSourceGenerator(),
+                new CreateFunctionGenerator().AsSourceGenerator(),
+            ],
+            parseOptions: parseOptions
+        );
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation newCompilation, out _);
+
+        GeneratorDriverRunResult runResult = driver.GetRunResult();
+        ImmutableArray<Diagnostic> generatorDiagnostics = runResult.Results
+            .SelectMany(static result => result.Diagnostics)
+            .ToImmutableArray();
+        ImmutableArray<Diagnostic> compilationDiagnostics = newCompilation.GetDiagnostics();
+        ImmutableArray<Diagnostic> analyzerDiagnostics = await newCompilation
+            .WithAnalyzers(
+                ImmutableArray.Create<DiagnosticAnalyzer>(
+                    new GeneratedExportsAnalyzer(),
+                    new CreateFunctionUsageAnalyzer()
+                )
+            )
+            .GetAnalyzerDiagnosticsAsync();
+
+        Diagnostic[] invalidDiagnostics = compilationDiagnostics
+            .Concat(generatorDiagnostics)
+            .Concat(analyzerDiagnostics)
+            .Where(static diagnostic => IsDiagnosticInvalid(null, diagnostic))
+            .OrderBy(static diagnostic => diagnostic.Location.SourceTree?.FilePath ?? "", StringComparer.Ordinal)
+            .ThenBy(static diagnostic => diagnostic.Location.SourceSpan.Start)
+            .ThenBy(static diagnostic => diagnostic.Id, StringComparer.Ordinal)
+            .ThenBy(static diagnostic => diagnostic.GetMessage(), StringComparer.Ordinal)
+            .ToArray();
+        invalidDiagnostics.ShouldBeEmpty(
+            string.Join(
+                "\n",
+                invalidDiagnostics.Select(static diagnostic =>
+                    $"[{diagnostic.Location.GetLineSpan()}] {diagnostic.Id}: {diagnostic.GetMessage()}"
+                )
+            )
+                + "\n"
+                + string.Join("\n", runResult.ToReadableString())
+        );
+
+        runResult.Results
+            .SelectMany(static result => result.GeneratedSources)
+            .Count(static source => source.HintName.Contains("CreateFunctionInterceptors", StringComparison.Ordinal))
+            .ShouldBe(2);
     }
 
     /// <summary>
@@ -211,7 +299,8 @@ public static class VerifyHelper
         bool allowCompilationErrors = false,
         ImmutableArray<DiagnosticAnalyzer> analyzers = default,
         bool verifyDiagnosticsSnapshot = false,
-        bool verifyCompilationDiagnosticsSnapshot = false
+        bool verifyCompilationDiagnosticsSnapshot = false,
+        bool verifyGeneratedSources = true
     )
         where TGenerator : IIncrementalGenerator, new()
     {
@@ -265,7 +354,7 @@ public static class VerifyHelper
         ImmutableArray<Diagnostic> compilationDiagnostics = newCompilation.GetDiagnostics();
         ImmutableArray<Diagnostic> analyzerDiagnostics = analyzers.IsDefaultOrEmpty
             ? []
-            : await newCompilation.WithAnalyzers(analyzers).GetAllDiagnosticsAsync();
+            : await newCompilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync();
 
         IEnumerable<Diagnostic> snapshotDiagnostics = [];
         if (verifyCompilationDiagnosticsSnapshot)
@@ -273,16 +362,18 @@ public static class VerifyHelper
         if (verifyDiagnosticsSnapshot)
             snapshotDiagnostics = snapshotDiagnostics.Concat(analyzerDiagnostics);
 
-        object verificationTarget =
-            verifyCompilationDiagnosticsSnapshot || verifyDiagnosticsSnapshot
-                ? new
-                {
-                    Diagnostics = snapshotDiagnostics
-                        .Where(x => x.Id is not "CS5001")
-                        .Select(ToSerializableDiagnostic)
-                        .ToArray(),
-                }
-                : driver;
+        ImmutableArray<Diagnostic> diagnosticsToVerify = snapshotDiagnostics
+            .Where(x => x.Id is not "CS5001")
+            .OrderBy(static x => x.Location.SourceTree?.FilePath ?? "", StringComparer.Ordinal)
+            .ThenBy(static x => x.Location.SourceSpan.Start)
+            .ThenBy(static x => x.Id, StringComparer.Ordinal)
+            .ThenBy(static x => x.GetMessage(), StringComparer.Ordinal)
+            .ToImmutableArray();
+        object verificationTarget = verifyGeneratedSources
+            ? diagnosticsToVerify.IsEmpty
+                ? driver
+                : new GeneratorDriverWithDiagnostics(driver.GetRunResult(), diagnosticsToVerify)
+            : new { Diagnostics = diagnosticsToVerify.ToArray() };
         SettingsTask settingsTask = Verify(verificationTarget).UseDirectory(Path.Join("Snapshots", directory));
         await configureSettingsTask(settingsTask);
         // Assert that there are no compilation errors (except for CS5001 which informs about the missing program entry)
@@ -301,25 +392,6 @@ public static class VerifyHelper
                     + "\n"
                     + string.Join("\n", driver.GetRunResult().ToReadableString())
             );
-    }
-
-    private static object ToSerializableDiagnostic(Diagnostic diagnostic)
-    {
-        return new
-        {
-            Location = diagnostic.Location.ToString(),
-            Message = diagnostic.GetMessage(),
-            Severity = diagnostic.Severity.ToString(),
-            Descriptor = new
-            {
-                diagnostic.Descriptor.Id,
-                diagnostic.Descriptor.Title,
-                diagnostic.Descriptor.MessageFormat,
-                diagnostic.Descriptor.Category,
-                DefaultSeverity = diagnostic.Descriptor.DefaultSeverity.ToString(),
-                diagnostic.Descriptor.IsEnabledByDefault,
-            },
-        };
     }
 
     private static string NormalizeLineEndings(string source)

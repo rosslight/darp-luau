@@ -114,21 +114,46 @@ Use `Get*` for required values, `TryGet*` for optional or external data, and `*O
 ## Work with userdata
 
 ```csharp
-var player = new PlayerUserdata { Name = "Ada" };
+[LuauUserdata]
+public sealed partial class Player
+{
+    [LuauMember("name", Access = LuauPropertyAccess.ReadOnly)]
+    public required string Name { get; init; }
+}
+
+var player = new Player { Name = "Ada" };
 
 lua.Globals.Set("player", IntoLuau.FromUserdata(player));
 
-PlayerUserdata samePlayer = lua.Globals.GetUserdata<PlayerUserdata>("player");
+Player samePlayer = lua.Globals.GetUserdata<Player>("player");
 
 using LuauUserdata playerRef = lua.Globals.GetLuauUserdata("player");
-_ = playerRef.TryGetManaged(out PlayerUserdata? resolvedPlayer, out string? error);
+_ = playerRef.TryGetManaged(out Player? resolvedPlayer, out string? error);
 ```
 
-Managed userdata types implement `ILuauUserData<T>` to expose script-facing fields, setters, and methods. See [Userdata](docs/features/userdata.md) for the full hook model.
+Prefer `[LuauUserdata]` for regular script-facing properties and methods. Use a manual `ILuauUserData<T>` implementation only when you need custom dispatch or behavior the generator cannot express. See [Userdata](docs/features/userdata.md) for the full hook model.
 
-`CreateFunction(...)` also supports managed userdata parameters and returns for types that implement `ILuauUserData<TSelf>`.
+`CreateFunction(...)` also supports managed userdata parameters and returns for generated `[LuauUserdata]` types and manual `ILuauUserData<TSelf>` implementations.
 
-## Register custom libraries
+## Register host libraries
+
+Prefer `[LuauLibrary]` for regular fixed host APIs:
+
+```csharp
+[LuauLibrary("game")]
+public static partial class GameLibrary
+{
+    [LuauMember("answer")]
+    public static int Answer => 42;
+
+    [LuauMember("add")]
+    public static int Add(int left, int right) => left + right;
+}
+
+GameLibrary.Register(lua);
+```
+
+Use manual `OpenLibrary(...)` when you need dynamic table construction or unsupported callback shapes:
 
 ```csharp
 lua.OpenLibrary("game", static (state, in LuauTable lib) =>
@@ -140,7 +165,7 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 });
 ```
 
-`OpenLibrary(...)` registers a global table. It is a convenient way to expose host-provided APIs, but it is not a `require(...)`-style module loader by itself.
+`OpenLibrary(...)` registers a global table. It is a fallback for host-provided APIs, but it is not a `require(...)`-style module loader by itself.
 
 ## Ownership and lifetime
 

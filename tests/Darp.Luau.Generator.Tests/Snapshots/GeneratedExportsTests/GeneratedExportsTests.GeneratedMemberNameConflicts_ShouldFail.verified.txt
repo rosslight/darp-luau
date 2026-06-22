@@ -1,7 +1,13 @@
-{
+﻿{
   Diagnostics: [
     {
-      Location: SourceFile([19..40)),
+      Location: /*
+{
+    public const string LuauLibraryName = "ledger";
+                        ^^^^^^^^^^^^^^^
+}
+*/
+ : (5,24)-(5,39),
       Message: Invalid generated export shape: library types cannot declare members named 'Register' or 'LuauLibraryName' because those names are generated,
       Severity: Error,
       Descriptor: {

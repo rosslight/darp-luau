@@ -1,7 +1,13 @@
-{
+﻿{
   Diagnostics: [
     {
-      Location: SourceFile([101..120)),
+      Location: /*
+{
+    [LuauMember("bytes")]
+     ^^^^^^^^^^^^^^^^^^^
+    public static ReadOnlySpan<byte> Bytes() => "abc"u8;
+*/
+ : (6,5)-(6,24),
       Message: Generated library function 'Bytes' uses an unsupported parameter or return shape: return value has unsupported type 'global::System.ReadOnlySpan<byte>',
       Severity: Error,
       Descriptor: {
