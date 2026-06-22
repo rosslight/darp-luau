@@ -21,7 +21,8 @@ This documentation is organized around the way you use the library in practice:
 - Owned wrappers such as `LuauTable` and `LuauFunction` can outlive the current call frame, but they need disposal.
 - Borrowed `*View` types such as `LuauTableView` and `LuauFunctionView` are callback-scoped.
 - `CreateFunction(...)` is the normal typed callback API, but it must be called directly so the generator can intercept it.
-- `ILuauUserData<T>` is the manual hook surface for exposing managed objects as userdata.
+- `[LuauLibrary]` and `[LuauUserdata]` are the recommended source-generated paths for exposing fixed host APIs.
+- `OpenLibrary(...)`, `CreateFunctionBuilder(...)`, and manual `ILuauUserData<T>` implementations are fallback APIs when generation is not flexible enough.
 
 See [Concepts](concepts/index.md).
 
@@ -126,14 +127,28 @@ lua.Globals.Set("pair", pair);
 lua.Load("""log("hello from luau")""").Execute();
 ```
 
-Use `CreateFunction(...)` for supported fixed signatures, including managed userdata parameters and returns for `ILuauUserData<TSelf>` types and supported top-level tuple returns. If you need manual argument parsing, unsupported callback shapes, or custom error shaping, use `CreateFunctionBuilder(...)`. See [Functions](features/functions.md).
+Use `CreateFunction(...)` for supported fixed signatures, including managed userdata parameters and returns for generated `[LuauUserdata]` or manual `ILuauUserData<TSelf>` types and supported top-level tuple returns. If you need manual argument parsing, unsupported callback shapes, or custom error shaping, use `CreateFunctionBuilder(...)`. See [Functions](features/functions.md).
 
 ## Expose userdata
 
-If a managed type implements `ILuauUserData<T>`, you can expose it to Luau as userdata:
+Use `[LuauUserdata]` to generate the normal userdata hook implementation for a partial class:
 
 ```csharp
-var player = new PlayerUserdata { Name = "Ada", Score = 42 };
+[LuauUserdata]
+public sealed partial class Player
+{
+    [LuauMember("name", Access = LuauPropertyAccess.ReadOnly)]
+    public required string Name { get; init; }
+
+    [LuauMember("score")]
+    public int Score { get; set; }
+}
+```
+
+Then expose instances as managed userdata:
+
+```csharp
+var player = new Player { Name = "Ada", Score = 42 };
 
 lua.Globals.Set("player", IntoLuau.FromUserdata(player));
 
@@ -145,9 +160,27 @@ lua.Load(
 ).Execute();
 ```
 
-See [Userdata](features/userdata.md) for hook behavior, retrieval APIs, identity rules, and lifetimes.
+See [Userdata](features/userdata.md) for generated userdata, manual hook behavior, retrieval APIs, identity rules, and lifetimes.
 
-## Register a custom library
+## Register a host library
+
+Use `[LuauLibrary]` to generate the normal registration path for fixed host APIs:
+
+```csharp
+[LuauLibrary("game")]
+public static partial class GameLibrary
+{
+    [LuauMember("answer")]
+    public static int Answer => 42;
+
+    [LuauMember("add")]
+    public static int Add(int left, int right) => left + right;
+}
+
+GameLibrary.Register(lua);
+```
+
+Generated registration creates the global library table and populates it from the attributed members. Use manual `OpenLibrary(...)` only when you need dynamic table construction or unsupported callback shapes:
 
 ```csharp
 lua.OpenLibrary("game", static (state, in LuauTable lib) =>
@@ -161,7 +194,7 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 lua.Load("result = game.add(game.answer, 8)").Execute();
 ```
 
-`OpenLibrary(...)` creates a global table and lets you populate it from managed code. See [Libraries](features/libraries.md).
+See [Libraries](features/libraries.md) for generated libraries, manual `OpenLibrary(...)`, nested paths, and current generator boundaries.
 
 ## Where to next
 

@@ -6,11 +6,12 @@ Use it when the script should interact with identity, mutable state, or host-def
 
 Typical examples include game entities, domain objects, service handles, and other values that should round-trip back to the same managed instance.
 
-## The three userdata surfaces
+## The userdata surfaces
 
-In Darp.Luau, userdata usually shows up in three forms:
+In Darp.Luau, userdata usually shows up in four forms:
 
-- `ILuauUserData<T>` defines the script-facing behavior for your managed type.
+- `[LuauUserdata]` generates the normal script-facing behavior for your managed type.
+- `ILuauUserData<T>` is the manual hook surface used when generation is not enough.
 - `LuauUserdata` is an owned userdata reference that you can keep and dispose.
 - `LuauUserdataView` is a borrowed callback-scoped userdata view.
 
@@ -20,9 +21,86 @@ That split matters:
 - use `LuauUserdata` when you want an owned Luau wrapper,
 - use `LuauUserdataView` only inside the current callback frame, or promote it with `ToOwned()` first.
 
-## Define userdata behavior
+## Generate userdata with `[LuauUserdata]`
 
-Implement the static members on `ILuauUserData<T>` to decide what Luau can do with your object:
+The recommended way to expose a managed type as userdata is to mark a partial class with `[LuauUserdata]` and mark the script-facing members with `[LuauMember]`.
+
+```csharp
+using Darp.Luau;
+
+[LuauUserdata]
+public sealed partial class Player
+{
+    [LuauMember("name", Access = LuauPropertyAccess.ReadOnly)]
+    public required string Name { get; init; }
+
+    [LuauMember("score")]
+    public int Score { get; set; }
+
+    [LuauMember("add")]
+    public int Add(int amount)
+    {
+        Score += amount;
+        return Score;
+    }
+}
+```
+
+The source generator emits the `ILuauUserData<Player>` implementation for `OnIndex`, `OnSetIndex`, and `OnMethodCall`.
+
+Expose instances with the normal managed-userdata APIs:
+
+```csharp
+var player = new Player { Name = "Ada", Score = 40 };
+
+lua.Globals.Set("player", IntoLuau.FromUserdata(player));
+
+lua.Load(
+    """
+    player.score = 41
+    result = player:add(1)
+    currentName = player.name
+    """
+).Execute();
+```
+
+For method calls, Luau uses the userdata method-call syntax `player:add(1)`. The generated method receives only the declared managed parameters; `self` is handled by the userdata dispatch layer.
+
+### Generated property access
+
+`LuauPropertyAccess.Auto` is the default:
+
+- getter and setter -> read-write,
+- getter only -> read-only,
+- setter only -> write-only.
+
+Use `Access = LuauPropertyAccess.ReadOnly`, `WriteOnly`, or `ReadWrite` when the Luau contract should be stricter than the managed property shape.
+
+Generated read-only properties return an error when Luau tries to assign them. Generated write-only properties return an error when Luau tries to read them.
+
+### Generated userdata rules
+
+Generated userdata supports:
+
+- instance properties with supported stored value types,
+- instance methods with fixed supported signatures,
+- generated or manual managed userdata as supported property, parameter, and return types,
+- generated userdata types as `CreateFunction(...)` parameters and returns.
+
+The generator reports diagnostics for unsupported shapes instead of emitting weak runtime fallbacks. Current boundaries include:
+
+- exported userdata types must be partial, top-level, non-generic classes,
+- fields are not exported,
+- static userdata members are not supported,
+- member names are single-segment only; dotted paths are for generated libraries,
+- optional, `params`, `ref`, `in`, `out`, generic methods, and by-ref returns are not supported,
+- generated and manual userdata hooks cannot be mixed on the same type.
+
+Use manual `ILuauUserData<T>` only when you need custom dispatch, dynamic member names, custom validation, unsupported member shapes, or unusual error behavior.
+
+## Implement userdata manually with `ILuauUserData<T>`
+
+Implement the static members on `ILuauUserData<T>` when the generated userdata model cannot express what Luau can do with your object:
 
 | Hook | Luau syntax | Receives | Unknown member behavior |
 | --- | --- | --- | --- |
@@ -110,7 +188,7 @@ using LuauUserdata playerRef = lua.Globals.GetLuauUserdata("player");
 _ = playerRef.TryGetManaged(out PlayerUserdata? resolvedPlayer, out string? error);
 ```
 
-The implicit conversion operator is optional but convenient. If you do not define it on your managed type, use `IntoLuau.FromUserdata(player)` at the call site instead.
+The implicit conversion operator is optional but convenient for manual userdata. If you do not define it on your managed type, use `IntoLuau.FromUserdata(player)` at the call site instead.
 
 If you want to keep the Lua userdata wrapper itself, call `lua.GetOrCreateUserdata(player)` and hold the resulting `LuauUserdata` in a `using` block.
 
@@ -161,5 +239,7 @@ See [Lifetimes and ownership](../concepts/lifetimes.md) for the broader ownershi
 ## Design guidance
 
 - Expose a small, stable script-facing surface instead of mirroring your full managed type.
+- Prefer generated `[LuauUserdata]` declarations for regular property and method surfaces.
+- Fall back to manual `ILuauUserData<T>` only when you need behavior the generator cannot express.
 - Keep validation and error messages intentional inside the hooks.
 - Prefer tables for plain data and userdata for identity or behavior.
