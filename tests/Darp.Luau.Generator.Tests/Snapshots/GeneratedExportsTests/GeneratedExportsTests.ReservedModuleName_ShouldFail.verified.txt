@@ -2,13 +2,13 @@
   Diagnostics: [
     {
       Location: /*
-{
-    [LuauLibrary("quests")]
-     ^^^^^^^^^^^^^^^^^^^^^
-    public static partial class QuestLibrary
+
+[LuauModule("./game")]
+ ^^^^^^^^^^^^^^^^^^^^
+public static partial class GameModule
 */
- : (4,5)-(4,26),
-      Message: Invalid generated export shape: nested library types are not supported in v1,
+ : (2,1)-(2,21),
+      Message: Invalid generated export shape: module names must be bare require names; './', '../', '/', '\', '@', and slash-containing names are reserved for script modules,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,

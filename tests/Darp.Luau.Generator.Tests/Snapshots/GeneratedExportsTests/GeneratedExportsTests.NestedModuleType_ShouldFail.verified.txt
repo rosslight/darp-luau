@@ -1,14 +1,14 @@
-﻿{
+{
   Diagnostics: [
     {
       Location: /*
-
-[LuauLibrary("vault")]
- ^^^^^^^^^^^^^^^^^^^^
-public sealed partial class VaultLibrary<T>
+{
+    [LuauModule("quests")]
+     ^^^^^^^^^^^^^^^^^^^^
+    public static partial class QuestModule
 */
- : (2,1)-(2,21),
-      Message: Invalid generated export shape: generic library types are not supported in v1,
+ : (4,5)-(4,25),
+      Message: Invalid generated export shape: nested module types are not supported in v1,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,

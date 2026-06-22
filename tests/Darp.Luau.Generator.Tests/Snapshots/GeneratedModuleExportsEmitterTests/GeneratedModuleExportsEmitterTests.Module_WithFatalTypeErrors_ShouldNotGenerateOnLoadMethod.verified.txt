@@ -3,17 +3,17 @@
     {
       Location: /*
 
-[LuauLibrary("nonpartial")]
- ^^^^^^^^^^^^^^^^^^^^^^^^^
-public static class NonPartialLibrary
+[LuauModule("nonpartial")]
+ ^^^^^^^^^^^^^^^^^^^^^^^^
+public static class NonPartialModule
 */
- : (2,1)-(2,26),
-      Message: Type marked with [LuauLibrary] must be partial,
+ : (2,1)-(2,25),
+      Message: Type marked with [LuauModule] must be partial,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1001,
-        Title: Luau library type must be partial,
-        MessageFormat: Type marked with [LuauLibrary] must be partial,
+        Title: Luau module type must be partial,
+        MessageFormat: Type marked with [LuauModule] must be partial,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
@@ -22,12 +22,12 @@ public static class NonPartialLibrary
     {
       Location: /*
 {
-    public const string LuauLibraryName = "ledger";
-                        ^^^^^^^^^^^^^^^
+    public const string ModuleName = "ledger";
+                        ^^^^^^^^^^
 
 */
- : (12,24)-(12,39),
-      Message: Invalid generated export shape: library types cannot declare members named 'Register' or 'LuauLibraryName' because those names are generated,
+ : (12,24)-(12,34),
+      Message: Invalid generated export shape: module types cannot declare members named 'ModuleName' or 'OnLoad' because those names are generated,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,
@@ -41,12 +41,12 @@ public static class NonPartialLibrary
     {
       Location: /*
 
-[LuauLibrary(" ")]
- ^^^^^^^^^^^^^^^^
-public static partial class BlankLibraryName
+[LuauModule(" ")]
+ ^^^^^^^^^^^^^^^
+public static partial class BlankModuleName
 */
- : (18,1)-(18,17),
-      Message: Invalid generated export shape: root libraries must supply a non-empty name via [LuauLibrary("...")],
+ : (18,1)-(18,16),
+      Message: Invalid generated export shape: root modules must supply a non-empty name via [LuauModule("...")],
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,
@@ -60,12 +60,12 @@ public static partial class BlankLibraryName
     {
       Location: /*
 
-[LuauLibrary("generic")]
- ^^^^^^^^^^^^^^^^^^^^^^
-public sealed partial class GenericLibrary<T>
+[LuauModule("generic")]
+ ^^^^^^^^^^^^^^^^^^^^^
+public sealed partial class GenericModule<T>
 */
- : (25,1)-(25,23),
-      Message: Invalid generated export shape: generic library types are not supported in v1,
+ : (25,1)-(25,22),
+      Message: Invalid generated export shape: generic module types are not supported in v1,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,
@@ -79,12 +79,12 @@ public sealed partial class GenericLibrary<T>
     {
       Location: /*
 {
-    [LuauLibrary("nested")]
-     ^^^^^^^^^^^^^^^^^^^^^
-    public static partial class NestedLibrary
+    [LuauModule("nested")]
+     ^^^^^^^^^^^^^^^^^^^^
+    public static partial class NestedModule
 */
- : (32,5)-(32,26),
-      Message: Invalid generated export shape: nested library types are not supported in v1,
+ : (32,5)-(32,25),
+      Message: Invalid generated export shape: nested module types are not supported in v1,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,

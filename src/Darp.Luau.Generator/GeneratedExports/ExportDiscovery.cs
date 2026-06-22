@@ -12,27 +12,27 @@ internal static class ExportDiscovery
         List<Diagnostic> diagnostics
     )
     {
-        AttributeData? libraryAttribute = context.GetLibraryAttribute(type);
+        AttributeData? moduleAttribute = context.GetModuleAttribute(type);
         AttributeData? userdataAttribute = context.GetUserdataAttribute(type);
-        if (libraryAttribute is null && userdataAttribute is null)
+        if (moduleAttribute is null && userdataAttribute is null)
             return null;
 
-        if (libraryAttribute is not null && userdataAttribute is not null)
+        if (moduleAttribute is not null && userdataAttribute is not null)
         {
-            if (expectedKind == LuauExportedTypeKind.Library)
+            if (expectedKind == LuauExportedTypeKind.Module)
             {
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
-                        SymbolExtensions.GetAttributeLocation(libraryAttribute, type),
-                        $"type '{type.Name}' cannot be both a [LuauLibrary] and a [LuauUserdata]"
+                        SymbolExtensions.GetAttributeLocation(moduleAttribute, type),
+                        $"type '{type.Name}' cannot be both a [LuauModule] and a [LuauUserdata]"
                     )
                 );
             }
             return null;
         }
 
-        AttributeData? attribute = expectedKind == LuauExportedTypeKind.Library ? libraryAttribute : userdataAttribute;
+        AttributeData? attribute = expectedKind == LuauExportedTypeKind.Module ? moduleAttribute : userdataAttribute;
         if (attribute is null)
             return null;
 

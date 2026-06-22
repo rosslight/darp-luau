@@ -101,7 +101,7 @@ lua.Load(File.ReadAllBytes(path))
     .Execute();
 ```
 
-This is especially important for `EnableRequire()`, because entry chunk names drive path resolution.
+This is especially important for `EnableScriptModules()`, because entry chunk names drive path resolution.
 
 ## Use an environment
 

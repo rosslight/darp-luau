@@ -6,11 +6,11 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace Darp.Luau.Generator.GeneratedExports;
 
-internal static class LibraryEmitter
+internal static class ModuleEmitter
 {
     public static bool TryEmit(GeneratedExportSurfaceIr model, [NotNullWhen(true)] out string? source)
     {
-        if (model.LibraryRoot is null || string.IsNullOrWhiteSpace(model.LibraryName))
+        if (model.ModuleRoot is null || string.IsNullOrWhiteSpace(model.ModuleName))
         {
             source = null;
             return false;
@@ -28,28 +28,25 @@ internal static class LibraryEmitter
         ExportEmitterHelper.WriteFileHeader(writer);
         bool hasNamespace = ExportEmitterHelper.WriteNamespaceStart(writer, model.NamespaceName);
 
-        writer.WriteLine(model.TypeDeclaration);
+        writer.WriteLine(
+            ExportEmitterHelper.WithBaseList(
+                model.TypeDeclaration,
+                model.IsStatic ? null : $"global::Darp.Luau.ILuauModule<{model.ManagedTypeName}>"
+            )
+        );
         writer.WriteLine("{");
         writer.Indent++;
         writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
         writer.WriteLine(
-            $"public const string LuauLibraryName = {SymbolDisplay.FormatLiteral(model.LibraryName!, quote: true)};"
+            $"public static string ModuleName => {SymbolDisplay.FormatLiteral(model.ModuleName!, quote: true)};"
         );
         writer.WriteLine();
         writer.WriteLine(RoslynHelper.GetGeneratedVersionAttribute());
-        writer.WriteLine($"public {GetRegisterModifier(model)}void Register(global::Darp.Luau.LuauState lua)");
-        writer.WriteLine("{");
-        writer.Indent++;
-        writer.WriteLine("global::System.ArgumentNullException.ThrowIfNull(lua);");
-        writer.WriteLine("lua.OpenLibrary(LuauLibraryName, BuildLibrary);");
-        writer.WriteLine();
-        writer.WriteLine("void BuildLibrary(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable lib)");
+        writer.WriteLine($"public {GetOnLoadModifier(model)}void OnLoad(global::Darp.Luau.LuauState state, in global::Darp.Luau.LuauTable module)");
         writer.WriteLine("{");
         writer.Indent++;
         var localNames = new ExportEmitterHelper.LocalNameAllocator();
-        WriteLibraryNodeContents(writer, model.LibraryRoot!, "lib", localNames);
-        writer.Indent--;
-        writer.WriteLine("}");
+        WriteModuleNodeContents(writer, model.ModuleRoot!, "module", localNames);
         writer.Indent--;
         writer.WriteLine("}");
         writer.Indent--;
@@ -58,22 +55,22 @@ internal static class LibraryEmitter
         ExportEmitterHelper.WriteNamespaceEnd(writer, hasNamespace);
     }
 
-    private static void WriteLibraryNodeContents(
+    private static void WriteModuleNodeContents(
         IndentedTextWriter writer,
-        GeneratedLibraryExportNodeIr node,
+        GeneratedModuleExportNodeIr node,
         string tableVariableName,
         ExportEmitterHelper.LocalNameAllocator localNames
     )
     {
         foreach (
-            GeneratedLibraryExportNodeIr child in node.Children.OrderBy(static x => x.Name, StringComparer.Ordinal)
+            GeneratedModuleExportNodeIr child in node.Children.OrderBy(static x => x.Name, StringComparer.Ordinal)
         )
         {
             if (child.Member is null)
             {
                 string nestedTableName = localNames.Next();
                 writer.WriteLine($"using global::Darp.Luau.LuauTable {nestedTableName} = state.CreateTable();");
-                WriteLibraryNodeContents(writer, child, nestedTableName, localNames);
+                WriteModuleNodeContents(writer, child, nestedTableName, localNames);
                 writer.WriteLine(
                     $"{tableVariableName}.Set({SymbolDisplay.FormatLiteral(child.Name, quote: true)}, {nestedTableName});"
                 );
@@ -101,7 +98,7 @@ internal static class LibraryEmitter
                 WriteMethod(writer, method, tableVariableName, localNames);
                 break;
             default:
-                throw new InvalidOperationException($"Unsupported generated library member '{member.GetType().Name}'.");
+                throw new InvalidOperationException($"Unsupported generated module member '{member.GetType().Name}'.");
         }
     }
 
@@ -112,7 +109,7 @@ internal static class LibraryEmitter
     )
     {
         GeneratedExportAccessorIr accessor =
-            property.Getter ?? throw new InvalidOperationException("Generated library properties must have a getter.");
+            property.Getter ?? throw new InvalidOperationException("Generated module properties must have a getter.");
         string keyLiteral = SymbolDisplay.FormatLiteral(property.PathSegments[^1], quote: true);
         writer.WriteLine(
             $"{tableVariableName}.Set({keyLiteral}, {LuauMarshalEmitter.FormatIntoLuauExpression(property.ManagedName, accessor.Type)});"
@@ -141,6 +138,6 @@ internal static class LibraryEmitter
         writer.WriteLine($"{tableVariableName}.Set({keyLiteral}, {functionVariableName});");
     }
 
-    private static string GetRegisterModifier(GeneratedExportSurfaceIr model) =>
+    private static string GetOnLoadModifier(GeneratedExportSurfaceIr model) =>
         model.IsStatic ? "static " : string.Empty;
 }

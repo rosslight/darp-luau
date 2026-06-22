@@ -8,12 +8,12 @@
     public static int Current { get; set; }
 */
  : (5,5)-(5,26),
-      Message: Exported library property 'Current' must be read-only because libraries are snapshot tables after registration,
+      Message: Exported module property 'Current' must be read-only because modules are snapshot tables after loading,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1009,
-        Title: Library properties must be read-only,
-        MessageFormat: Exported library property '{0}' must be read-only because libraries are snapshot tables after registration,
+        Title: Module properties must be read-only,
+        MessageFormat: Exported module property '{0}' must be read-only because modules are snapshot tables after loading,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true
@@ -27,7 +27,7 @@
     public static int Create(int value = 0) => value;
 */
  : (8,5)-(8,25),
-      Message: Generated library function 'Create' uses an unsupported parameter or return shape: parameter 'value' is optional,
+      Message: Generated module function 'Create' uses an unsupported parameter or return shape: parameter 'value' is optional,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1006,

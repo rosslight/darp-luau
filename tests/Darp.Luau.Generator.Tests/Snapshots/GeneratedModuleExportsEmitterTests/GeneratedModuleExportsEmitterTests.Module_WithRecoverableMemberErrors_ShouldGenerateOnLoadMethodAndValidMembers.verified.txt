@@ -8,7 +8,7 @@
     public int Unsupported(int value = 0) => value;
 */
  : (10,5)-(10,30),
-      Message: Generated library function 'Unsupported' uses an unsupported parameter or return shape: parameter 'value' is optional,
+      Message: Generated module function 'Unsupported' uses an unsupported parameter or return shape: parameter 'value' is optional,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1006,
@@ -27,7 +27,7 @@
 
 */
  : (17,15)-(17,27),
-      Message: Duplicate Luau member name 'duplicate' on library 'RecoverableLibrary',
+      Message: Duplicate Luau member name 'duplicate' on module 'RecoverableModule',
       Severity: Error,
       Descriptor: {
         Id: DLUAU1003,
@@ -84,7 +84,7 @@
     public int Current => CurrentValue;
 */
  : (28,5)-(28,26),
-      Message: Invalid generated export shape: instance library property 'Current' is not supported in v1 because live property generation is not implemented,
+      Message: Invalid generated export shape: instance module property 'Current' is not supported in v1 because live property generation is not implemented,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,

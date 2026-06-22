@@ -49,10 +49,10 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true
     );
 
-    public static readonly DiagnosticDescriptor LuauLibraryTypeMustBePartialDescriptor = new(
+    public static readonly DiagnosticDescriptor LuauModuleTypeMustBePartialDescriptor = new(
         id: "DLUAU1001",
-        title: "Luau library type must be partial",
-        messageFormat: "Type marked with [LuauLibrary] must be partial",
+        title: "Luau module type must be partial",
+        messageFormat: "Type marked with [LuauModule] must be partial",
         category: "Darp.Luau.Generator",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true
@@ -85,10 +85,10 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true
     );
 
-    public static readonly DiagnosticDescriptor InstanceLibraryStructNotSupportedDescriptor = new(
+    public static readonly DiagnosticDescriptor InstanceModuleStructNotSupportedDescriptor = new(
         id: "DLUAU1005",
-        title: "Instance library structs are not supported",
-        messageFormat: "Instance library structs are not supported because the receiver would be copied",
+        title: "Instance module structs are not supported",
+        messageFormat: "Instance module structs are not supported because the receiver would be copied",
         category: "Darp.Luau.Generator",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true
@@ -121,10 +121,10 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true
     );
 
-    public static readonly DiagnosticDescriptor LibraryPropertyMustBeReadOnlyDescriptor = new(
+    public static readonly DiagnosticDescriptor ModulePropertyMustBeReadOnlyDescriptor = new(
         id: "DLUAU1009",
-        title: "Library properties must be read-only",
-        messageFormat: "Exported library property '{0}' must be read-only because libraries are snapshot tables after registration",
+        title: "Module properties must be read-only",
+        messageFormat: "Exported module property '{0}' must be read-only because modules are snapshot tables after loading",
         category: "Darp.Luau.Generator",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true

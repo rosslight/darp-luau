@@ -2,15 +2,24 @@ using Shouldly;
 
 namespace Darp.Luau.Tests;
 
-public sealed class GeneratedLibraryRegistrationTests
+public sealed class GeneratedModuleLoadingTests
 {
     [Fact]
-    public void GeneratedStaticLibraryRegister_ShouldExposeValuesAndFunctions()
+    public void GeneratedStaticModule_ShouldExposeValuesAndFunctions()
     {
         using var state = new LuauState();
 
-        ArcadeLibrary.Register(state);
-        state.Load("sum = arcade.add_score(40, 2); tokens = arcade.tokens; difficulty = arcade.difficulty").Execute();
+        state.RegisterModule(ArcadeModule.ModuleName, ArcadeModule.OnLoad);
+        state
+            .Load(
+                """
+                local arcade = require("arcade")
+                sum = arcade.add_score(40, 2)
+                tokens = arcade.tokens
+                difficulty = arcade.difficulty
+                """
+            )
+            .Execute();
 
         state.Globals.GetNumber("sum").ShouldBe(42);
         state.Globals.GetNumber("tokens").ShouldBe(7);
@@ -18,37 +27,37 @@ public sealed class GeneratedLibraryRegistrationTests
     }
 
     [Fact]
-    public void GeneratedLibraryRegister_ShouldCreateNestedTables()
+    public void GeneratedModule_ShouldCreateNestedTables()
     {
         using var state = new LuauState();
-        var workshop = new WorkshopLibrary();
 
-        workshop.Register(state);
-        state.Load("bundle = workshop.tools.hammer(5)").Execute();
+        _ = state.RegisterModule<WorkshopModule>();
+        state.Load("bundle = require('workshop').tools.hammer(5)").Execute();
 
         state.Globals.GetNumber("bundle").ShouldBe(10);
     }
 
     [Fact]
-    public void GeneratedLibraryRegister_ShouldRoundtripManagedUserdata()
+    public void GeneratedModule_ShouldRoundtripManagedUserdata()
     {
         using var state = new LuauState();
-        var guild = new GuildLibrary();
 
-        guild.Register(state);
-        state.Load("champion = guild.heroes.create('Ada')").Execute();
+        _ = state.RegisterModule<GuildModule>();
+        state.Load("champion = require('guild').heroes.create('Ada')").Execute();
 
         state.Globals.GetUserdata<HeroCard>("champion").Name.ShouldBe("Ada");
     }
 
     [Fact]
-    public void GeneratedLibraryRegister_ShouldPreserveDuplicateGlobalCheck()
+    public void GeneratedModule_ShouldPreserveDuplicateModuleCheck()
     {
         using var state = new LuauState();
 
-        ArcadeLibrary.Register(state);
+        state.RegisterModule(ArcadeModule.ModuleName, ArcadeModule.OnLoad);
 
-        Should.Throw<InvalidOperationException>(() => ArcadeLibrary.Register(state));
+        Should.Throw<InvalidOperationException>(() =>
+            state.RegisterModule(ArcadeModule.ModuleName, ArcadeModule.OnLoad)
+        );
     }
 }
 
@@ -58,8 +67,8 @@ public enum ArcadeDifficulty
     Hard = 2,
 }
 
-[LuauLibrary("arcade")]
-public static partial class ArcadeLibrary
+[LuauModule("arcade")]
+public static partial class ArcadeModule
 {
     [LuauMember("tokens")]
     public static int Tokens => 7;
@@ -71,15 +80,15 @@ public static partial class ArcadeLibrary
     public static int AddScore(int current, int bonus) => current + bonus;
 }
 
-[LuauLibrary("workshop")]
-public sealed partial class WorkshopLibrary
+[LuauModule("workshop")]
+public sealed partial class WorkshopModule
 {
     [LuauMember("tools.hammer")]
     public int MakeHammer(int size) => size * 2;
 }
 
-[LuauLibrary("guild")]
-public sealed partial class GuildLibrary
+[LuauModule("guild")]
+public sealed partial class GuildModule
 {
     [LuauMember("heroes.create")]
     public HeroCard CreateHero(string name) => new(name);

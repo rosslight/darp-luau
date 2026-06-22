@@ -1,9 +1,9 @@
 namespace Darp.Luau.Generator.Tests;
 
-public sealed class GeneratedLibraryExportsEmitterTests
+public sealed class GeneratedModuleExportsEmitterTests
 {
     [Fact]
-    public async Task StaticLibrary_ShouldGenerateRegisterMethod()
+    public async Task StaticModule_ShouldGenerateOnLoadMethod()
     {
         const string code = """
             using Darp.Luau;
@@ -14,8 +14,8 @@ public sealed class GeneratedLibraryExportsEmitterTests
                 Hard = 2,
             }
 
-            [LuauLibrary("arcade")]
-            public static partial class ArcadeLibrary
+            [LuauModule("arcade")]
+            public static partial class ArcadeModule
             {
                 [LuauMember("tokens")]
                 public static int Tokens => 7;
@@ -32,13 +32,13 @@ public sealed class GeneratedLibraryExportsEmitterTests
     }
 
     [Fact]
-    public async Task StaticLibrary_WithMethodNameCollidingWithGeneratedLocal_ShouldGenerateQualifiedCall()
+    public async Task StaticModule_WithMethodNameCollidingWithGeneratedLocal_ShouldGenerateQualifiedCall()
     {
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("collisions")]
-            public static partial class CollisionLibrary
+            [LuauModule("collisions")]
+            public static partial class CollisionModule
             {
                 [LuauMember("returns")]
                 public static int returns() => 7;
@@ -49,7 +49,7 @@ public sealed class GeneratedLibraryExportsEmitterTests
     }
 
     [Fact]
-    public async Task InstanceLibrary_ShouldGenerateRegisterMethod()
+    public async Task InstanceModule_ShouldGenerateOnLoadMethod()
     {
         const string code = """
             using System;
@@ -75,8 +75,8 @@ public sealed class GeneratedLibraryExportsEmitterTests
                     LuauReturn.NotHandledError;
             }
 
-            [LuauLibrary("guild")]
-            public sealed partial class GuildLibrary
+            [LuauModule("guild")]
+            public sealed partial class GuildModule
             {
                 [LuauMember("heroes.create")]
                 public HeroCard CreateHero(string name) => new(name);
@@ -87,13 +87,13 @@ public sealed class GeneratedLibraryExportsEmitterTests
     }
 
     [Fact]
-    public async Task Library_WithInvalidMember_ShouldGenerateValidMembers()
+    public async Task Module_WithInvalidMember_ShouldGenerateValidMembers()
     {
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("arcade")]
-            public static partial class ArcadeLibrary
+            [LuauModule("arcade")]
+            public static partial class ArcadeModule
             {
                 [LuauMember("tokens")]
                 public static int Tokens => 7;
@@ -110,13 +110,13 @@ public sealed class GeneratedLibraryExportsEmitterTests
     }
 
     [Fact]
-    public async Task Library_WithRecoverableMemberErrors_ShouldGenerateRegisterMethodAndValidMembers()
+    public async Task Module_WithRecoverableMemberErrors_ShouldGenerateOnLoadMethodAndValidMembers()
     {
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("recoverable")]
-            public sealed partial class RecoverableLibrary
+            [LuauModule("recoverable")]
+            public sealed partial class RecoverableModule
             {
                 public int CurrentValue { get; set; }
 
@@ -150,43 +150,43 @@ public sealed class GeneratedLibraryExportsEmitterTests
     }
 
     [Fact]
-    public async Task Library_WithFatalTypeErrors_ShouldNotGenerateRegisterMethod()
+    public async Task Module_WithFatalTypeErrors_ShouldNotGenerateOnLoadMethod()
     {
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("nonpartial")]
-            public static class NonPartialLibrary
+            [LuauModule("nonpartial")]
+            public static class NonPartialModule
             {
                 [LuauMember("ok")]
                 public static int Ok() => 1;
             }
 
-            [LuauLibrary("ledger")]
-            public sealed partial class LedgerLibrary
+            [LuauModule("ledger")]
+            public sealed partial class LedgerModule
             {
-                public const string LuauLibraryName = "ledger";
+                public const string ModuleName = "ledger";
 
                 [LuauMember("ok")]
                 public int Ok() => 1;
             }
 
-            [LuauLibrary(" ")]
-            public static partial class BlankLibraryName
+            [LuauModule(" ")]
+            public static partial class BlankModuleName
             {
                 [LuauMember("ok")]
                 public static int Ok() => 1;
             }
 
-            [LuauLibrary("generic")]
-            public sealed partial class GenericLibrary<T>
+            [LuauModule("generic")]
+            public sealed partial class GenericModule<T>
             {
             }
 
             public static partial class Container
             {
-                [LuauLibrary("nested")]
-                public static partial class NestedLibrary
+                [LuauModule("nested")]
+                public static partial class NestedModule
                 {
                 }
             }
@@ -196,13 +196,13 @@ public sealed class GeneratedLibraryExportsEmitterTests
     }
 
     [Fact]
-    public async Task Library_WithBracketAccessNamesAndCollidingPathText_ShouldGenerateSafeLocalNames()
+    public async Task Module_WithBracketAccessNamesAndCollidingPathText_ShouldGenerateSafeLocalNames()
     {
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("demo")]
-            public static partial class DemoLibrary
+            [LuauModule("demo")]
+            public static partial class DemoModule
             {
                 [LuauMember("foo-bar")]
                 public static int FooBar() => 1;

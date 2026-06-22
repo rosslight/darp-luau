@@ -43,10 +43,10 @@ internal static class ExportAnalyzer
         List<Diagnostic> diagnostics
     )
     {
-        string? libraryName = null;
-        if (discoveredType.Kind == LuauExportedTypeKind.Library)
+        string? moduleName = null;
+        if (discoveredType.Kind == LuauExportedTypeKind.Module)
         {
-            libraryName = AttributeReader.GetStringConstructorArgument(discoveredType.Attribute);
+            moduleName = AttributeReader.GetStringConstructorArgument(discoveredType.Attribute);
         }
 
         var members = new List<NormalizedExportMember>();
@@ -66,7 +66,7 @@ internal static class ExportAnalyzer
         return new NormalizedExportType(
             discoveredType.Symbol,
             discoveredType.Kind,
-            libraryName,
+            moduleName,
             discoveredType.Origin,
             members.ToImmutableEquatableArray()
         );
@@ -105,13 +105,13 @@ internal static class ExportAnalyzer
             return null;
         }
 
-        if (discoveredType.Kind == LuauExportedTypeKind.Library && !property.IsStatic)
+        if (discoveredType.Kind == LuauExportedTypeKind.Module && !property.IsStatic)
         {
             diagnostics.Add(
                 Diagnostic.Create(
                     DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
                     location,
-                    $"instance library property '{property.Name}' is not supported in v1 because live property generation is not implemented"
+                    $"instance module property '{property.Name}' is not supported in v1 because live property generation is not implemented"
                 )
             );
             return null;
@@ -157,11 +157,11 @@ internal static class ExportAnalyzer
             return null;
         }
 
-        if (discoveredType.Kind == LuauExportedTypeKind.Library && propertyContract.Setter is not null)
+        if (discoveredType.Kind == LuauExportedTypeKind.Module && propertyContract.Setter is not null)
         {
             diagnostics.Add(
                 Diagnostic.Create(
-                    DiagnosticDescriptors.LibraryPropertyMustBeReadOnlyDescriptor,
+                    DiagnosticDescriptors.ModulePropertyMustBeReadOnlyDescriptor,
                     location,
                     property.Name
                 )
@@ -311,8 +311,8 @@ internal static class ExportAnalyzer
         if (exposeGetter)
         {
             LuauInteropTypeUsage getterUsage =
-                exportedTypeKind == LuauExportedTypeKind.Library
-                    ? LuauInteropTypeUsage.LibraryProperty
+                exportedTypeKind == LuauExportedTypeKind.Module
+                    ? LuauInteropTypeUsage.ModuleProperty
                     : LuauInteropTypeUsage.UserdataPropertyGet;
             if (
                 !TryMapPropertyType(
@@ -337,8 +337,8 @@ internal static class ExportAnalyzer
         if (exposeSetter)
         {
             LuauInteropTypeUsage setterUsage =
-                exportedTypeKind == LuauExportedTypeKind.Library
-                    ? LuauInteropTypeUsage.LibraryProperty
+                exportedTypeKind == LuauExportedTypeKind.Module
+                    ? LuauInteropTypeUsage.ModuleProperty
                     : LuauInteropTypeUsage.UserdataPropertySet;
             if (
                 !TryMapPropertyType(
@@ -380,7 +380,7 @@ internal static class ExportAnalyzer
                     DiagnosticDescriptors.UnsupportedGeneratedPropertyTypeDescriptor,
                     location,
                     property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                    exportedTypeKind == LuauExportedTypeKind.Library ? "library property" : "userdata property",
+                    exportedTypeKind == LuauExportedTypeKind.Module ? "module property" : "userdata property",
                     property.Name
                 )
             );
@@ -431,8 +431,8 @@ internal static class ExportAnalyzer
 
         var parameterBuilder = new List<InteropType>();
         LuauInteropTypeUsage parameterUsage =
-            exportedTypeKind == LuauExportedTypeKind.Library
-                ? LuauInteropTypeUsage.LibraryFunctionParameter
+            exportedTypeKind == LuauExportedTypeKind.Module
+                ? LuauInteropTypeUsage.ModuleFunctionParameter
                 : LuauInteropTypeUsage.UserdataMethodParameter;
         foreach (IParameterSymbol parameter in method.Parameters)
         {
@@ -522,8 +522,8 @@ internal static class ExportAnalyzer
 
         var returnValues = new List<InteropType>();
         LuauInteropTypeUsage returnUsage =
-            exportedTypeKind == LuauExportedTypeKind.Library
-                ? LuauInteropTypeUsage.LibraryFunctionReturn
+            exportedTypeKind == LuauExportedTypeKind.Module
+                ? LuauInteropTypeUsage.ModuleFunctionReturn
                 : LuauInteropTypeUsage.UserdataMethodReturn;
         if (method.ReturnType is not INamedTypeSymbol { IsTupleType: true } tupleType)
         {
@@ -618,8 +618,8 @@ internal static class ExportAnalyzer
         if (!TryMapExportType(type, usage, context, out mapping))
         {
             ReportUnsupportedMethodShape(
-                usage is LuauInteropTypeUsage.LibraryFunctionReturn
-                    ? LuauExportedTypeKind.Library
+                usage is LuauInteropTypeUsage.ModuleFunctionReturn
+                    ? LuauExportedTypeKind.Module
                     : LuauExportedTypeKind.Userdata,
                 method,
                 location,
@@ -793,8 +793,8 @@ internal static class ExportAnalyzer
     {
         ImmutableArray<string> rawSegments;
         bool success =
-            exportedTypeKind == LuauExportedTypeKind.Library
-                ? ExportPathParser.TryParseLibraryPath(exportedName, location, diagnostics, out rawSegments)
+            exportedTypeKind == LuauExportedTypeKind.Module
+                ? ExportPathParser.TryParseModulePath(exportedName, location, diagnostics, out rawSegments)
                 : ExportPathParser.TryParseUserdataPath(
                     exportedName,
                     memberName,
@@ -818,7 +818,7 @@ internal static class ExportAnalyzer
             Diagnostic.Create(
                 DiagnosticDescriptors.UnsupportedGeneratedFunctionShapeDescriptor,
                 location,
-                exportedTypeKind == LuauExportedTypeKind.Library ? "library function" : "userdata method",
+                exportedTypeKind == LuauExportedTypeKind.Module ? "module function" : "userdata method",
                 method.Name,
                 reason
             )

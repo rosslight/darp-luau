@@ -92,7 +92,7 @@ The generator reports diagnostics for unsupported shapes instead of emitting wea
 - exported userdata types must be partial, top-level, non-generic classes,
 - fields are not exported,
 - static userdata members are not supported,
-- member names are single-segment only; dotted paths are for generated libraries,
+- member names are single-segment only; dotted paths are for generated modules,
 - optional, `params`, `ref`, `in`, `out`, generic methods, and by-ref returns are not supported,
 - generated and manual userdata hooks cannot be mixed on the same type.
 

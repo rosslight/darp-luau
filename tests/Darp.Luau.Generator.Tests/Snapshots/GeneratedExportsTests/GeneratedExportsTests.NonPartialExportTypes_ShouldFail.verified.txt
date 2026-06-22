@@ -1,19 +1,19 @@
-﻿{
+{
   Diagnostics: [
     {
       Location: /*
 
-[LuauLibrary("game")]
- ^^^^^^^^^^^^^^^^^^^
-public static class GameLibrary
+[LuauModule("game")]
+ ^^^^^^^^^^^^^^^^^^
+public static class GameModule
 */
- : (2,1)-(2,20),
-      Message: Type marked with [LuauLibrary] must be partial,
+ : (2,1)-(2,19),
+      Message: Type marked with [LuauModule] must be partial,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1001,
-        Title: Luau library type must be partial,
-        MessageFormat: Type marked with [LuauLibrary] must be partial,
+        Title: Luau module type must be partial,
+        MessageFormat: Type marked with [LuauModule] must be partial,
         Category: Darp.Luau.Generator,
         DefaultSeverity: Error,
         IsEnabledByDefault: true

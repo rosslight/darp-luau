@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -39,7 +38,7 @@ public sealed unsafe class LuauState : IDisposable
     public bool IsDisposed => _disposing > 0;
 
     /// <summary>The effective set of built-in libraries loaded into this state.</summary>
-    public LuauLibraries EnabledLibraries { get; }
+    public LuauLibraries EnabledLibraries { get; private set; }
 
     /// <summary>
     /// Gets current memory-related tracking counters for this state.
@@ -56,8 +55,8 @@ public sealed unsafe class LuauState : IDisposable
     public LuauState()
         : this(LuauLibraries.All) { }
 
-    /// <summary>Initializes a new LuauState with explicit library loading options.</summary>
-    /// <param name="builtinLibraries">Configuration for built-in and custom libraries. Automatically adds <see cref="LuauLibraries.Minimal"/> libraries</param>
+    /// <summary>Initializes a new LuauState with explicit standard library loading options.</summary>
+    /// <param name="builtinLibraries">Standard Luau libraries to load. Automatically adds <see cref="LuauLibraries.Minimal"/> libraries.</param>
     /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
     public LuauState(LuauLibraries builtinLibraries)
     {
@@ -73,14 +72,27 @@ public sealed unsafe class LuauState : IDisposable
         _cache = new UserdataRegistrationCache(this);
         ReferenceTracker = new RegistryReferenceTracker(this);
 
-        EnabledLibraries = builtinLibraries;
-        OpenBuiltinLibraries(EnabledLibraries);
+        LoadStandardLibraries(builtinLibraries);
 
         // Push table to stack, get the reference and pop
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         _globalsHandle = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
 
         _callbackWrapperReference = RegisterCallbackWrapper();
+    }
+
+    /// <summary>Loads the requested standard Luau libraries into this state.</summary>
+    /// <param name="libraries">Libraries to load. Already loaded libraries are ignored.</param>
+    public void LoadStandardLibraries(LuauLibraries libraries)
+    {
+        this.ThrowIfDisposed();
+        libraries |= LuauLibraries.Minimal;
+        LuauLibraries missingLibraries = libraries & ~EnabledLibraries;
+        if (missingLibraries == 0)
+            return;
+
+        OpenBuiltinLibraries(missingLibraries);
+        EnabledLibraries |= missingLibraries;
     }
 
     private void OpenBuiltinLibraries(LuauLibraries libraries)
@@ -123,33 +135,67 @@ public sealed unsafe class LuauState : IDisposable
         lua_call(L, 1, 0);
     }
 
-    /// <summary> The delegate type used to build a custom library table. </summary>
-    /// <param name="state"> The <see cref="LuauState"/> the library is registered for </param>
-    /// <param name="lib"> The lib table </param>
-    public delegate void OpenLibraryFunc(LuauState state, in LuauTable lib);
+    /// <summary> The delegate type used to load a custom module table. </summary>
+    /// <param name="state"> The <see cref="LuauState"/> the module is registered for. </param>
+    /// <param name="module"> The module table to populate. </param>
+    public delegate void OnModuleLoad(LuauState state, in LuauTable module);
 
-    /// <summary>Registers a custom library table in globals.</summary>
-    /// <param name="name">Global name of the library table.</param>
-    /// <param name="build">Callback used to populate the created table.</param>
-    public void OpenLibrary(ReadOnlySpan<char> name, OpenLibraryFunc build)
+    /// <summary>Registers a host-provided module that can be loaded with <c>require("name")</c>.</summary>
+    /// <param name="name">Require name of the module.</param>
+    /// <param name="onLoad">Callback used to populate the module table when it is first required.</param>
+    public void RegisterModule(string name, OnModuleLoad onLoad)
     {
-        ArgumentNullException.ThrowIfNull(build);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(onLoad);
         this.ThrowIfDisposed();
-        if (Globals.ContainsKey(name))
-            throw new InvalidOperationException($"Global '{name}' already exists.");
 
-        using LuauTable table = CreateTable();
-        try
-        {
-            build(this, table);
-        }
-        catch (Exception exception)
-        {
-            throw new InvalidOperationException($"Failed to register custom library '{name}'.", exception);
-        }
+        if (IsReservedModuleName(name))
+            throw new ArgumentException(
+                $"Module name '{name}' conflicts with script module require prefixes.",
+                nameof(name)
+            );
 
-        Globals.Set(name, table);
+        LuauRequireByString.Context context = this.EnsureRequireInstalled();
+        context.RegisterHostModule(name, onLoad);
     }
+
+    /// <summary>Registers a host-provided module using its strongly typed module contract.</summary>
+    /// <param name="module">Module instance to register.</param>
+    /// <typeparam name="TModule">Module type.</typeparam>
+    public void RegisterModule<TModule>(TModule module)
+        where TModule : ILuauModule<TModule>
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        RegisterModule(TModule.ModuleName, module.OnLoad);
+    }
+
+    /// <summary>Registers a host-provided module using its strongly typed module contract.</summary>
+    /// <returns>The created module</returns>
+    /// <typeparam name="TModule">Module type.</typeparam>
+    public TModule RegisterModule<TModule>()
+        where TModule : ILuauModule<TModule>, new()
+    {
+        var module = new TModule();
+        RegisterModule(TModule.ModuleName, module.OnLoad);
+        return module;
+    }
+
+    internal LuauRequireByString.Context GetOrCreateRequireContext()
+    {
+        if (_requireContext is { } context)
+            return context;
+
+        _requireContext = LuauRequireByString.CreateAndInstallContext(this);
+        return _requireContext;
+    }
+
+    private static bool IsReservedModuleName(string name) =>
+        name.StartsWith('.')
+        || name.StartsWith('/')
+        || name.StartsWith('\\')
+        || name.StartsWith('@')
+        || name.Contains('/', StringComparison.Ordinal)
+        || name.Contains('\\', StringComparison.Ordinal);
 
     private ulong RegisterCallbackWrapper()
     {
@@ -438,9 +484,9 @@ public sealed unsafe class LuauState : IDisposable
         if (Interlocked.Exchange(ref _disposing, 1) != 0)
             return;
         _cache.Dispose();
-        ReferenceTracker.ReleaseAll();
         _requireContext?.Dispose();
         _requireContext = null;
+        ReferenceTracker.ReleaseAll();
         lua_close(L);
 #pragma warning disable CS0618 // Type or member is obsolete -> This is the place we want to clear the delegates
         _delegateSave.Clear();

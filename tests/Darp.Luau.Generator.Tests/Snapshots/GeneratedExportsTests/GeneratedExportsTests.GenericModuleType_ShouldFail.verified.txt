@@ -1,14 +1,14 @@
-﻿{
+{
   Diagnostics: [
     {
       Location: /*
-{
-    public const string ModuleName = "ledger";
-                        ^^^^^^^^^^
-}
+
+[LuauModule("vault")]
+ ^^^^^^^^^^^^^^^^^^^
+public sealed partial class VaultModule<T>
 */
- : (5,24)-(5,34),
-      Message: Invalid generated export shape: module types cannot declare members named 'ModuleName' or 'OnLoad' because those names are generated,
+ : (2,1)-(2,20),
+      Message: Invalid generated export shape: generic module types are not supported in v1,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1012,

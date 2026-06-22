@@ -25,8 +25,8 @@ public sealed class IncrementalPipelineTests
                 public string Name { get; set; } = "unknown";
             }
 
-            [LuauLibrary("guild")]
-            public sealed partial class GuildLibrary
+            [LuauModule("guild")]
+            public sealed partial class GuildModule
             {
                 [LuauMember("heroes.create")]
                 public HeroCard CreateHero(string name) => new() { Name = name };
@@ -88,8 +88,8 @@ public sealed class IncrementalPipelineTests
                 public string Name { get; set; } = "unknown";
             }
 
-            [LuauLibrary("game")]
-            public static partial class GameLibrary
+            [LuauModule("game")]
+            public static partial class GameModule
             {
                 [LuauMember("answer")]
                 public static int Answer => 42;
@@ -98,7 +98,7 @@ public sealed class IncrementalPipelineTests
 
         GeneratorDriverRunResult firstRun = RunTwice(new GeneratedExportsGenerator(), source, out var secondRun);
 
-        AssertCacheableStep(firstRun, secondRun, "GeneratedExportsLibraryModels");
+        AssertCacheableStep(firstRun, secondRun, "GeneratedExportsModuleModels");
         AssertCacheableStep(firstRun, secondRun, "GeneratedExportsUserdataModels");
     }
 

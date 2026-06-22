@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace Darp.Luau.Generator;
 
 /// <summary>
-/// Reports diagnostics and emits runtime registration code for generator-owned Luau libraries and userdata.
+/// Reports diagnostics and emits runtime registration code for generator-owned Luau modules and userdata.
 /// </summary>
 [Generator]
 public sealed class GeneratedExportsGenerator : IIncrementalGenerator
@@ -15,15 +15,15 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        IncrementalValuesProvider<GeneratedExportSurfaceIr> libraryModels =
+        IncrementalValuesProvider<GeneratedExportSurfaceIr> moduleModels =
             context.SyntaxProvider.ForAttributeWithMetadataName(
-                "Darp.Luau.LuauLibraryAttribute",
+                "Darp.Luau.LuauModuleAttribute",
                 static (node, _) => node is TypeDeclarationSyntax,
-                static (ctx, _) => AnalyzeType(ctx, LuauExportedTypeKind.Library)
+                static (ctx, _) => AnalyzeType(ctx, LuauExportedTypeKind.Module)
             )
             .Where(static model => model is not null)
             .Select(static (model, _) => model!)
-            .WithTrackingName("GeneratedExportsLibraryModels");
+            .WithTrackingName("GeneratedExportsModuleModels");
 
         IncrementalValuesProvider<GeneratedExportSurfaceIr> userdataModels =
             context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -35,7 +35,7 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
             .Select(static (model, _) => model!)
             .WithTrackingName("GeneratedExportsUserdataModels");
 
-        context.RegisterSourceOutput(libraryModels, Emit);
+        context.RegisterSourceOutput(moduleModels, Emit);
         context.RegisterSourceOutput(userdataModels, Emit);
     }
 
@@ -60,7 +60,7 @@ public sealed class GeneratedExportsGenerator : IIncrementalGenerator
         string? source;
         bool emitted = model.Kind switch
         {
-            LuauExportedTypeKind.Library => LibraryEmitter.TryEmit(model, out source),
+            LuauExportedTypeKind.Module => ModuleEmitter.TryEmit(model, out source),
             LuauExportedTypeKind.Userdata => UserdataEmitter.TryEmit(model, out source),
             _ => throw new InvalidOperationException($"Unsupported export kind '{model.Kind}'."),
         };

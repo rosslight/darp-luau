@@ -204,9 +204,9 @@ internal static class InteropTypeMapper
     {
         return usage switch
         {
-            LuauInteropTypeUsage.LibraryFunctionReturn or LuauInteropTypeUsage.UserdataMethodReturn =>
+            LuauInteropTypeUsage.ModuleFunctionReturn or LuauInteropTypeUsage.UserdataMethodReturn =>
                 SupportsReturnType(mapping.Type),
-            LuauInteropTypeUsage.LibraryProperty
+            LuauInteropTypeUsage.ModuleProperty
             or LuauInteropTypeUsage.UserdataPropertyGet
             or LuauInteropTypeUsage.UserdataPropertySet
             or LuauInteropTypeUsage.TypeFile => SupportsStoredPropertyType(mapping.Type),

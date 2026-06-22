@@ -1,4 +1,4 @@
-{
+﻿{
   Diagnostics: [
     {
       Location: /*
@@ -8,7 +8,7 @@
     public static int Unsupported(int value = 0) => value;
 */
  : (8,5)-(8,30),
-      Message: Generated library function 'Unsupported' uses an unsupported parameter or return shape: parameter 'value' is optional,
+      Message: Generated module function 'Unsupported' uses an unsupported parameter or return shape: parameter 'value' is optional,
       Severity: Error,
       Descriptor: {
         Id: DLUAU1006,
