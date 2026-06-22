@@ -1,44 +1,10 @@
-# Modules and Standard Libraries
+# Modules and require
 
-`LuauState` has two separate concepts:
+`require(...)` is the Luau-side module loading surface in Darp.Luau. It can load host-provided C# modules registered with `RegisterModule(...)`, and file-backed script modules after `EnableScriptModules()`.
 
-- standard Luau libraries selected through `LuauLibraries`,
-- modules loaded from Luau with `require(...)`.
+Host modules and file-backed script modules share one require context. The context resolves module names, loads modules lazily, and caches successful results for later `require(...)` calls.
 
-Host modules and file-backed script modules share one require context.
-
-## Standard Libraries
-
-Choose built-in Luau libraries when you create the state, or load additional libraries later:
-
-```csharp
-using var lua = new LuauState(LuauLibraries.Math | LuauLibraries.String);
-
-lua.LoadStandardLibraries(LuauLibraries.Buffer);
-```
-
-Available flags include:
-
-- `Base`
-- `Coroutine`
-- `Table`
-- `Os`
-- `String`
-- `Math`
-- `Debug`
-- `Utf8`
-- `Bit32`
-- `Buffer`
-- `Vector`
-
-Important details:
-
-- `LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
-- `EnabledLibraries` shows the effective built-in library set for the state.
-- `LoadStandardLibraries(...)` is idempotent; already loaded libraries are ignored.
-- `LuauLibraries.Buffer` enables Luau's script-side `buffer` library. Host-side buffer interop such as `CreateBuffer(...)`, `GetBuffer(...)`, or passing `byte[]` does not depend on that flag.
-
-## Generate a Host Module With `[LuauModule]`
+## Host modules
 
 The recommended way to expose a fixed host API is to mark a partial type with `[LuauModule]` and mark the script-facing members with `[LuauMember]`.
 
@@ -71,11 +37,11 @@ lua.Load(
 ).Execute();
 ```
 
-Generated registration stores a host module registration. The module table is created lazily when Luau first calls `require("game")`, then cached for later calls.
+The registration stores a host module factory. The module table is created lazily when Luau first calls `require("game")`, then cached for later calls.
 
-### Static and Instance Modules
+### Static and instance modules
 
-Static module types generate a static `OnLoad(...)` method. Instance module types generate an instance `OnLoad(...)` method, which is useful when the module needs managed state:
+Static module types generate a static `OnLoad(...)` method. Instance module types implement `ILuauModule<TModule>`, which is useful when the module needs managed state:
 
 ```csharp
 [LuauModule("scoreboard")]
@@ -91,12 +57,12 @@ public sealed partial class ScoreboardModule
 }
 
 var scoreboard = new ScoreboardModule();
-lua.RegisterModule(ScoreboardModule.ModuleName, scoreboard.OnLoad);
+lua.RegisterModule<ScoreboardModule>(scoreboard);
 ```
 
 Generated module properties are snapshot values written to the module table when it is loaded. Instance module properties are not supported because they would need live table accessors.
 
-### Nested Module Paths
+### Nested module paths
 
 Module member names can contain dots to create nested tables:
 
@@ -116,7 +82,7 @@ local workshop = require("workshop")
 local bundle = workshop.tools.hammer(5)
 ```
 
-### Generated Module Member Rules
+### Generated module member rules
 
 Generated modules support:
 
@@ -137,7 +103,7 @@ The generator reports diagnostics for unsupported shapes instead of emitting wea
 
 Use stable Luau-facing names in `[LuauMember("...")]` instead of mirroring managed names by default.
 
-## Register a Custom Host Module
+## Manual host modules
 
 Use manual `RegisterModule(...)` when the generated module model cannot express the shape you need, such as dynamic table construction, custom validation, or unsupported callback signatures.
 
@@ -160,14 +126,68 @@ lua.Load(
 
 Populate the module inside the registration callback. The temporary `module` wrapper passed to `RegisterModule(...)` is only meant for that setup step.
 
-## Registration Behavior
+Strongly typed manual modules can implement `ILuauModule<TModule>`:
+
+```csharp
+public sealed class GameModule : ILuauModule<GameModule>
+{
+    public static string ModuleName => "game";
+
+    public void OnLoad(LuauState lua, in LuauTable module)
+    {
+        module.Set("answer", 42);
+    }
+}
+
+lua.RegisterModule<GameModule>(new GameModule());
+```
+
+## File-backed script modules
+
+Call `EnableScriptModules()` when Luau scripts should load other `.luau` or `.lua` files from disk:
+
+```csharp
+using var lua = new LuauState();
+lua.EnableScriptModules();
+
+string path = Path.GetFullPath("scripts/main.luau");
+lua.Load(File.ReadAllBytes(path)).WithName("@" + path).Execute();
+```
+
+File-backed script module paths must start with `./`, `../`, or `@alias`:
+
+```lua
+local x = require("./x")
+local parent = require("../parent")
+local aliased = require("@shared/tools")
+```
+
+File-backed script modules need a recognized requiring chunk name:
+
+- `=stdin` for managed source that acts like a stdin entrypoint,
+- `@<absolute-or-relative-path>` for source that should resolve modules from a file location.
+
+For file-backed entry scripts, pass a chunk name that starts with `@` and points at the script path.
+
+## Shared require behavior
 
 `RegisterModule(...)`:
 
-- throws if the module name is already registered,
+- throws if the host module name is already registered,
 - reserves `./`, `../`, `/`, `\`, and `@` prefixes for script-module paths,
 - installs the shared require context if it was not installed already,
 - loads the module lazily on the first matching `require(...)`,
 - caches the module table after a successful load.
 
-See [Require](require.md) for file-backed script module loading.
+`EnableScriptModules()` adds file-backed script resolution to the same require context:
+
+- relative paths resolve from the requiring file,
+- module lookup checks `.luau`, `.lua`, `init.luau`, and `init.lua`,
+- `.luaurc` and `.config.luau` aliases are supported,
+- module results are cached by absolute file path.
+
+Each file-backed module must return exactly one value, and file-backed modules cannot yield while loading. Returned values can be any Luau value that Darp.Luau can surface.
+
+If file-backed module loading fails, the Lua-visible error may be generic in some cases, such as `module must return a single value`.
+
+Check `lua.RequireContext?.LoadError` for the loader's detailed message after a failed file-backed `require(...)`.

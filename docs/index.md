@@ -71,7 +71,7 @@ If a chunk should keep its own globals, create an environment table with `Create
 
 If you want file-based execution, load the file contents yourself and pass them to `Load(...)`. If that script should be able to call file-backed `require(...)`, first call `EnableScriptModules()` and use an `@`-prefixed chunk name through `WithName(...)` that points at the script path.
 
-See [Require](features/require.md), and [Chunks](features/chunks.md) for the full chunk execution API, return behavior, and ownership notes.
+See [Modules and require](features/modules.md), and [Chunks](features/chunks.md) for the full chunk execution API, return behavior, and ownership notes.
 
 ## Move data with tables
 
@@ -199,7 +199,7 @@ lua.Load(
 ).Execute();
 ```
 
-See [Modules and Standard Libraries](features/modules.md) for generated modules, manual `RegisterModule(...)`, nested paths, and current generator boundaries.
+See [Modules and require](features/modules.md) for generated modules, manual `RegisterModule(...)`, file-backed script modules, nested paths, and current generator boundaries.
 
 ## Where to next
 
@@ -211,4 +211,5 @@ See [Modules and Standard Libraries](features/modules.md) for generated modules,
 - [Buffers](features/buffers.md)
 - [Tables](features/tables.md)
 - [Userdata](features/userdata.md)
-- [Modules and standard libraries](features/modules.md)
+- [Standard libraries](features/standard-libraries.md)
+- [Modules and require](features/modules.md)
