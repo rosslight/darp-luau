@@ -90,11 +90,10 @@ internal static class ExportProjector
     private static string GetHintName(INamedTypeSymbol type, LuauExportedTypeKind kind)
     {
         string name = type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        var builder = new System.Text.StringBuilder(name.Length + 32);
-        foreach (char c in name)
-            builder.Append(char.IsLetterOrDigit(c) ? c : '_');
+        const string globalPrefix = "global::";
+        if (name.StartsWith(globalPrefix, StringComparison.Ordinal))
+            name = name[globalPrefix.Length..];
 
-        builder.Append(kind == LuauExportedTypeKind.Library ? ".LuauLibrary.g.cs" : ".LuauUserdata.g.cs");
-        return builder.ToString();
+        return name + (kind == LuauExportedTypeKind.Library ? ".LuauLibrary.g.cs" : ".LuauUserdata.g.cs");
     }
 }

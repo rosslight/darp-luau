@@ -60,7 +60,8 @@ internal static class LuauMarshalEmitter
             LuauInteropKind.StringCharSpan => $"""
                 if (!args.TryReadUtf8String(parameterIndex: {parameterIndex}, out global::System.ReadOnlySpan<byte> a{parameterIndex}Raw, out error))
                     return global::Darp.Luau.LuauReturn.Error(error);
-                global::System.Span<char> a{parameterIndex} = stackalloc char[global::System.Text.Encoding.UTF8.GetCharCount(a{parameterIndex}Raw)];
+                int a{parameterIndex}CharCount = global::System.Text.Encoding.UTF8.GetCharCount(a{parameterIndex}Raw);
+                global::System.Span<char> a{parameterIndex} = a{parameterIndex}CharCount <= 256 ? stackalloc char[a{parameterIndex}CharCount] : new char[a{parameterIndex}CharCount];
                 _ = global::System.Text.Encoding.UTF8.GetChars(a{parameterIndex}Raw, a{parameterIndex});
                 """,
             LuauInteropKind.StringString => isNullable
