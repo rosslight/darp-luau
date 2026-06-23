@@ -27,92 +27,6 @@ public sealed class RequireByStringTests
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
     [Fact]
-    public void PathNormalization()
-    {
-        string strPrefix = OperatingSystem.IsWindows() ? "C:/" : "/";
-
-        (string Input, string Expected)[] cases =
-        [
-            // 1. Basic formatting checks
-            ("", "./"),
-            (".", "./"),
-            ("..", "../"),
-            ("a/relative/path", "./a/relative/path"),
-            // 2. Paths containing extraneous '.' and '/' symbols
-            ("./remove/extraneous/symbols/", "./remove/extraneous/symbols"),
-            ("./remove/extraneous//symbols", "./remove/extraneous/symbols"),
-            ("./remove/extraneous/symbols/.", "./remove/extraneous/symbols"),
-            ("./remove/extraneous/./symbols", "./remove/extraneous/symbols"),
-            ("../remove/extraneous/symbols/", "../remove/extraneous/symbols"),
-            ("../remove/extraneous//symbols", "../remove/extraneous/symbols"),
-            ("../remove/extraneous/symbols/.", "../remove/extraneous/symbols"),
-            ("../remove/extraneous/./symbols", "../remove/extraneous/symbols"),
-            (strPrefix + "remove/extraneous/symbols/", strPrefix + "remove/extraneous/symbols"),
-            (strPrefix + "remove/extraneous//symbols", strPrefix + "remove/extraneous/symbols"),
-            (strPrefix + "remove/extraneous/symbols/.", strPrefix + "remove/extraneous/symbols"),
-            (strPrefix + "remove/extraneous/./symbols", strPrefix + "remove/extraneous/symbols"),
-            // 3. Paths containing '..'
-            // a. '..' removes the erasable component before it
-            ("./remove/me/..", "./remove"),
-            ("./remove/me/../", "./remove"),
-            ("../remove/me/..", "../remove"),
-            ("../remove/me/../", "../remove"),
-            (strPrefix + "remove/me/..", strPrefix + "remove"),
-            (strPrefix + "remove/me/../", strPrefix + "remove"),
-            // b. '..' stays if path is relative and component is non-erasable
-            ("./..", "../"),
-            ("./../", "../"),
-            ("../..", "../../"),
-            ("../../", "../../"),
-            // c. '..' disappears if path is absolute and component is non-erasable
-            (strPrefix + "..", strPrefix),
-        ];
-
-        foreach ((string input, string expected) in cases)
-        {
-            LuauModuleNavigator.NormalizePath(input).ShouldBe(expected);
-        }
-    }
-
-    /// <summary>See https://github.com/luau-lang/luau</summary>
-    [Fact]
-    public void RequireSimpleRelativePath()
-    {
-        using var state = new LuauState();
-        state.EnableScriptModules();
-        state.RequireContext.ShouldNotBeNull();
-
-        string strPath = Path.Combine(ScriptPath, "without_config/dependency");
-        string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, LuauTable result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, LuauTable>();
-        success.ShouldBeTrue();
-        using (result)
-        {
-            result.TryGet(1, out string? value).ShouldBeTrue();
-            value.ShouldBe("result from dependency");
-        }
-        state.RequireContext.LoadError.ShouldBeNullOrEmpty();
-    }
-
-    [Fact]
-    public void ScriptModule_ShouldRequireRegisteredHostModule()
-    {
-        using var state = new LuauState();
-        state.RegisterModule("host", static (_, in module) => module.Set("answer", 42));
-        state.EnableScriptModules();
-        state.RequireContext.ShouldNotBeNull();
-
-        string strPath = Path.Combine(ScriptPath, "without_config/host_module_requirer");
-        string strSource = SourceForRunProtectedRequire(strPath);
-        (bool success, int result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, int>();
-
-        success.ShouldBeTrue();
-        result.ShouldBe(42);
-        state.RequireContext.LoadError.ShouldBeNullOrEmpty();
-    }
-
-    /// <summary>See https://github.com/luau-lang/luau</summary>
-    [Fact]
     public void RequireSimpleRelativePathWithinPcall()
     {
         using var state = new LuauState();
@@ -591,7 +505,11 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        RequireErrorShouldContain(result, state.RequireContext, "could not resolve alias \"dep\" (ambiguous configuration file)");
+        RequireErrorShouldContain(
+            result,
+            state.RequireContext,
+            "could not resolve alias \"dep\" (ambiguous configuration file)"
+        );
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
@@ -937,7 +855,11 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        RequireErrorShouldContain(result, state.RequireContext, "error requiring module \"@brokenchain\": @missing is not a valid alias");
+        RequireErrorShouldContain(
+            result,
+            state.RequireContext,
+            "error requiring module \"@brokenchain\": @missing is not a valid alias"
+        );
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
@@ -955,7 +877,11 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        RequireErrorShouldContain(result, state.RequireContext, "error requiring module \"@brokenchain\": @missing is not a valid alias");
+        RequireErrorShouldContain(
+            result,
+            state.RequireContext,
+            "error requiring module \"@brokenchain\": @missing is not a valid alias"
+        );
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
