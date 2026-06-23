@@ -9,7 +9,9 @@ public interface ILuauFileSystem
     /// <summary> Gets the current working directory. </summary>
     /// <returns> The current directory </returns>
     [Pure]
+#pragma warning disable CA1024 // Use properties where appropriate -> ignored to mirror the Directory API
     string GetCurrentDirectory();
+#pragma warning restore CA1024
 
     /// <summary> Determines whether the given path refers to an existing file. </summary>
     /// <param name="path">The path to test.</param>

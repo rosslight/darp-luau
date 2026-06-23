@@ -13,8 +13,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
 {
     private const byte ChunkNamePrefix = (byte)'@';
     private readonly ILuauFileSystem _virtualFileSystem;
-    private readonly Lock _navigatorLock = new();
-    private readonly Dictionary<nint, LuauModuleNavigator> _navigators = [];
+    private readonly LuauModuleNavigator _navigator;
     private GCHandle _handle;
     private string? _pendingLoadError;
 
@@ -24,6 +23,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     public LuauScriptModuleRequirer(ILuauFileSystem virtualFileSystem)
     {
         _virtualFileSystem = virtualFileSystem;
+        _navigator = new LuauModuleNavigator(virtualFileSystem);
         _handle = GCHandle.Alloc(this);
     }
 
@@ -103,9 +103,9 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
 
         ReadOnlySpan<byte> chunkName = MemoryMarshal.CreateReadOnlySpanFromNullTerminated(requirerChunkname);
         if (chunkName.SequenceEqual("=stdin"u8))
-            return req.NavigatorFor(L).ResetToStdIn();
+            return req._navigator.ResetToStdIn();
         if (chunkName.StartsWith(ChunkNamePrefix))
-            return req.NavigatorFor(L).ResetToPath(Encoding.UTF8.GetString(chunkName[1..]));
+            return req._navigator.ResetToPath(Encoding.UTF8.GetString(chunkName[1..]));
 
         return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
     }
@@ -119,14 +119,14 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         if (!FileUtils.IsAbsolutePath(strPath))
             return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
 
-        return req.NavigatorFor(L).ResetToPath(strPath);
+        return req._navigator.ResetToPath(strPath);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_NavigateResult ToParent(lua_State* L, void* ctx)
     {
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-        return req.NavigatorFor(L).ToParent();
+        return req._navigator.ToParent();
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -135,16 +135,15 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
 
         string strName = new((sbyte*)name);
-        return req.NavigatorFor(L).ToChild(strName);
+        return req._navigator.ToChild(strName);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static bool IsModulePresent(lua_State* L, void* ctx)
     {
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-        LuauModuleNavigator navigator = req.NavigatorFor(L);
 
-        return req._virtualFileSystem.FileExists(navigator.RealPath);
+        return req._virtualFileSystem.FileExists(req._navigator.RealPath);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -157,9 +156,8 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     )
     {
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-        LuauModuleNavigator navigator = req.NavigatorFor(L);
 
-        return Write($"@{navigator.RealPath}", buffer, bufferSize, sizeOut);
+        return Write($"@{req._navigator.RealPath}", buffer, bufferSize, sizeOut);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -172,9 +170,8 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     )
     {
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-        LuauModuleNavigator navigator = req.NavigatorFor(L);
 
-        return Write(navigator.AbsoluteRealPath, buffer, bufferSize, sizeOut);
+        return Write(req._navigator.AbsoluteRealPath, buffer, bufferSize, sizeOut);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -187,18 +184,16 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     )
     {
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-        LuauModuleNavigator navigator = req.NavigatorFor(L);
 
-        return Write(navigator.AbsoluteRealPath, buffer, bufferSize, sizeOut);
+        return Write(req._navigator.AbsoluteRealPath, buffer, bufferSize, sizeOut);
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static luarequire_ConfigStatus GetConfigStatus(lua_State* L, void* ctx)
     {
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-        LuauModuleNavigator navigator = req.NavigatorFor(L);
 
-        return navigator.GetConfigStatus();
+        return req._navigator.GetConfigStatus();
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -211,9 +206,8 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     )
     {
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-        LuauModuleNavigator navigator = req.NavigatorFor(L);
 
-        return Write(navigator.GetConfig(), buffer, bufferSize, sizeOut);
+        return Write(req._navigator.GetConfig(), buffer, bufferSize, sizeOut);
     }
 
     /// <summary>
@@ -354,21 +348,6 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         var buffer = new Span<byte>(bufDest, (int)nSizeBufDest);
         *nSizeBufDestOut = (nuint)Encoding.UTF8.GetBytes(strSrc, buffer);
         return luarequire_WriteResult.WRITE_SUCCESS;
-    }
-
-    private LuauModuleNavigator NavigatorFor(lua_State* L)
-    {
-        lock (_navigatorLock)
-        {
-            nint key = (nint)L;
-            if (!_navigators.TryGetValue(key, out LuauModuleNavigator? navigator))
-            {
-                navigator = new LuauModuleNavigator(_virtualFileSystem);
-                _navigators.Add(key, navigator);
-            }
-
-            return navigator;
-        }
     }
 
     private void* ToVoidPtr()

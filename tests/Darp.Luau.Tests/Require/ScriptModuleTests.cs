@@ -57,6 +57,55 @@ public sealed class ScriptModuleTests
     }
 
     [Fact]
+    public void NestedRequire_ShouldKeepParentAndChildCacheKeysSeparate()
+    {
+        var fs = new FakeFileSystem([
+            (
+                "./main.luau",
+                """
+                local parent1 = require("./parent")
+                local child1 = require("./child")
+                local parent2 = require("./parent")
+                local child2 = require("./child")
+
+                return {
+                    parent1.name,
+                    child1.name,
+                    parent2.name,
+                    child2.name,
+                    parent1 == parent2,
+                    child1 == child2,
+                    parent1 == child1,
+                }
+                """
+            ),
+            (
+                "./parent.luau",
+                """
+                local child = require("./child")
+                return { name = "parent", child = child }
+                """
+            ),
+            ("./child.luau", """return { name = "child" }"""),
+        ]);
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+
+        using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
+        result.GetUtf8String(1).ShouldBe("parent");
+        result.GetUtf8String(2).ShouldBe("child");
+        result.GetUtf8String(3).ShouldBe("parent");
+        result.GetUtf8String(4).ShouldBe("child");
+        result.TryGet(5, out bool sameParent).ShouldBeTrue();
+        sameParent.ShouldBeTrue();
+        result.TryGet(6, out bool sameChild).ShouldBeTrue();
+        sameChild.ShouldBeTrue();
+        result.TryGet(7, out bool parentIsChild).ShouldBeTrue();
+        parentIsChild.ShouldBeFalse();
+    }
+
+    [Fact]
     public void RequireLuaFile()
     {
         var fs = new FakeFileSystem([
