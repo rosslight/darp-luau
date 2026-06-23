@@ -25,9 +25,6 @@ public sealed unsafe class LuauState : IDisposable
 
     private LuauModuleRequirer? _moduleRequirer;
 
-    /// <summary>require-by-string context for state. is created if require-by-string gets enabled</summary>
-    public IRequireContext? RequireContext => _moduleRequirer;
-
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
     [Obsolete("Used for saving delegates used in unmanaged memory to prevent them going out of scope")]
@@ -56,7 +53,7 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary> Initializes a new LuauState, and opens all default libs. </summary>
     /// <exception cref="InvalidOperationException"> Thrown if the luau state could not be created </exception>
     public LuauState()
-        : this(LuauLibraries.All, null) { }
+        : this(LuauLibraries.All) { }
 
     /// <summary>Initializes a new LuauState with explicit standard library loading options.</summary>
     /// <param name="builtinLibraries">Standard Luau libraries to load. Automatically adds <see cref="LuauLibraries.Minimal"/> libraries.</param>
@@ -194,10 +191,7 @@ public sealed unsafe class LuauState : IDisposable
 
     internal LuauModuleRequirer GetOrCreateModuleRequirer()
     {
-        if (_moduleRequirer is { } requirer)
-            return requirer;
-
-        _moduleRequirer = new LuauModuleRequirer(this, _virtualFileSystem);
+        _moduleRequirer ??= new LuauModuleRequirer(this, _virtualFileSystem);
         return _moduleRequirer;
     }
 

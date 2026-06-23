@@ -5,10 +5,7 @@ internal sealed class LuauHostModuleRequirer : IDisposable
     private readonly LuauState _state;
     private readonly Dictionary<string, HostModule> _hostModules = new(StringComparer.Ordinal);
 
-    public LuauHostModuleRequirer(LuauState state)
-    {
-        _state = state;
-    }
+    public LuauHostModuleRequirer(LuauState state) => _state = state;
 
     public void RegisterModule(string name, LuauState.OnModuleLoad onLoad)
     {

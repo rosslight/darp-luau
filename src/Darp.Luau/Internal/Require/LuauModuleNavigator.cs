@@ -3,7 +3,7 @@ using Darp.Luau.Native;
 
 namespace Darp.Luau.Internal.Require;
 
-/// <summary> Provides a stateful navigation for a module </summary>
+/// <summary> Provides a stateful navigation for a require-by-string module </summary>
 /// <param name="virtualFileSystem">A virtual file system for abstract file operations</param>
 /// <seealso href="https://github.com/luau-lang/luau/blob/master/CLI/src/VfsNavigator.cpp"/>
 internal sealed class LuauModuleNavigator(ILuauFileSystem virtualFileSystem)

@@ -16,6 +16,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     private readonly Lock _navigatorLock = new();
     private readonly Dictionary<nint, LuauModuleNavigator> _navigators = [];
     private GCHandle _handle;
+    private string? _pendingLoadError;
 
     /// <summary> A require-by-string requirer that uses a virtual file system to resolve module paths. </summary>
     /// <param name="virtualFileSystem">A virtual file system for abstract file operations</param>
@@ -28,13 +29,11 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
 
     public bool Enabled { get; set; }
 
-    public string? LoadError { get; private set; }
-
     public RequireResolution Resolve(string path)
     {
         if (IsScriptModulePath(path))
         {
-            LoadError = null;
+            _pendingLoadError = null;
             return Enabled
                 ? RequireResolution.ScriptModule
                 : RequireResolution.LoadError("script module require is not enabled");
@@ -45,12 +44,19 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
             : RequireResolution.NotFound;
     }
 
-    public static bool IsScriptModulePath(string path) =>
+    internal string? TakePendingLoadError()
+    {
+        string? error = _pendingLoadError;
+        _pendingLoadError = null;
+        return error;
+    }
+
+    private static bool IsScriptModulePath(string path) =>
         path.StartsWith("./", StringComparison.Ordinal)
         || path.StartsWith("../", StringComparison.Ordinal)
         || path.StartsWith('@');
 
-    public static bool IsInvalidScriptModulePath(string path) =>
+    private static bool IsInvalidScriptModulePath(string path) =>
         path.Contains('/', StringComparison.Ordinal) || path.Contains('\\', StringComparison.Ordinal);
 
     internal LuauFunction CreateProxyRequireFunction(LuauState state)
@@ -210,9 +216,16 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         return Write(navigator.GetConfig(), buffer, bufferSize, sizeOut);
     }
 
+    /// <summary>
+    /// Report a load error to the native proxy.
+    /// This function stores the error message and returns to many values which the luau require library interprets as a failed load.
+    ///
+    /// This is a workaround because we cannot raise a lua_error in c# because we cannot longjmp across C# boundary.
+    /// Instead, we will check <seealso cref="TakePendingLoadError"/> in the native proxy and raise a lua_error if it is not null.
+    /// </summary>
     private int ReportLoadError(lua_State* L, string message)
     {
-        LoadError = message;
+        _pendingLoadError = message;
 
         // Push two values so the native proxy reports this as a failed require, not a cached module value.
         lua_pushnil(L);
@@ -228,7 +241,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         string strLoadName = new((sbyte*)loadname);
 
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-        req.LoadError = null;
+        req._pendingLoadError = null;
 
         int nResults = 1; // default number of results pushed onto stack
 #if DEBUG

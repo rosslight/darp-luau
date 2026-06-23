@@ -18,7 +18,6 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - Generated exports currently emit runtime C# glue only. Luau type-file output is not a documented shipped feature yet.
 - File-backed `require(...)` is available through `EnableScriptModules()`, but it requires explicit setup and a matching chunk-name convention for file entrypoints.
 - `EnableScriptModules()` currently expects script modules to return exactly one value and not yield while loading.
-- Detailed loader failures may surface through `LuauState.RequireContext.LoadError` even when the Lua-visible error is generic.
 - Managed interop is documented for strings, numbers, booleans, tables, functions, userdata, and buffers. Vector and thread values are not documented as managed interop surfaces yet.
 - Higher-level async, coroutine orchestration, and thread-based host APIs are not documented as finished features.
 
@@ -29,7 +28,6 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - If you want callback signatures outside the supported `CreateFunction(...)` subset, use `CreateFunctionBuilder(...)`.
 - Prefer source-generated modules and userdata for fixed host APIs. Fall back to manual `RegisterModule(...)`, `CreateFunctionBuilder(...)`, or `ILuauUserData<T>` when the generated model is too narrow.
 - If you need more than the current typed `Invoke(...)` or chunk execution overload set, either compose around `InvokeMulti(...)` or `ExecuteMulti()`, call a returned function explicitly, or add an explicit overload.
-- If a `require(...)` call fails with a generic Lua error, inspect `LuauState.RequireContext.LoadError` for the detailed loader message.
 - If you need long-lived access to callback values, promote borrowed `*View` values to owned references before the callback returns.
 
 ## Expect change

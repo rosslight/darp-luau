@@ -9,7 +9,7 @@ using static Darp.Luau.Native.LuauNative;
 
 namespace Darp.Luau.Internal.Require;
 
-internal sealed unsafe class LuauModuleRequirer : IRequireContext, IDisposable
+internal sealed unsafe class LuauModuleRequirer : IDisposable
 {
     private const int ContextUpvalueIndex = 1;
 
@@ -35,8 +35,6 @@ internal sealed unsafe class LuauModuleRequirer : IRequireContext, IDisposable
             throw;
         }
     }
-
-    public string? LoadError => _scriptModules.LoadError;
 
     public void EnableScriptModules()
     {
@@ -164,7 +162,7 @@ internal sealed unsafe class LuauModuleRequirer : IRequireContext, IDisposable
     private static int GetScriptLoadError(lua_State* L)
     {
         LuauModuleRequirer requirer = FromUpvalue(L);
-        if (requirer._scriptModules.LoadError is { } loadError)
+        if (requirer._scriptModules.TakePendingLoadError() is { } loadError)
             LuauStateMarshal.PushString(L, loadError);
         else
             lua_pushnil(L);

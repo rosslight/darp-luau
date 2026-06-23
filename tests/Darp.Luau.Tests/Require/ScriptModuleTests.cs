@@ -708,19 +708,13 @@ public sealed class ScriptModuleTests
     }
 
     [Fact]
-    public void MultipleCallsToEnableScriptModules_ShouldReuseRequireContext()
+    public void MultipleCallsToEnableScriptModules_ShouldWork()
     {
         var fs = new FakeFileSystem([]);
 
         using var state = new LuauState(LuauLibraries.All, fs);
         state.EnableScriptModules();
-        IRequireContext? context01 = state.RequireContext;
-        context01.ShouldNotBeNull();
-
         state.EnableScriptModules();
-        IRequireContext? context02 = state.RequireContext;
-        context02.ShouldNotBeNull();
-        context02.ShouldBeSameAs(context01);
     }
 
     [Fact]

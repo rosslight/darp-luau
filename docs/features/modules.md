@@ -188,6 +188,4 @@ For file-backed entry scripts, pass a chunk name that starts with `@` and points
 
 Each file-backed module must return exactly one value, and file-backed modules cannot yield while loading. Returned values can be any Luau value that Darp.Luau can surface.
 
-If file-backed module loading fails, the Lua-visible error may be generic in some cases, such as `module must return a single value`.
-
-Check `lua.RequireContext?.LoadError` for the loader's detailed message after a failed file-backed `require(...)`.
+If file-backed module loading fails, Darp.Luau reports the detailed loader message through the normal Luau error path. Managed callers receive it through `LuaException`; Luau code can catch it with `pcall(...)`.
