@@ -42,8 +42,17 @@ internal sealed class FileSystem : ILuauFileSystem
 
     public string? ReadFile(string path)
     {
-        if (!FileExists(path))
+        try
+        {
+            return File.ReadAllText(path);
+        }
+        catch (FileNotFoundException)
+        {
             return null;
-        return File.ReadAllText(path);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return null;
+        }
     }
 }

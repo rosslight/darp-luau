@@ -115,7 +115,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     {
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
 
-        string strPath = new((sbyte*)path);
+        string strPath = ReadUtf8Z(path);
         if (!FileUtils.IsAbsolutePath(strPath))
             return luarequire_NavigateResult.NAVIGATE_NOT_FOUND;
 
@@ -134,7 +134,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     {
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
 
-        string strName = new((sbyte*)name);
+        string strName = ReadUtf8Z(name);
         return req._navigator.ToChild(strName);
     }
 
@@ -230,9 +230,9 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int Load(lua_State* L, void* ctx, byte* path, byte* chunkname, byte* loadname)
     {
-        string strPath = new((sbyte*)path);
-        string strChunkName = new((sbyte*)chunkname);
-        string strLoadName = new((sbyte*)loadname);
+        string strPath = ReadUtf8Z(path);
+        string strChunkName = ReadUtf8Z(chunkname);
+        string strLoadName = ReadUtf8Z(loadname);
 
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
         req._pendingLoadError = null;
@@ -276,7 +276,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
                         }
                         else
                         {
-                            string strMsg = new((sbyte*)lua_tostring(ML, -1));
+                            string strMsg = ReadUtf8Z((byte*)lua_tostring(ML, -1));
                             nResults = req.ReportLoadError(ML, $"error while loading module '{strPath}': {strMsg}");
                         }
                     }
@@ -311,7 +311,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
                 }
                 else
                 {
-                    string strMsg = new((sbyte*)lua_tostring(ML, -1));
+                    string strMsg = ReadUtf8Z((byte*)lua_tostring(ML, -1));
                     nResults = req.ReportLoadError(ML, $"error while running module '{strPath}': {strMsg}");
                 }
             }
@@ -348,6 +348,12 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         var buffer = new Span<byte>(bufDest, (int)nSizeBufDest);
         *nSizeBufDestOut = (nuint)Encoding.UTF8.GetBytes(strSrc, buffer);
         return luarequire_WriteResult.WRITE_SUCCESS;
+    }
+
+    private static string ReadUtf8Z(byte* ptr)
+    {
+        ReadOnlySpan<byte> bytes = MemoryMarshal.CreateReadOnlySpanFromNullTerminated(ptr);
+        return Encoding.UTF8.GetString(bytes);
     }
 
     private void* ToVoidPtr()

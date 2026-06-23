@@ -23,8 +23,8 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 
 ## What this means in practice
 
-- If you want file-based script loading, read the file in managed code and pass the contents to `Load(...)`.
-- If you want file-backed modules, call `EnableScriptModules()` and use an `@`-prefixed chunk name for the entry script.
+- If you want file-based script loading, use `LoadFile(path)` for entry scripts.
+- If you want file-backed modules, call `EnableScriptModules()` and execute the entry script with `LoadFile(path)`, which assigns the required `@...` chunk name automatically.
 - If you want callback signatures outside the supported `CreateFunction(...)` subset, use `CreateFunctionBuilder(...)`.
 - Prefer source-generated modules and userdata for fixed host APIs. Fall back to manual `RegisterModule(...)`, `CreateFunctionBuilder(...)`, or `ILuauUserData<T>` when the generated model is too narrow.
 - If you need more than the current typed `Invoke(...)` or chunk execution overload set, either compose around `InvokeMulti(...)` or `ExecuteMulti()`, call a returned function explicitly, or add an explicit overload.

@@ -42,7 +42,7 @@ using Darp.Luau;
 using var lua = new LuauState();
 ```
 
-`LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
+The default constructor loads all standard libraries. Pass `LuauLibraries.None` to create a state without standard libraries.
 
 ## Chunks
 

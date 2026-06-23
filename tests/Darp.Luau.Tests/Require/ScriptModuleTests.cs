@@ -34,6 +34,20 @@ public sealed class ScriptModuleTests
     }
 
     [Fact]
+    public void RequirePathWithUtf8Characters()
+    {
+        const string modulePath = "./unicode/\u00FCmlaut";
+        var fs = new FakeFileSystem([(modulePath + ".luau", """return {"result from umlaut"}""")]);
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+
+        using LuauTable result = state.Load($"""return require("{modulePath}")""").Execute<LuauTable>();
+
+        result.GetUtf8String(1).ShouldBe("result from umlaut");
+    }
+
+    [Fact]
     public void RequireRelativeToRequiringFile()
     {
         var fs = new FakeFileSystem([

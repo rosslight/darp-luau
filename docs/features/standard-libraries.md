@@ -26,7 +26,7 @@ Available flags include:
 
 Important details:
 
-- `LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
+- `LuauLibraries.None` loads no standard libraries.
 - `EnabledLibraries` shows the effective built-in library set for the state.
 - `LoadStandardLibraries(...)` is idempotent; already loaded libraries are ignored.
 - `LuauLibraries.Buffer` enables Luau's script-side `buffer` library. Host-side buffer interop such as `CreateBuffer(...)`, `GetBuffer(...)`, or passing `byte[]` does not depend on that flag.

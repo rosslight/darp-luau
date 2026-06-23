@@ -119,7 +119,7 @@ internal sealed class LuauModuleNavigator(ILuauFileSystem virtualFileSystem)
         {
             luarequire_ConfigStatus.CONFIG_PRESENT_JSON => _virtualFileSystem.ReadFile(GetConfigPath(ConfigName)),
             luarequire_ConfigStatus.CONFIG_PRESENT_LUAU => _virtualFileSystem.ReadFile(GetConfigPath(LuauConfigName)),
-            _ => throw new LuaException("Invalid config state"),
+            _ => null,
         };
     }
 
