@@ -25,6 +25,15 @@ internal sealed class FakeFileSystem : ILuauFileSystem
 
     public string? ReadFile(string path) => _files.GetValueOrDefault(ToAbsolutePath(path, _currentDirectory));
 
+    public void SetFile(string fileName, string content)
+    {
+        ValidateFileName(fileName);
+
+        string absolutFileName = ToAbsolutePath(fileName, _currentDirectory);
+        AddParentDirectories(_directories, absolutFileName);
+        _files[absolutFileName] = content;
+    }
+
     private static (Dictionary<string, string> Files, HashSet<string> Directories) CreateFiles(
         IEnumerable<(string FileName, string Content)> files,
         string currentDirectory
@@ -34,13 +43,7 @@ internal sealed class FakeFileSystem : ILuauFileSystem
         var directorySet = new HashSet<string>(StringComparer.Ordinal);
         foreach ((string fileName, string content) in files)
         {
-            if (!fileName.StartsWith("./", StringComparison.Ordinal) && !fileName.StartsWith('/'))
-            {
-                throw new ArgumentException(
-                    $"Fake filesystem paths must be explicit relative paths starting with './' or absolute paths: {fileName}",
-                    nameof(fileName)
-                );
-            }
+            ValidateFileName(fileName);
 
             string absolutFileName = ToAbsolutePath(fileName, currentDirectory);
             AddParentDirectories(directorySet, absolutFileName);
@@ -48,6 +51,17 @@ internal sealed class FakeFileSystem : ILuauFileSystem
         }
 
         return (fileDict, directorySet);
+    }
+
+    private static void ValidateFileName(string fileName)
+    {
+        if (!fileName.StartsWith("./", StringComparison.Ordinal) && !fileName.StartsWith('/'))
+        {
+            throw new ArgumentException(
+                $"Fake filesystem paths must be explicit relative paths starting with './' or absolute paths: {fileName}",
+                nameof(fileName)
+            );
+        }
     }
 
     private static void AddParentDirectories(HashSet<string> directories, string filePath)
