@@ -17,6 +17,14 @@ public sealed class RequireByStringTests
     private static string SourceForRunProtectedRequireLongLiteral(string strPath) =>
         $"return pcall(function() return require([[{strPath}]]) end)";
 
+    private static void RequireErrorShouldContain(string result, IRequireContext? context, string expected)
+    {
+        result.ShouldContain(expected);
+        context.ShouldNotBeNull();
+        context.LoadError.ShouldNotBeNullOrEmpty();
+        context.LoadError.ShouldContain(expected);
+    }
+
     /// <summary>See https://github.com/luau-lang/luau</summary>
     [Fact]
     public void PathNormalization()
@@ -318,9 +326,9 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        result.ShouldContain("module must return a single value");
-        state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-        state.RequireContext.LoadError.ShouldContain(
+        RequireErrorShouldContain(
+            result,
+            state.RequireContext,
             "error requiring module \"./ambiguous/file/dependency\": could not resolve child component \"dependency\" (ambiguous)"
         );
     }
@@ -337,9 +345,9 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        result.ShouldContain("module must return a single value");
-        state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-        state.RequireContext.LoadError.ShouldContain(
+        RequireErrorShouldContain(
+            result,
+            state.RequireContext,
             "error requiring module \"./ambiguous/directory/dependency\": could not resolve child component \"dependency\" (ambiguous)"
         );
     }
@@ -583,9 +591,7 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        result.ShouldContain("module must return a single value");
-        state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-        state.RequireContext.LoadError.ShouldContain("could not resolve alias \"dep\" (ambiguous configuration file)");
+        RequireErrorShouldContain(result, state.RequireContext, "could not resolve alias \"dep\" (ambiguous configuration file)");
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
@@ -600,9 +606,7 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        result.ShouldContain("module must return a single value");
-        state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-        state.RequireContext.LoadError.ShouldContain("could not resolve child component \".config\"");
+        RequireErrorShouldContain(result, state.RequireContext, "could not resolve child component \".config\"");
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
@@ -889,9 +893,9 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        result.ShouldContain("module must return a single value");
-        state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-        state.RequireContext.LoadError.ShouldContain(
+        RequireErrorShouldContain(
+            result,
+            state.RequireContext,
             "error requiring module \"@cyclicentry\": detected alias cycle (@cyclic1 -> @cyclic2 -> @cyclic3 -> @cyclic1)"
         );
     }
@@ -911,9 +915,9 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        result.ShouldContain("module must return a single value");
-        state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-        state.RequireContext.LoadError.ShouldContain(
+        RequireErrorShouldContain(
+            result,
+            state.RequireContext,
             "error requiring module \"@cyclicentry\": detected alias cycle (@cyclic1 -> @cyclic2 -> @cyclic3 -> @cyclic1)"
         );
     }
@@ -933,11 +937,7 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        result.ShouldContain("module must return a single value");
-        state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-        state.RequireContext.LoadError.ShouldContain(
-            "error requiring module \"@brokenchain\": @missing is not a valid alias"
-        );
+        RequireErrorShouldContain(result, state.RequireContext, "error requiring module \"@brokenchain\": @missing is not a valid alias");
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
@@ -955,11 +955,7 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        result.ShouldContain("module must return a single value");
-        state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-        state.RequireContext.LoadError.ShouldContain(
-            "error requiring module \"@brokenchain\": @missing is not a valid alias"
-        );
+        RequireErrorShouldContain(result, state.RequireContext, "error requiring module \"@brokenchain\": @missing is not a valid alias");
     }
 
     /// <summary>See https://github.com/luau-lang/luau</summary>
@@ -977,9 +973,9 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        result.ShouldContain("module must return a single value");
-        state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-        state.RequireContext.LoadError.ShouldContain(
+        RequireErrorShouldContain(
+            result,
+            state.RequireContext,
             "error requiring module \"@dependoninner\": @passthroughinner is not a valid alias"
         );
     }
@@ -999,9 +995,9 @@ public sealed class RequireByStringTests
         string strSource = SourceForRunProtectedRequire(strPath);
         (bool success, string result) = state.Load(strSource).WithName(StdInChunkName).Execute<bool, string>();
         success.ShouldBeFalse();
-        result.ShouldContain("module must return a single value");
-        state.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-        state.RequireContext.LoadError.ShouldContain(
+        RequireErrorShouldContain(
+            result,
+            state.RequireContext,
             "error requiring module \"@dependoninner\": @passthroughinner is not a valid alias"
         );
     }
@@ -1041,9 +1037,9 @@ public sealed class RequireByStringTests
                         .WithName(StdInChunkName)
                         .Execute<bool, string>();
                     success.ShouldBeFalse();
-                    result.ShouldContain("module must return a single value");
-                    state01.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-                    state01.RequireContext.LoadError.ShouldContain(
+                    RequireErrorShouldContain(
+                        result,
+                        state01.RequireContext,
                         "error requiring module \"@brokenchain\": @missing is not a valid alias"
                     );
                 },
@@ -1063,9 +1059,9 @@ public sealed class RequireByStringTests
                         .WithName(StdInChunkName)
                         .Execute<bool, string>();
                     success.ShouldBeFalse();
-                    result.ShouldContain("module must return a single value");
-                    state02.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-                    state02.RequireContext.LoadError.ShouldContain(
+                    RequireErrorShouldContain(
+                        result,
+                        state02.RequireContext,
                         "error requiring module \"@dependoninner\": @passthroughinner is not a valid alias"
                     );
                 },
@@ -1085,9 +1081,9 @@ public sealed class RequireByStringTests
                         .WithName(StdInChunkName)
                         .Execute<bool, string>();
                     success.ShouldBeFalse();
-                    result.ShouldContain("module must return a single value");
-                    state03.RequireContext.LoadError.ShouldNotBeNullOrEmpty();
-                    state03.RequireContext.LoadError.ShouldContain(
+                    RequireErrorShouldContain(
+                        result,
+                        state03.RequireContext,
                         "error requiring module \"@cyclicentry\": detected alias cycle (@cyclic1 -> @cyclic2 -> @cyclic3 -> @cyclic1)"
                     );
                 },
@@ -1163,6 +1159,54 @@ public sealed class RequireByStringTests
         ctx02.ShouldNotBeNull();
 
         ctx02.ShouldBeSameAs(ctx01);
+    }
+
+    [Fact]
+    public void FailedScriptModuleRequire_ShouldNotCacheFailureAsModuleValue()
+    {
+        using var state = new LuauState();
+        state.EnableScriptModules();
+        state.RequireContext.ShouldNotBeNull();
+
+        string id = Guid.NewGuid().ToString("N");
+        string directory = Path.Combine("artifacts", "script-require-cache", id);
+        string moduleBasePath = Path.Combine(directory, "dependency");
+        string moduleFilePath = moduleBasePath + ".luau";
+        string requirePath = PathForRequireStringLiteral("./" + moduleBasePath);
+        string strSource = SourceForRunProtectedRequire(requirePath);
+
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(moduleFilePath, "return");
+
+            (bool firstSuccess, string firstError) = state
+                .Load(strSource)
+                .WithName(StdInChunkName)
+                .Execute<bool, string>();
+
+            firstSuccess.ShouldBeFalse();
+            RequireErrorShouldContain(firstError, state.RequireContext, "must return a single value");
+
+            File.WriteAllText(moduleFilePath, "return { 17 }");
+
+            (bool secondSuccess, LuauTable result) = state
+                .Load(strSource)
+                .WithName(StdInChunkName)
+                .Execute<bool, LuauTable>();
+
+            secondSuccess.ShouldBeTrue();
+            using (result)
+            {
+                result.TryGet(1, out int value).ShouldBeTrue();
+                value.ShouldBe(17);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]

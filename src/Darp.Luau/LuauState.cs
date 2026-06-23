@@ -21,10 +21,10 @@ public sealed unsafe class LuauState : IDisposable
     private readonly ulong _callbackWrapperReference;
     private readonly UserdataRegistrationCache _cache;
 
-    internal LuauModuleContext? _requireContext;
+    private LuauModuleRequirer? _moduleRequirer;
 
     /// <summary>require-by-string context for state. is created if require-by-string gets enabled</summary>
-    public IRequireContext? RequireContext => _requireContext;
+    public IRequireContext? RequireContext => _moduleRequirer;
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
@@ -156,8 +156,8 @@ public sealed unsafe class LuauState : IDisposable
                 nameof(name)
             );
 
-        LuauModuleContext context = this.EnsureRequireInstalled();
-        context.RegisterHostModule(name, onLoad);
+        LuauModuleRequirer requirer = GetOrCreateModuleRequirer();
+        requirer.RegisterHostModule(name, onLoad);
     }
 
     /// <summary>Registers a host-provided module using its strongly typed module contract.</summary>
@@ -181,13 +181,20 @@ public sealed unsafe class LuauState : IDisposable
         return module;
     }
 
-    internal LuauModuleContext GetOrCreateRequireContext()
+    /// <summary>Enables file-backed script modules for <see cref="LuauState"/>.</summary>
+    public void EnableScriptModules()
     {
-        if (_requireContext is { } context)
-            return context;
+        this.ThrowIfDisposed();
+        GetOrCreateModuleRequirer().EnableScriptModules();
+    }
 
-        _requireContext = Internal.Require.LuauRequireByString.CreateAndInstallContext(this);
-        return _requireContext;
+    internal LuauModuleRequirer GetOrCreateModuleRequirer()
+    {
+        if (_moduleRequirer is { } requirer)
+            return requirer;
+
+        _moduleRequirer = new LuauModuleRequirer(this);
+        return _moduleRequirer;
     }
 
     private static bool IsReservedModuleName(string name) =>
@@ -485,8 +492,8 @@ public sealed unsafe class LuauState : IDisposable
         if (Interlocked.Exchange(ref _disposing, 1) != 0)
             return;
         _cache.Dispose();
-        _requireContext?.Dispose();
-        _requireContext = null;
+        _moduleRequirer?.Dispose();
+        _moduleRequirer = null;
         ReferenceTracker.ReleaseAll();
         lua_close(L);
 #pragma warning disable CS0618 // Type or member is obsolete -> This is the place we want to clear the delegates
