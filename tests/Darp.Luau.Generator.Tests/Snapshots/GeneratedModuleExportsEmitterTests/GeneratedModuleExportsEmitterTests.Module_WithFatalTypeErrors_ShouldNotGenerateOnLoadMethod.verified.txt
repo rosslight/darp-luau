@@ -1,0 +1,99 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+
+[LuauModule("nonpartial")]
+ ^^^^^^^^^^^^^^^^^^^^^^^^
+public static class NonPartialModule
+*/
+ : (2,1)-(2,25),
+      Message: Type marked with [LuauModule] must be partial,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1001,
+        Title: Luau module type must be partial,
+        MessageFormat: Type marked with [LuauModule] must be partial,
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+{
+    public const string ModuleName = "ledger";
+                        ^^^^^^^^^^
+
+*/
+ : (12,24)-(12,34),
+      Message: Invalid generated export shape: module types cannot declare members named 'ModuleName' or 'OnLoad' because those names are generated,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+[LuauModule(" ")]
+ ^^^^^^^^^^^^^^^
+public static partial class BlankModuleName
+*/
+ : (18,1)-(18,16),
+      Message: Invalid generated export shape: root modules must supply a non-empty name via [LuauModule("...")],
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+
+[LuauModule("generic")]
+ ^^^^^^^^^^^^^^^^^^^^^
+public sealed partial class GenericModule<T>
+*/
+ : (25,1)-(25,22),
+      Message: Invalid generated export shape: generic module types are not supported in v1,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+{
+    [LuauModule("nested")]
+     ^^^^^^^^^^^^^^^^^^^^
+    public static partial class NestedModule
+*/
+ : (32,5)-(32,25),
+      Message: Invalid generated export shape: nested module types are not supported in v1,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

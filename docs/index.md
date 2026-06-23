@@ -11,7 +11,7 @@ This documentation is organized around the way you use the library in practice:
 
 - create a `LuauState` and choose built-in libraries,
 - run Luau source with `Load(...).Execute(...)`,
-- optionally enable file-backed `require(...)` with `EnableRequire()`,
+- load host modules and file-backed script modules through `require(...)`,
 - move values between Luau and C# through strings, tables, functions, buffers, and userdata,
 - understand which values are owned references and which values are borrowed callback views.
 
@@ -21,8 +21,8 @@ This documentation is organized around the way you use the library in practice:
 - Owned wrappers such as `LuauTable` and `LuauFunction` can outlive the current call frame, but they need disposal.
 - Borrowed `*View` types such as `LuauTableView` and `LuauFunctionView` are callback-scoped.
 - `CreateFunction(...)` is the normal typed callback API, but it must be called directly so the generator can intercept it.
-- `[LuauLibrary]` and `[LuauUserdata]` are the recommended source-generated paths for exposing fixed host APIs.
-- `OpenLibrary(...)`, `CreateFunctionBuilder(...)`, and manual `ILuauUserData<T>` implementations are fallback APIs when generation is not flexible enough.
+- `[LuauModule]` and `[LuauUserdata]` are the recommended source-generated paths for exposing fixed host APIs.
+- `RegisterModule(...)`, `CreateFunctionBuilder(...)`, and manual `ILuauUserData<T>` implementations are fallback APIs when generation is not flexible enough.
 
 See [Concepts](concepts/index.md).
 
@@ -42,7 +42,7 @@ using Darp.Luau;
 using var lua = new LuauState();
 ```
 
-`LuauLibraries.Minimal` (`Base | Table`) is always enabled automatically.
+The default constructor loads all standard libraries. Pass `LuauLibraries.None` to create a state without standard libraries.
 
 ## Chunks
 
@@ -69,9 +69,9 @@ Chunks can also return values directly to managed code. Use `Load(...).Execute<T
 
 If a chunk should keep its own globals, create an environment table with `CreateEnvironment()` and pass it through `WithEnvironment(...)`.
 
-If you want file-based execution, load the file contents yourself and pass them to `Load(...)`. If that script should be able to call `require(...)`, first call `EnableRequire()` and use an `@`-prefixed chunk name through `WithName(...)` that points at the script path.
+If you want file-based execution, load the file contents yourself and pass them to `Load(...)`. If that script should be able to call file-backed `require(...)`, first call `EnableScriptModules()` and use an `@`-prefixed chunk name through `WithName(...)` that points at the script path.
 
-See [Require](features/require.md), and [Chunks](features/chunks.md) for the full chunk execution API, return behavior, and ownership notes.
+See [Modules and require](features/modules.md), and [Chunks](features/chunks.md) for the full chunk execution API, return behavior, and ownership notes.
 
 ## Move data with tables
 
@@ -162,13 +162,13 @@ lua.Load(
 
 See [Userdata](features/userdata.md) for generated userdata, manual hook behavior, retrieval APIs, identity rules, and lifetimes.
 
-## Register a host library
+## Register a host module
 
-Use `[LuauLibrary]` to generate the normal registration path for fixed host APIs:
+Use `[LuauModule]` to generate the normal registration path for fixed host APIs:
 
 ```csharp
-[LuauLibrary("game")]
-public static partial class GameLibrary
+[LuauModule("game")]
+public static partial class GameModule
 {
     [LuauMember("answer")]
     public static int Answer => 42;
@@ -177,24 +177,29 @@ public static partial class GameLibrary
     public static int Add(int left, int right) => left + right;
 }
 
-GameLibrary.Register(lua);
+lua.RegisterModule(GameModule.ModuleName, GameModule.OnLoad);
 ```
 
-Generated registration creates the global library table and populates it from the attributed members. Use manual `OpenLibrary(...)` only when you need dynamic table construction or unsupported callback shapes:
+Generated registration registers a module that Luau loads through `require("game")`. Use manual `RegisterModule(...)` only when you need dynamic table construction or unsupported callback shapes:
 
 ```csharp
-lua.OpenLibrary("game", static (state, in LuauTable lib) =>
+lua.RegisterModule("game", static (state, in LuauTable module) =>
 {
-    lib.Set("answer", 42);
+    module.Set("answer", 42);
 
     using LuauFunction add = state.CreateFunction((int a, int b) => a + b);
-    lib.Set("add", add);
+    module.Set("add", add);
 });
 
-lua.Load("result = game.add(game.answer, 8)").Execute();
+lua.Load(
+    """
+    local game = require("game")
+    result = game.add(game.answer, 8)
+    """
+).Execute();
 ```
 
-See [Libraries](features/libraries.md) for generated libraries, manual `OpenLibrary(...)`, nested paths, and current generator boundaries.
+See [Modules and require](features/modules.md) for generated modules, manual `RegisterModule(...)`, file-backed script modules, nested paths, and current generator boundaries.
 
 ## Where to next
 
@@ -206,4 +211,5 @@ See [Libraries](features/libraries.md) for generated libraries, manual `OpenLibr
 - [Buffers](features/buffers.md)
 - [Tables](features/tables.md)
 - [Userdata](features/userdata.md)
-- [Libraries](features/libraries.md)
+- [Standard libraries](features/standard-libraries.md)
+- [Modules and require](features/modules.md)

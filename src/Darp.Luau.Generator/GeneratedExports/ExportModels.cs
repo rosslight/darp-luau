@@ -6,7 +6,7 @@ namespace Darp.Luau.Generator.GeneratedExports;
 
 internal enum LuauExportedTypeKind
 {
-    Library,
+    Module,
     Userdata,
 }
 
@@ -45,7 +45,7 @@ internal sealed record DiscoveredExportMethod(IMethodSymbol Symbol, AttributeDat
 internal sealed record NormalizedExportType(
     INamedTypeSymbol Symbol,
     LuauExportedTypeKind Kind,
-    string? LibraryName,
+    string? ModuleName,
     SourceOrigin Origin,
     ImmutableEquatableArray<NormalizedExportMember> Members
 );
@@ -96,12 +96,12 @@ internal sealed record NormalizedMethodContract(
     ImmutableEquatableArray<InteropType> ReturnTypes
 );
 
-internal sealed record ValidatedExportType(NormalizedExportType Type, ValidatedLibraryExportNode? LibraryRoot);
+internal sealed record ValidatedExportType(NormalizedExportType Type, ValidatedModuleExportNode? ModuleRoot);
 
-internal sealed record ValidatedLibraryExportNode(
+internal sealed record ValidatedModuleExportNode(
     string Name,
     NormalizedExportMember? Member,
-    ImmutableEquatableArray<ValidatedLibraryExportNode> Children
+    ImmutableEquatableArray<ValidatedModuleExportNode> Children
 );
 
 internal sealed record GeneratedExportSurfaceIr(
@@ -111,9 +111,9 @@ internal sealed record GeneratedExportSurfaceIr(
     bool IsStatic,
     string HintName,
     LuauExportedTypeKind Kind,
-    string? LibraryName,
+    string? ModuleName,
     ImmutableEquatableArray<GeneratedExportMemberIr> Members,
-    GeneratedLibraryExportNodeIr? LibraryRoot
+    GeneratedModuleExportNodeIr? ModuleRoot
 );
 
 internal abstract record GeneratedExportMemberIr(
@@ -142,10 +142,10 @@ internal sealed record GeneratedExportMethodIr(
 
 internal sealed record GeneratedExportAccessorIr(InteropType Type);
 
-internal sealed record GeneratedLibraryExportNodeIr(
+internal sealed record GeneratedModuleExportNodeIr(
     string Name,
     GeneratedExportMemberIr? Member,
-    ImmutableEquatableArray<GeneratedLibraryExportNodeIr> Children
+    ImmutableEquatableArray<GeneratedModuleExportNodeIr> Children
 );
 
 internal sealed record GeneratedExportsTypeAnalysis(

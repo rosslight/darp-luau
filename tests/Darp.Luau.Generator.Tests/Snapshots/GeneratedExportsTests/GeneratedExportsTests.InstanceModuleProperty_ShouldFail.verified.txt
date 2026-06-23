@@ -1,0 +1,23 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+
+    [LuauMember("current")]
+     ^^^^^^^^^^^^^^^^^^^^^
+    public int Current => CurrentValue;
+*/
+ : (7,5)-(7,26),
+      Message: Invalid generated export shape: instance module property 'Current' is not supported in v1 because live property generation is not implemented,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

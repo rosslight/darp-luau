@@ -1,0 +1,113 @@
+using Shouldly;
+
+namespace Darp.Luau.Tests;
+
+public sealed class GeneratedModuleLoadingTests
+{
+    [Fact]
+    public void GeneratedStaticModule_ShouldExposeValuesAndFunctions()
+    {
+        using var state = new LuauState();
+
+        state.RegisterModule(ArcadeModule.ModuleName, ArcadeModule.OnLoad);
+        state
+            .Load(
+                """
+                local arcade = require("arcade")
+                sum = arcade.add_score(40, 2)
+                tokens = arcade.tokens
+                difficulty = arcade.difficulty
+                """
+            )
+            .Execute();
+
+        state.Globals.GetNumber("sum").ShouldBe(42);
+        state.Globals.GetNumber("tokens").ShouldBe(7);
+        state.Globals.GetNumber("difficulty").ShouldBe((int)ArcadeDifficulty.Hard);
+    }
+
+    [Fact]
+    public void GeneratedModule_ShouldCreateNestedTables()
+    {
+        using var state = new LuauState();
+
+        _ = state.RegisterModule<WorkshopModule>();
+        state.Load("bundle = require('workshop').tools.hammer(5)").Execute();
+
+        state.Globals.GetNumber("bundle").ShouldBe(10);
+    }
+
+    [Fact]
+    public void GeneratedModule_ShouldRoundtripManagedUserdata()
+    {
+        using var state = new LuauState();
+
+        _ = state.RegisterModule<GuildModule>();
+        state.Load("champion = require('guild').heroes.create('Ada')").Execute();
+
+        state.Globals.GetUserdata<HeroCard>("champion").Name.ShouldBe("Ada");
+    }
+
+    [Fact]
+    public void GeneratedModule_ShouldPreserveDuplicateModuleCheck()
+    {
+        using var state = new LuauState();
+
+        state.RegisterModule(ArcadeModule.ModuleName, ArcadeModule.OnLoad);
+
+        Should.Throw<InvalidOperationException>(() =>
+            state.RegisterModule(ArcadeModule.ModuleName, ArcadeModule.OnLoad)
+        );
+    }
+}
+
+public enum ArcadeDifficulty
+{
+    Normal = 1,
+    Hard = 2,
+}
+
+[LuauModule("arcade")]
+public static partial class ArcadeModule
+{
+    [LuauMember("tokens")]
+    public static int Tokens => 7;
+
+    [LuauMember("difficulty")]
+    public static ArcadeDifficulty Difficulty => ArcadeDifficulty.Hard;
+
+    [LuauMember("add_score")]
+    public static int AddScore(int current, int bonus) => current + bonus;
+}
+
+[LuauModule("workshop")]
+public sealed partial class WorkshopModule
+{
+    [LuauMember("tools.hammer")]
+    public int MakeHammer(int size) => size * 2;
+}
+
+[LuauModule("guild")]
+public sealed partial class GuildModule
+{
+    [LuauMember("heroes.create")]
+    public HeroCard CreateHero(string name) => new(name);
+}
+
+public sealed class HeroCard(string name) : ILuauUserData<HeroCard>
+{
+    public string Name { get; } = name;
+
+    public static LuauReturnSingle OnIndex(HeroCard self, in LuauState state, in ReadOnlySpan<char> fieldName) =>
+        fieldName switch
+        {
+            "name" => LuauReturnSingle.Ok(self.Name),
+            _ => LuauReturnSingle.NotHandled,
+        };
+
+    public static LuauOutcome OnSetIndex(HeroCard self, LuauArgsSingle args, in ReadOnlySpan<char> fieldName) =>
+        LuauOutcome.NotHandledError;
+
+    public static LuauReturn OnMethodCall(HeroCard self, LuauArgs functionArgs, in ReadOnlySpan<char> methodName) =>
+        LuauReturn.NotHandledError;
+}

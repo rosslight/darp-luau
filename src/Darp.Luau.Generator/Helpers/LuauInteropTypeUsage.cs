@@ -4,9 +4,9 @@ internal enum LuauInteropTypeUsage
 {
     CreateFunctionParameter,
     CreateFunctionReturn,
-    LibraryFunctionParameter,
-    LibraryFunctionReturn,
-    LibraryProperty,
+    ModuleFunctionParameter,
+    ModuleFunctionReturn,
+    ModuleProperty,
     UserdataPropertyGet,
     UserdataPropertySet,
     UserdataMethodParameter,

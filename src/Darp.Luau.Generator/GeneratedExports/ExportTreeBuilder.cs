@@ -5,32 +5,32 @@ namespace Darp.Luau.Generator.GeneratedExports;
 
 internal static class ExportTreeBuilder
 {
-    public static ValidatedLibraryExportNode BuildLibraryTree(
+    public static ValidatedModuleExportNode BuildModuleTree(
         NormalizedExportType normalizedType,
         List<Diagnostic> diagnostics
     )
     {
-        var root = new MutableLibraryExportNode(string.Empty);
+        var root = new MutableModuleExportNode(string.Empty);
         foreach (NormalizedExportMember member in normalizedType.Members)
-            AddLibraryMember(root, member, diagnostics);
+            AddModuleMember(root, member, diagnostics);
 
         return Freeze(root);
     }
 
-    private static void AddLibraryMember(
-        MutableLibraryExportNode root,
+    private static void AddModuleMember(
+        MutableModuleExportNode root,
         NormalizedExportMember member,
         List<Diagnostic> diagnostics
     )
     {
-        MutableLibraryExportNode current = root;
+        MutableModuleExportNode current = root;
         for (int i = 0; i < member.PathSegments.Length; i++)
         {
             string segment = member.PathSegments[i];
             bool isLeaf = i == member.PathSegments.Length - 1;
-            if (!current.Children.TryGetValue(segment, out MutableLibraryExportNode? child))
+            if (!current.Children.TryGetValue(segment, out MutableModuleExportNode? child))
             {
-                child = new MutableLibraryExportNode(segment);
+                child = new MutableModuleExportNode(segment);
                 current.Children.Add(segment, child);
             }
 
@@ -73,32 +73,32 @@ internal static class ExportTreeBuilder
         }
     }
 
-    private static string GetNamespaceConflictPath(MutableLibraryExportNode node, string prefix)
+    private static string GetNamespaceConflictPath(MutableModuleExportNode node, string prefix)
     {
         if (node.Member is not null)
             return node.Member.LuauName;
 
-        foreach (KeyValuePair<string, MutableLibraryExportNode> child in node.Children)
+        foreach (KeyValuePair<string, MutableModuleExportNode> child in node.Children)
             return GetNamespaceConflictPath(child.Value, prefix + "." + child.Key);
 
         return prefix;
     }
 
-    private static ValidatedLibraryExportNode Freeze(MutableLibraryExportNode node)
+    private static ValidatedModuleExportNode Freeze(MutableModuleExportNode node)
     {
-        return new ValidatedLibraryExportNode(
+        return new ValidatedModuleExportNode(
             node.Name,
             node.Member,
             node.Children.Values.Select(Freeze).ToImmutableEquatableArray()
         );
     }
 
-    private sealed class MutableLibraryExportNode(string name)
+    private sealed class MutableModuleExportNode(string name)
     {
         public string Name { get; } = name;
 
         public NormalizedExportMember? Member { get; set; }
 
-        public Dictionary<string, MutableLibraryExportNode> Children { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, MutableModuleExportNode> Children { get; } = new(StringComparer.Ordinal);
     }
 }

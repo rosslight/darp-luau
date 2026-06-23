@@ -3,7 +3,7 @@ namespace Darp.Luau.Generator.Tests;
 public class GeneratedExportsTests
 {
     [Fact]
-    public async Task ValidLibraryAndUserdata_ShouldReportNoDiagnostics()
+    public async Task ValidModuleAndUserdata_ShouldReportNoDiagnostics()
     {
         const string code = """
             using Darp.Luau;
@@ -18,8 +18,8 @@ public class GeneratedExportsTests
                 public void Rename(string name) => Name = name;
             }
 
-            [LuauLibrary("game")]
-            public static partial class GameLibrary
+            [LuauModule("game")]
+            public static partial class GameModule
             {
                 [LuauMember("answer")]
                 public static int Answer => 42;
@@ -33,14 +33,14 @@ public class GeneratedExportsTests
     }
 
     [Fact]
-    public async Task PartialLibraryAcrossFiles_ShouldReportNoDiagnostics()
+    public async Task PartialModuleAcrossFiles_ShouldReportNoDiagnostics()
     {
         string[] sources =
         [
             """
                 using Darp.Luau;
 
-                [LuauLibrary("mathx")]
+                [LuauModule("mathx")]
                 public static partial class MathX
                 {
                     [LuauMember("pi")]
@@ -67,8 +67,8 @@ public class GeneratedExportsTests
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("game")]
-            public static class GameLibrary
+            [LuauModule("game")]
+            public static class GameModule
             {
             }
 
@@ -87,8 +87,8 @@ public class GeneratedExportsTests
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("file_local")]
-            file static partial class FileLocalLibrary
+            [LuauModule("file_local")]
+            file static partial class FileLocalModule
             {
             }
 
@@ -135,13 +135,13 @@ public class GeneratedExportsTests
     }
 
     [Fact]
-    public async Task LibraryPathConflictsAndInvalidPaths_ShouldFail()
+    public async Task ModulePathConflictsAndInvalidPaths_ShouldFail()
     {
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("aa")]
-            public static partial class AnalyzerLibrary
+            [LuauModule("aa")]
+            public static partial class AnalyzerModule
             {
                 [LuauMember("Field")]
                 public static int Field => 1;
@@ -176,8 +176,8 @@ public class GeneratedExportsTests
                 public string ValidName { get; set; } = "";
             }
 
-            [LuauLibrary("game")]
-            public static partial class GameLibrary
+            [LuauModule("game")]
+            public static partial class GameModule
             {
                 [LuauMember("123abc")]
                 public static int StartsWithDigit => 1;
@@ -206,13 +206,13 @@ public class GeneratedExportsTests
     }
 
     [Fact]
-    public async Task LibraryPropertyAndMethodShapeDiagnostics_ShouldFail()
+    public async Task ModulePropertyAndMethodShapeDiagnostics_ShouldFail()
     {
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("game")]
-            public static partial class GameLibrary
+            [LuauModule("game")]
+            public static partial class GameModule
             {
                 [LuauMember("current")]
                 public static int Current { get; set; }
@@ -226,14 +226,14 @@ public class GeneratedExportsTests
     }
 
     [Fact]
-    public async Task LibraryFunctionByteSpanReturn_ShouldFail()
+    public async Task ModuleFunctionByteSpanReturn_ShouldFail()
     {
         const string code = """
             using System;
             using Darp.Luau;
 
-            [LuauLibrary("game")]
-            public static partial class GameLibrary
+            [LuauModule("game")]
+            public static partial class GameModule
             {
                 [LuauMember("bytes")]
                 public static ReadOnlySpan<byte> Bytes() => "abc"u8;
@@ -244,13 +244,13 @@ public class GeneratedExportsTests
     }
 
     [Fact]
-    public async Task InstanceLibraryProperty_ShouldFail()
+    public async Task InstanceModuleProperty_ShouldFail()
     {
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("game")]
-            public sealed partial class GameLibrary
+            [LuauModule("game")]
+            public sealed partial class GameModule
             {
                 public int CurrentValue { get; set; }
 
@@ -289,13 +289,13 @@ public class GeneratedExportsTests
     }
 
     [Fact]
-    public async Task GenericLibraryType_ShouldFail()
+    public async Task GenericModuleType_ShouldFail()
     {
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("vault")]
-            public sealed partial class VaultLibrary<T>
+            [LuauModule("vault")]
+            public sealed partial class VaultModule<T>
             {
             }
             """;
@@ -304,17 +304,32 @@ public class GeneratedExportsTests
     }
 
     [Fact]
-    public async Task NestedLibraryType_ShouldFail()
+    public async Task NestedModuleType_ShouldFail()
     {
         const string code = """
             using Darp.Luau;
 
             public static class Container
             {
-                [LuauLibrary("quests")]
-                public static partial class QuestLibrary
+                [LuauModule("quests")]
+                public static partial class QuestModule
                 {
                 }
+            }
+            """;
+
+        await VerifyHelper.VerifyGeneratedExportsWithErrors(code);
+    }
+
+    [Fact]
+    public async Task ReservedModuleName_ShouldFail()
+    {
+        const string code = """
+            using Darp.Luau;
+
+            [LuauModule("./game")]
+            public static partial class GameModule
+            {
             }
             """;
 
@@ -327,10 +342,10 @@ public class GeneratedExportsTests
         const string code = """
             using Darp.Luau;
 
-            [LuauLibrary("ledger")]
-            public sealed partial class LedgerLibrary
+            [LuauModule("ledger")]
+            public sealed partial class LedgerModule
             {
-                public const string LuauLibraryName = "ledger";
+                public const string ModuleName = "ledger";
             }
             """;
 

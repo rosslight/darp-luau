@@ -9,7 +9,7 @@ internal sealed class LuauApiSymbols
     private LuauApiSymbols(
         INamedTypeSymbol luauStateSymbol,
         INamedTypeSymbol delegateTypeSymbol,
-        INamedTypeSymbol libraryAttributeSymbol,
+        INamedTypeSymbol moduleAttributeSymbol,
         INamedTypeSymbol userdataAttributeSymbol,
         INamedTypeSymbol memberAttributeSymbol,
         INamedTypeSymbol luauUserdataInterfaceSymbol
@@ -17,7 +17,7 @@ internal sealed class LuauApiSymbols
     {
         LuauStateSymbol = luauStateSymbol;
         _delegateTypeSymbol = delegateTypeSymbol;
-        LibraryAttributeSymbol = libraryAttributeSymbol;
+        ModuleAttributeSymbol = moduleAttributeSymbol;
         UserdataAttributeSymbol = userdataAttributeSymbol;
         MemberAttributeSymbol = memberAttributeSymbol;
         LuauUserdataInterfaceSymbol = luauUserdataInterfaceSymbol;
@@ -25,7 +25,7 @@ internal sealed class LuauApiSymbols
 
     public INamedTypeSymbol LuauStateSymbol { get; }
 
-    public INamedTypeSymbol LibraryAttributeSymbol { get; }
+    public INamedTypeSymbol ModuleAttributeSymbol { get; }
 
     public INamedTypeSymbol UserdataAttributeSymbol { get; }
 
@@ -37,7 +37,7 @@ internal sealed class LuauApiSymbols
     {
         INamedTypeSymbol? luauStateSymbol = compilation.GetTypeByMetadataName("Darp.Luau.LuauState");
         INamedTypeSymbol? delegateTypeSymbol = compilation.GetTypeByMetadataName("System.Delegate");
-        INamedTypeSymbol? libraryAttributeSymbol = compilation.GetTypeByMetadataName("Darp.Luau.LuauLibraryAttribute");
+        INamedTypeSymbol? moduleAttributeSymbol = compilation.GetTypeByMetadataName("Darp.Luau.LuauModuleAttribute");
         INamedTypeSymbol? userdataAttributeSymbol = compilation.GetTypeByMetadataName(
             "Darp.Luau.LuauUserdataAttribute"
         );
@@ -46,7 +46,7 @@ internal sealed class LuauApiSymbols
         if (
             luauStateSymbol is null
             || delegateTypeSymbol is null
-            || libraryAttributeSymbol is null
+            || moduleAttributeSymbol is null
             || userdataAttributeSymbol is null
             || memberAttributeSymbol is null
             || luauUserdataInterfaceSymbol is null
@@ -58,7 +58,7 @@ internal sealed class LuauApiSymbols
         return new LuauApiSymbols(
             luauStateSymbol,
             delegateTypeSymbol,
-            libraryAttributeSymbol,
+            moduleAttributeSymbol,
             userdataAttributeSymbol,
             memberAttributeSymbol,
             luauUserdataInterfaceSymbol
@@ -78,8 +78,8 @@ internal sealed class LuauApiSymbols
             && SymbolEqualityComparer.Default.Equals(typeSymbol.ConstraintTypes[0], _delegateTypeSymbol);
     }
 
-    public AttributeData? GetLibraryAttribute(ISymbol symbol) =>
-        AttributeReader.GetAttribute(symbol, LibraryAttributeSymbol);
+    public AttributeData? GetModuleAttribute(ISymbol symbol) =>
+        AttributeReader.GetAttribute(symbol, ModuleAttributeSymbol);
 
     public AttributeData? GetUserdataAttribute(ISymbol symbol) =>
         AttributeReader.GetAttribute(symbol, UserdataAttributeSymbol);

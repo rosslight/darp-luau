@@ -22,11 +22,11 @@ internal static class ExportValidator
     {
         ReportDuplicateNames(discoveredType.Symbol, normalizedType.Kind, normalizedType.Members, diagnostics);
 
-        ValidatedLibraryExportNode? libraryRoot =
-            normalizedType.Kind == LuauExportedTypeKind.Library
-                ? ExportTreeBuilder.BuildLibraryTree(normalizedType, diagnostics)
+        ValidatedModuleExportNode? moduleRoot =
+            normalizedType.Kind == LuauExportedTypeKind.Module
+                ? ExportTreeBuilder.BuildModuleTree(normalizedType, diagnostics)
                 : null;
-        return new ValidatedExportType(normalizedType, libraryRoot);
+        return new ValidatedExportType(normalizedType, moduleRoot);
     }
 
     private static bool ValidateType(
@@ -41,8 +41,8 @@ internal static class ExportValidator
             hasFatalTypeErrors = true;
             diagnostics.Add(
                 Diagnostic.Create(
-                    discoveredType.Kind == LuauExportedTypeKind.Library
-                        ? DiagnosticDescriptors.LuauLibraryTypeMustBePartialDescriptor
+                    discoveredType.Kind == LuauExportedTypeKind.Module
+                        ? DiagnosticDescriptors.LuauModuleTypeMustBePartialDescriptor
                         : DiagnosticDescriptors.LuauUserdataTypeMustBePartialDescriptor,
                     discoveredType.Origin.Location
                 )
@@ -61,19 +61,28 @@ internal static class ExportValidator
             );
         }
 
-        if (discoveredType.Kind == LuauExportedTypeKind.Library)
+        if (discoveredType.Kind == LuauExportedTypeKind.Module)
         {
-            string? libraryName = AttributeReader.GetStringConstructorArgument(
-                discoveredType.Attribute
-            );
-            if (string.IsNullOrWhiteSpace(libraryName))
+            string? moduleName = AttributeReader.GetStringConstructorArgument(discoveredType.Attribute);
+            if (string.IsNullOrWhiteSpace(moduleName))
             {
                 hasFatalTypeErrors = true;
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
                         discoveredType.Origin.Location,
-                        "root libraries must supply a non-empty name via [LuauLibrary(\"...\")]"
+                        "root modules must supply a non-empty name via [LuauModule(\"...\")]"
+                    )
+                );
+            }
+            else if (IsReservedModuleName(moduleName!))
+            {
+                hasFatalTypeErrors = true;
+                diagnostics.Add(
+                    Diagnostic.Create(
+                        DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
+                        discoveredType.Origin.Location,
+                        "module names must be bare require names; './', '../', '/', '\\', '@', and slash-containing names are reserved for script modules"
                     )
                 );
             }
@@ -85,7 +94,7 @@ internal static class ExportValidator
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
                         discoveredType.Origin.Location,
-                        "nested library types are not supported in v1"
+                        "nested module types are not supported in v1"
                     )
                 );
             }
@@ -97,19 +106,19 @@ internal static class ExportValidator
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
                         discoveredType.Origin.Location,
-                        "generic library types are not supported in v1"
+                        "generic module types are not supported in v1"
                     )
                 );
             }
 
-            hasFatalTypeErrors |= ReportGeneratedLibraryMemberNameConflicts(discoveredType.Symbol, diagnostics);
+            hasFatalTypeErrors |= ReportGeneratedModuleMemberNameConflicts(discoveredType.Symbol, diagnostics);
 
             if (discoveredType.Symbol.TypeKind == TypeKind.Struct)
             {
                 hasFatalTypeErrors = true;
                 diagnostics.Add(
                     Diagnostic.Create(
-                        DiagnosticDescriptors.InstanceLibraryStructNotSupportedDescriptor,
+                        DiagnosticDescriptors.InstanceModuleStructNotSupportedDescriptor,
                         discoveredType.Origin.Location
                     )
                 );
@@ -169,7 +178,15 @@ internal static class ExportValidator
         return hasFatalTypeErrors;
     }
 
-    private static bool ReportGeneratedLibraryMemberNameConflicts(
+    private static bool IsReservedModuleName(string name) =>
+        name.StartsWith(".", StringComparison.Ordinal)
+        || name.StartsWith("/", StringComparison.Ordinal)
+        || name.StartsWith("\\", StringComparison.Ordinal)
+        || name.StartsWith("@", StringComparison.Ordinal)
+        || name.Contains("/", StringComparison.Ordinal)
+        || name.Contains("\\", StringComparison.Ordinal);
+
+    private static bool ReportGeneratedModuleMemberNameConflicts(
         INamedTypeSymbol type,
         List<Diagnostic> diagnostics
     )
@@ -180,13 +197,13 @@ internal static class ExportValidator
             if (member.IsImplicitlyDeclared)
                 continue;
 
-            if ((member.Name is "Register" or "LuauLibraryName") && member.HasNonGeneratedDeclaration())
+            if ((member.Name is "ModuleName" or "OnLoad") && member.HasNonGeneratedDeclaration())
             {
                 diagnostics.Add(
                     Diagnostic.Create(
                         DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
                         SymbolExtensions.GetSymbolLocation(member),
-                        "library types cannot declare members named 'Register' or 'LuauLibraryName' because those names are generated"
+                        "module types cannot declare members named 'ModuleName' or 'OnLoad' because those names are generated"
                     )
                 );
                 hasConflicts = true;
@@ -213,7 +230,7 @@ internal static class ExportValidator
                         DiagnosticDescriptors.DuplicateLuauMemberNameDescriptor,
                         SymbolExtensions.GetSymbolLocation(member.Symbol),
                         member.LuauName,
-                        exportedTypeKind == LuauExportedTypeKind.Library ? "library" : "userdata",
+                        exportedTypeKind == LuauExportedTypeKind.Module ? "module" : "userdata",
                         type.Name
                     )
                 );

@@ -55,7 +55,7 @@ public sealed class GeneratedUserdataExportsEmitterTests
     }
 
     [Fact]
-    public async Task Library_WithGeneratedUserdata_ShouldGenerateRegisterAndUserdataHooks()
+    public async Task Module_WithGeneratedUserdata_ShouldGenerateOnLoadAndUserdataHooks()
     {
         const string code = """
             using Darp.Luau;
@@ -67,8 +67,8 @@ public sealed class GeneratedUserdataExportsEmitterTests
                 public string Name { get; set; } = "";
             }
 
-            [LuauLibrary("guild")]
-            public static partial class GuildLibrary
+            [LuauModule("guild")]
+            public static partial class GuildModule
             {
                 [LuauMember("heroes.create")]
                 public static HeroCard CreateHero(string name) => new() { Name = name };

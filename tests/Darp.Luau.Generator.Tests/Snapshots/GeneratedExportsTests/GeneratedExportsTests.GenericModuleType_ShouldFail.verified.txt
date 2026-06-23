@@ -1,0 +1,23 @@
+{
+  Diagnostics: [
+    {
+      Location: /*
+
+[LuauModule("vault")]
+ ^^^^^^^^^^^^^^^^^^^
+public sealed partial class VaultModule<T>
+*/
+ : (2,1)-(2,20),
+      Message: Invalid generated export shape: generic module types are not supported in v1,
+      Severity: Error,
+      Descriptor: {
+        Id: DLUAU1012,
+        Title: Invalid generated export shape,
+        MessageFormat: Invalid generated export shape: {0},
+        Category: Darp.Luau.Generator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

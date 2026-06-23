@@ -13,23 +13,21 @@ Darp.Luau already covers a useful embedding core, but some parts of the surface 
 - Typed `LuauFunction.Invoke(...)` returns currently have explicit overloads for 1, 2, 3, or 4 values; use `InvokeMulti(...)` for dynamic multi-return access.
 - Typed chunk execution currently has explicit overloads for 1, 2, 3, or 4 values; use `ExecuteMulti()` for dynamic multi-return access.
 - Generator-backed `CreateFunction(...)` supports top-level tuple returns, but currently rejects nested tuples and only supports tuple arities that fit the current `LuauReturn.Ok(...)` overload set.
-- Source-generated `[LuauLibrary]` types must be partial, top-level, and non-generic. Instance library properties, fields, instance structs, and unsupported method shapes are not generated.
+- Source-generated `[LuauModule]` types must be partial, top-level, and non-generic. Instance module properties, fields, instance structs, and unsupported method shapes are not generated.
 - Source-generated `[LuauUserdata]` types must be partial, top-level, non-generic classes. Fields, static exported members, dotted userdata member names, manual hook mixing, and unsupported method shapes are not generated.
 - Generated exports currently emit runtime C# glue only. Luau type-file output is not a documented shipped feature yet.
-- File-backed `require(...)` is available through `EnableRequire()`, but it requires explicit setup and a matching chunk-name convention for file entrypoints.
-- `EnableRequire()` currently expects modules to return exactly one value and not yield while loading.
-- Detailed loader failures may surface through `LuauState.RequireContext.LoadError` even when the Lua-visible error is generic.
+- File-backed `require(...)` is available through `EnableScriptModules()`, but it requires explicit setup and a matching chunk-name convention for file entrypoints.
+- `EnableScriptModules()` currently expects script modules to return exactly one value and not yield while loading.
 - Managed interop is documented for strings, numbers, booleans, tables, functions, userdata, and buffers. Vector and thread values are not documented as managed interop surfaces yet.
 - Higher-level async, coroutine orchestration, and thread-based host APIs are not documented as finished features.
 
 ## What this means in practice
 
-- If you want file-based script loading, read the file in managed code and pass the contents to `Load(...)`.
-- If you want file-backed modules, call `EnableRequire()` and use an `@`-prefixed chunk name for the entry script.
+- If you want file-based script loading, use `LoadFile(path)` for entry scripts.
+- If you want file-backed modules, call `EnableScriptModules()` and execute the entry script with `LoadFile(path)`, which assigns the required `@...` chunk name automatically.
 - If you want callback signatures outside the supported `CreateFunction(...)` subset, use `CreateFunctionBuilder(...)`.
-- Prefer source-generated libraries and userdata for fixed host APIs. Fall back to manual `OpenLibrary(...)`, `CreateFunctionBuilder(...)`, or `ILuauUserData<T>` when the generated model is too narrow.
+- Prefer source-generated modules and userdata for fixed host APIs. Fall back to manual `RegisterModule(...)`, `CreateFunctionBuilder(...)`, or `ILuauUserData<T>` when the generated model is too narrow.
 - If you need more than the current typed `Invoke(...)` or chunk execution overload set, either compose around `InvokeMulti(...)` or `ExecuteMulti()`, call a returned function explicitly, or add an explicit overload.
-- If a `require(...)` call fails with a generic Lua error, inspect `LuauState.RequireContext.LoadError` for the detailed loader message.
 - If you need long-lived access to callback values, promote borrowed `*View` values to owned references before the callback returns.
 
 ## Expect change

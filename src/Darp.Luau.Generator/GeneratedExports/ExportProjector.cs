@@ -18,9 +18,9 @@ internal static class ExportProjector
             validatedType.Type.Symbol.IsStatic,
             GetHintName(validatedType.Type.Symbol, validatedType.Type.Kind),
             validatedType.Type.Kind,
-            validatedType.Type.LibraryName,
+            validatedType.Type.ModuleName,
             validatedType.Type.Members.Select(ProjectMember).ToImmutableEquatableArray(),
-            validatedType.LibraryRoot is null ? null : ProjectNode(validatedType.LibraryRoot)
+            validatedType.ModuleRoot is null ? null : ProjectNode(validatedType.ModuleRoot)
         );
     }
 
@@ -48,9 +48,9 @@ internal static class ExportProjector
         };
     }
 
-    private static GeneratedLibraryExportNodeIr ProjectNode(ValidatedLibraryExportNode node)
+    private static GeneratedModuleExportNodeIr ProjectNode(ValidatedModuleExportNode node)
     {
-        return new GeneratedLibraryExportNodeIr(
+        return new GeneratedModuleExportNodeIr(
             node.Name,
             node.Member is null ? null : ProjectMember(node.Member),
             node.Children.Select(ProjectNode).ToImmutableEquatableArray()
@@ -96,6 +96,6 @@ internal static class ExportProjector
         if (name.StartsWith(globalPrefix, StringComparison.Ordinal))
             name = name[globalPrefix.Length..];
 
-        return name + (kind == LuauExportedTypeKind.Library ? ".LuauLibrary.g.cs" : ".LuauUserdata.g.cs");
+        return name + (kind == LuauExportedTypeKind.Module ? ".LuauModule.g.cs" : ".LuauUserdata.g.cs");
     }
 }

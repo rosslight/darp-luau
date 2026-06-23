@@ -6,22 +6,22 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Darp.Luau.Generator;
 
-/// <summary> Reports diagnostics for generated Luau libraries and userdata. </summary>
+/// <summary> Reports diagnostics for generated Luau modules and userdata. </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class GeneratedExportsAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [
-            DiagnosticDescriptors.LuauLibraryTypeMustBePartialDescriptor,
+            DiagnosticDescriptors.LuauModuleTypeMustBePartialDescriptor,
             DiagnosticDescriptors.LuauUserdataTypeMustBePartialDescriptor,
             DiagnosticDescriptors.DuplicateLuauMemberNameDescriptor,
             DiagnosticDescriptors.UnsupportedGeneratedPropertyTypeDescriptor,
-            DiagnosticDescriptors.InstanceLibraryStructNotSupportedDescriptor,
+            DiagnosticDescriptors.InstanceModuleStructNotSupportedDescriptor,
             DiagnosticDescriptors.UnsupportedGeneratedFunctionShapeDescriptor,
             DiagnosticDescriptors.LuauExportPathConflictDescriptor,
             DiagnosticDescriptors.InvalidLuauExportPathDescriptor,
-            DiagnosticDescriptors.LibraryPropertyMustBeReadOnlyDescriptor,
+            DiagnosticDescriptors.ModulePropertyMustBeReadOnlyDescriptor,
             DiagnosticDescriptors.GeneratedUserdataManualInteropConflictDescriptor,
             DiagnosticDescriptors.InvalidGeneratedExportShapeDescriptor,
             DiagnosticDescriptors.LuauExportPathSegmentRequiresBracketAccessDescriptor,
@@ -51,13 +51,13 @@ public sealed class GeneratedExportsAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeNamedType(SymbolAnalysisContext context, LuauApiSymbols apiSymbols)
     {
         var type = (INamedTypeSymbol)context.Symbol;
-        AttributeData? libraryAttribute = apiSymbols.GetLibraryAttribute(type);
+        AttributeData? moduleAttribute = apiSymbols.GetModuleAttribute(type);
         AttributeData? userdataAttribute = apiSymbols.GetUserdataAttribute(type);
-        if (libraryAttribute is null && userdataAttribute is null)
+        if (moduleAttribute is null && userdataAttribute is null)
             return;
 
-        LuauExportedTypeKind expectedKind = libraryAttribute is not null
-            ? LuauExportedTypeKind.Library
+        LuauExportedTypeKind expectedKind = moduleAttribute is not null
+            ? LuauExportedTypeKind.Module
             : LuauExportedTypeKind.Userdata;
         GeneratedExportsTypeAnalysis analysis = ExportAnalyzer.AnalyzeType(type, expectedKind, context.Compilation);
         foreach (Diagnostic diagnostic in analysis.Diagnostics)

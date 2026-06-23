@@ -31,7 +31,7 @@ internal static class ExportPathParser
         "while",
     };
 
-    public static bool TryParseLibraryPath(
+    public static bool TryParseModulePath(
         string rawPath,
         Location location,
         List<Diagnostic> diagnostics,

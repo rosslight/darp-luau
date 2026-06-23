@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Darp.Luau.Internal.Require;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
@@ -14,6 +14,8 @@ namespace Darp.Luau;
 /// <remarks> Not threadsafe </remarks>
 public sealed unsafe class LuauState : IDisposable
 {
+    private readonly ILuauFileSystem _virtualFileSystem;
+
     // ReSharper disable once ReplaceWithFieldKeyword
     internal readonly lua_State* L;
     private int _disposing; // 0 = false, 1 = true
@@ -21,10 +23,7 @@ public sealed unsafe class LuauState : IDisposable
     private readonly ulong _callbackWrapperReference;
     private readonly UserdataRegistrationCache _cache;
 
-    internal LuauRequireByString.Context? _requireContext;
-
-    /// <summary>require-by-string context for state. is created if require-by-string gets enabled</summary>
-    public IRequireContext? RequireContext => _requireContext;
+    private LuauModuleRequirer? _moduleRequirer;
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
@@ -39,7 +38,7 @@ public sealed unsafe class LuauState : IDisposable
     public bool IsDisposed => _disposing > 0;
 
     /// <summary>The effective set of built-in libraries loaded into this state.</summary>
-    public LuauLibraries EnabledLibraries { get; }
+    public LuauLibraries EnabledLibraries { get; private set; }
 
     /// <summary>
     /// Gets current memory-related tracking counters for this state.
@@ -56,11 +55,13 @@ public sealed unsafe class LuauState : IDisposable
     public LuauState()
         : this(LuauLibraries.All) { }
 
-    /// <summary>Initializes a new LuauState with explicit library loading options.</summary>
-    /// <param name="builtinLibraries">Configuration for built-in and custom libraries. Automatically adds <see cref="LuauLibraries.Minimal"/> libraries</param>
+    /// <summary>Initializes a new LuauState with explicit standard library loading options.</summary>
+    /// <param name="builtinLibraries">Standard Luau libraries to load. Automatically adds <see cref="LuauLibraries.Minimal"/> libraries.</param>
+    /// <param name="virtualFileSystem">A virtual filesystem for file operations</param>
     /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
-    public LuauState(LuauLibraries builtinLibraries)
+    public LuauState(LuauLibraries builtinLibraries, ILuauFileSystem? virtualFileSystem = null)
     {
+        _virtualFileSystem = virtualFileSystem ?? new FileSystem();
         builtinLibraries |= LuauLibraries.Minimal;
 
         L = luaL_newstate();
@@ -73,14 +74,27 @@ public sealed unsafe class LuauState : IDisposable
         _cache = new UserdataRegistrationCache(this);
         ReferenceTracker = new RegistryReferenceTracker(this);
 
-        EnabledLibraries = builtinLibraries;
-        OpenBuiltinLibraries(EnabledLibraries);
+        LoadStandardLibraries(builtinLibraries);
 
         // Push table to stack, get the reference and pop
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         _globalsHandle = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
 
         _callbackWrapperReference = RegisterCallbackWrapper();
+    }
+
+    /// <summary>Loads the requested standard Luau libraries into this state.</summary>
+    /// <param name="libraries">Libraries to load. Already loaded libraries are ignored.</param>
+    public void LoadStandardLibraries(LuauLibraries libraries)
+    {
+        this.ThrowIfDisposed();
+        libraries |= LuauLibraries.Minimal;
+        LuauLibraries missingLibraries = libraries & ~EnabledLibraries;
+        if (missingLibraries == 0)
+            return;
+
+        OpenBuiltinLibraries(missingLibraries);
+        EnabledLibraries |= missingLibraries;
     }
 
     private void OpenBuiltinLibraries(LuauLibraries libraries)
@@ -123,33 +137,71 @@ public sealed unsafe class LuauState : IDisposable
         lua_call(L, 1, 0);
     }
 
-    /// <summary> The delegate type used to build a custom library table. </summary>
-    /// <param name="state"> The <see cref="LuauState"/> the library is registered for </param>
-    /// <param name="lib"> The lib table </param>
-    public delegate void OpenLibraryFunc(LuauState state, in LuauTable lib);
+    /// <summary> The delegate type used to load a custom module table. </summary>
+    /// <param name="state"> The <see cref="LuauState"/> the module is registered for. </param>
+    /// <param name="module"> The module table to populate. </param>
+    public delegate void OnModuleLoad(LuauState state, in LuauTable module);
 
-    /// <summary>Registers a custom library table in globals.</summary>
-    /// <param name="name">Global name of the library table.</param>
-    /// <param name="build">Callback used to populate the created table.</param>
-    public void OpenLibrary(ReadOnlySpan<char> name, OpenLibraryFunc build)
+    /// <summary>Registers a host-provided module that can be loaded with <c>require("name")</c>.</summary>
+    /// <param name="name">Require name of the module.</param>
+    /// <param name="onLoad">Callback used to populate the module table when it is first required.</param>
+    public void RegisterModule(string name, OnModuleLoad onLoad)
     {
-        ArgumentNullException.ThrowIfNull(build);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(onLoad);
         this.ThrowIfDisposed();
-        if (Globals.ContainsKey(name))
-            throw new InvalidOperationException($"Global '{name}' already exists.");
 
-        using LuauTable table = CreateTable();
-        try
-        {
-            build(this, table);
-        }
-        catch (Exception exception)
-        {
-            throw new InvalidOperationException($"Failed to register custom library '{name}'.", exception);
-        }
+        if (IsReservedModuleName(name))
+            throw new ArgumentException(
+                $"Module name '{name}' conflicts with script module require prefixes.",
+                nameof(name)
+            );
 
-        Globals.Set(name, table);
+        LuauModuleRequirer requirer = GetOrCreateModuleRequirer();
+        requirer.RegisterHostModule(name, onLoad);
     }
+
+    /// <summary>Registers a host-provided module using its strongly typed module contract.</summary>
+    /// <param name="module">Module instance to register.</param>
+    /// <typeparam name="TModule">Module type.</typeparam>
+    public void RegisterModule<TModule>(TModule module)
+        where TModule : ILuauModule<TModule>
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        RegisterModule(TModule.ModuleName, module.OnLoad);
+    }
+
+    /// <summary>Registers a host-provided module using its strongly typed module contract.</summary>
+    /// <returns>The created module</returns>
+    /// <typeparam name="TModule">Module type.</typeparam>
+    public TModule RegisterModule<TModule>()
+        where TModule : ILuauModule<TModule>, new()
+    {
+        var module = new TModule();
+        RegisterModule(TModule.ModuleName, module.OnLoad);
+        return module;
+    }
+
+    /// <summary>Enables file-backed script modules for <see cref="LuauState"/>.</summary>
+    public void EnableScriptModules()
+    {
+        this.ThrowIfDisposed();
+        GetOrCreateModuleRequirer().EnableScriptModules();
+    }
+
+    internal LuauModuleRequirer GetOrCreateModuleRequirer()
+    {
+        _moduleRequirer ??= new LuauModuleRequirer(this, _virtualFileSystem);
+        return _moduleRequirer;
+    }
+
+    private static bool IsReservedModuleName(string name) =>
+        name.StartsWith('.')
+        || name.StartsWith('/')
+        || name.StartsWith('\\')
+        || name.StartsWith('@')
+        || name.Contains('/', StringComparison.Ordinal)
+        || name.Contains('\\', StringComparison.Ordinal);
 
     private ulong RegisterCallbackWrapper()
     {
@@ -417,7 +469,7 @@ public sealed unsafe class LuauState : IDisposable
     public LuauChunk Load(ReadOnlySpan<char> source)
     {
         this.ThrowIfDisposed();
-        return new LuauChunk(this, LuauCompiler.Default, source);
+        return new LuauChunk(this, LuauCompiler.Default, source).WithName("=stdin");
     }
 
     /// <summary> Creates a lightweight executable chunk from UTF-8 source bytes. </summary>
@@ -429,7 +481,26 @@ public sealed unsafe class LuauState : IDisposable
     public LuauChunk Load(ReadOnlySpan<byte> source)
     {
         this.ThrowIfDisposed();
-        return new LuauChunk(this, LuauCompiler.Default, source);
+        return new LuauChunk(this, LuauCompiler.Default, source).WithName("=stdin");
+    }
+
+    /// <summary>
+    /// Creates a lightweight executable chunk from the content of a source file.
+    /// </summary>
+    /// <param name="path">The path to the <c>.luau</c> file</param>
+    /// <returns>A chunk wrapper that can be executed or converted to a reusable <see cref="LuauFunction"/>.</returns>
+    /// <remarks>
+    /// The returned chunk is an ephemeral wrapper over the provided source. Executing it recompiles the source each time.
+    /// </remarks>
+    public LuauChunk LoadFile(string path)
+    {
+        this.ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(path);
+        string? source = _virtualFileSystem.ReadFile(path);
+        if (source is null)
+            throw new FileNotFoundException(path);
+        string chunkName = '@' + FileUtils.NormalizePath(path);
+        return new LuauChunk(this, LuauCompiler.Default, source).WithName(chunkName);
     }
 
     /// <inheritdoc />
@@ -438,9 +509,9 @@ public sealed unsafe class LuauState : IDisposable
         if (Interlocked.Exchange(ref _disposing, 1) != 0)
             return;
         _cache.Dispose();
+        _moduleRequirer?.Dispose();
+        _moduleRequirer = null;
         ReferenceTracker.ReleaseAll();
-        _requireContext?.Dispose();
-        _requireContext = null;
         lua_close(L);
 #pragma warning disable CS0618 // Type or member is obsolete -> This is the place we want to clear the delegates
         _delegateSave.Clear();

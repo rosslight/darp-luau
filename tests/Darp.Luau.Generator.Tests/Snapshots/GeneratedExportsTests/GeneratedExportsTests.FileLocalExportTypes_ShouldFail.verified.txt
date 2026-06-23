@@ -1,13 +1,13 @@
-﻿{
+{
   Diagnostics: [
     {
       Location: /*
 
-[LuauLibrary("file_local")]
- ^^^^^^^^^^^^^^^^^^^^^^^^^
-file static partial class FileLocalLibrary
+[LuauModule("file_local")]
+ ^^^^^^^^^^^^^^^^^^^^^^^^
+file static partial class FileLocalModule
 */
- : (2,1)-(2,26),
+ : (2,1)-(2,25),
       Message: Invalid generated export shape: file-local generated export types are not supported because generated partial sources are emitted into separate files,
       Severity: Error,
       Descriptor: {

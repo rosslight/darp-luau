@@ -13,7 +13,7 @@
 - Typed reads and writes for tables, functions, userdata, strings, and buffers
 - Clear lifetime guarantees both stability and performance
 - Simple API through source-generated interceptors
-- Custom libraries and managed userdata
+- Host modules and managed userdata
 - Support for `linux`,`windows`,`macos` on both `x64`,`arm64`
 
 ## Quick start
@@ -135,13 +135,13 @@ Prefer `[LuauUserdata]` for regular script-facing properties and methods. Use a 
 
 `CreateFunction(...)` also supports managed userdata parameters and returns for generated `[LuauUserdata]` types and manual `ILuauUserData<TSelf>` implementations.
 
-## Register host libraries
+## Register host modules
 
-Prefer `[LuauLibrary]` for regular fixed host APIs:
+Prefer `[LuauModule]` for regular fixed host APIs:
 
 ```csharp
-[LuauLibrary("game")]
-public static partial class GameLibrary
+[LuauModule("game")]
+public static partial class GameModule
 {
     [LuauMember("answer")]
     public static int Answer => 42;
@@ -150,22 +150,22 @@ public static partial class GameLibrary
     public static int Add(int left, int right) => left + right;
 }
 
-GameLibrary.Register(lua);
+lua.RegisterModule(GameModule.ModuleName, GameModule.OnLoad);
 ```
 
-Use manual `OpenLibrary(...)` when you need dynamic table construction or unsupported callback shapes:
+Use manual `RegisterModule(...)` when you need dynamic table construction or unsupported callback shapes:
 
 ```csharp
-lua.OpenLibrary("game", static (state, in LuauTable lib) =>
+lua.RegisterModule("game", static (state, in LuauTable module) =>
 {
-    lib.Set("answer", 42);
+    module.Set("answer", 42);
 
     using LuauFunction add = state.CreateFunction((int a, int b) => a + b);
-    lib.Set("add", add);
+    module.Set("add", add);
 });
 ```
 
-`OpenLibrary(...)` registers a global table. It is a fallback for host-provided APIs, but it is not a `require(...)`-style module loader by itself.
+Host modules are loaded from Luau with `require("game")`. Generated and manual modules share the same require context as file-backed script modules.
 
 ## Ownership and lifetime
 
@@ -178,4 +178,4 @@ lua.OpenLibrary("game", static (state, in LuauTable lib) =>
 - `Load(...).Execute(...)` is the script execution API today. If you want file-based execution, read the file yourself and pass its contents in.
 - `CreateFunction(...)` is generator-backed and has no runtime fallback.
 - `LuauState` is not thread-safe.
-- A documented module system and higher-level async/thread orchestration are not part of the current surface yet.
+- Higher-level async/thread orchestration is not part of the current surface yet.
