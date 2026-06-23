@@ -30,7 +30,7 @@ public interface ILuauFileSystem
     string? ReadFile(string path);
 }
 
-internal sealed class VirtualFileSystem : ILuauFileSystem
+internal sealed class FileSystem : ILuauFileSystem
 {
     public string GetCurrentDirectory() => Directory.GetCurrentDirectory();
 

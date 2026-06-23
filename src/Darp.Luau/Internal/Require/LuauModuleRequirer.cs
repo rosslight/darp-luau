@@ -18,11 +18,11 @@ internal sealed unsafe class LuauModuleRequirer : IRequireContext, IDisposable
     private readonly LuauScriptModuleRequirer _scriptModules;
     private GCHandle _handle;
 
-    public LuauModuleRequirer(LuauState state)
+    public LuauModuleRequirer(LuauState state, ILuauFileSystem virtualFileSystem)
     {
         _state = state;
         _hostModules = new LuauHostModuleRequirer(state);
-        _scriptModules = new LuauScriptModuleRequirer(new VirtualFileSystem());
+        _scriptModules = new LuauScriptModuleRequirer(virtualFileSystem);
         _handle = GCHandle.Alloc(this);
 
         try

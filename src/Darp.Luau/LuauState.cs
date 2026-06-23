@@ -14,6 +14,8 @@ namespace Darp.Luau;
 /// <remarks> Not threadsafe </remarks>
 public sealed unsafe class LuauState : IDisposable
 {
+    private readonly ILuauFileSystem _virtualFileSystem;
+
     // ReSharper disable once ReplaceWithFieldKeyword
     internal readonly lua_State* L;
     private int _disposing; // 0 = false, 1 = true
@@ -54,13 +56,15 @@ public sealed unsafe class LuauState : IDisposable
     /// <summary> Initializes a new LuauState, and opens all default libs. </summary>
     /// <exception cref="InvalidOperationException"> Thrown if the luau state could not be created </exception>
     public LuauState()
-        : this(LuauLibraries.All) { }
+        : this(LuauLibraries.All, null) { }
 
     /// <summary>Initializes a new LuauState with explicit standard library loading options.</summary>
     /// <param name="builtinLibraries">Standard Luau libraries to load. Automatically adds <see cref="LuauLibraries.Minimal"/> libraries.</param>
+    /// <param name="virtualFileSystem">A virtual filesystem for file operations</param>
     /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
-    public LuauState(LuauLibraries builtinLibraries)
+    public LuauState(LuauLibraries builtinLibraries, ILuauFileSystem? virtualFileSystem = null)
     {
+        _virtualFileSystem = virtualFileSystem ?? new FileSystem();
         builtinLibraries |= LuauLibraries.Minimal;
 
         L = luaL_newstate();
@@ -193,7 +197,7 @@ public sealed unsafe class LuauState : IDisposable
         if (_moduleRequirer is { } requirer)
             return requirer;
 
-        _moduleRequirer = new LuauModuleRequirer(this);
+        _moduleRequirer = new LuauModuleRequirer(this, _virtualFileSystem);
         return _moduleRequirer;
     }
 
@@ -471,7 +475,7 @@ public sealed unsafe class LuauState : IDisposable
     public LuauChunk Load(ReadOnlySpan<char> source)
     {
         this.ThrowIfDisposed();
-        return new LuauChunk(this, LuauCompiler.Default, source);
+        return new LuauChunk(this, LuauCompiler.Default, source).WithName("=stdin");
     }
 
     /// <summary> Creates a lightweight executable chunk from UTF-8 source bytes. </summary>
@@ -483,7 +487,26 @@ public sealed unsafe class LuauState : IDisposable
     public LuauChunk Load(ReadOnlySpan<byte> source)
     {
         this.ThrowIfDisposed();
-        return new LuauChunk(this, LuauCompiler.Default, source);
+        return new LuauChunk(this, LuauCompiler.Default, source).WithName("=stdin");
+    }
+
+    /// <summary>
+    /// Creates a lightweight executable chunk from the content of a source file.
+    /// </summary>
+    /// <param name="path">The path to the <c>.luau</c> file</param>
+    /// <returns>A chunk wrapper that can be executed or converted to a reusable <see cref="LuauFunction"/>.</returns>
+    /// <remarks>
+    /// The returned chunk is an ephemeral wrapper over the provided source. Executing it recompiles the source each time.
+    /// </remarks>
+    public LuauChunk LoadFile(string path)
+    {
+        this.ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(path);
+        string? source = _virtualFileSystem.ReadFile(path);
+        if (source is null)
+            throw new FileNotFoundException(path);
+        string chunkName = '@' + FileUtils.NormalizePath(path);
+        return new LuauChunk(this, LuauCompiler.Default, source).WithName(chunkName);
     }
 
     /// <inheritdoc />
