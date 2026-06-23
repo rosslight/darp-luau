@@ -5,6 +5,45 @@ namespace Darp.Luau.Tests;
 public sealed class UserdataTests
 {
     [Fact]
+    public void Userdata_IndexSetterAndNamecall_ShouldWorkUnderNone()
+    {
+        using var state = new LuauState(LuauLibraries.None);
+        var counter = new CounterUserdata();
+        CounterUserdata.LastMethodName = null;
+        CounterUserdata.LastParameterCount = -1;
+
+        state.Globals.Set("counter", counter);
+        state
+            .Load(
+                """
+                before = counter.value
+                counter.value = 41
+                after = counter.value
+                methodResult = counter:add(1)
+                """
+            )
+            .Execute();
+
+        state.Globals.GetNumber("before").ShouldBe(0);
+        state.Globals.GetNumber("after").ShouldBe(41);
+        state.Globals.GetNumber("methodResult").ShouldBe(42);
+        CounterUserdata.LastMethodName.ShouldBe("add");
+        CounterUserdata.LastParameterCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public void Userdata_CallbackError_ShouldThrowUnderNone()
+    {
+        using var state = new LuauState(LuauLibraries.None);
+        state.Globals.Set("failing", new FailingUserdata());
+
+        LuaException exception = Should.Throw<LuaException>(() => state.Load("return failing.explode").Execute());
+
+        exception.Message.ShouldContain("__index callback failed");
+        exception.Message.ShouldContain("Boom from OnIndex");
+    }
+
+    [Fact]
     public void Userdata_IndexSetterAndMethodCall_ShouldWork()
     {
         using var state = new LuauState();

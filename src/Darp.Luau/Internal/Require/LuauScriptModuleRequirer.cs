@@ -15,7 +15,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     private readonly ILuauFileSystem _virtualFileSystem;
     private readonly LuauModuleNavigator _navigator;
     private GCHandle _handle;
-    private string? _pendingLoadError;
+    private darp_luau_require_context_data* _requireContext;
 
     /// <summary> A require-by-string requirer that uses a virtual file system to resolve module paths. </summary>
     /// <param name="virtualFileSystem">A virtual file system for abstract file operations</param>
@@ -25,6 +25,12 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         _virtualFileSystem = virtualFileSystem;
         _navigator = new LuauModuleNavigator(virtualFileSystem);
         _handle = GCHandle.Alloc(this);
+        _requireContext = darp_luau_newrequirecontext(&InitRequireConfig, &Load, ToVoidPtr());
+        if (_requireContext is null)
+        {
+            _handle.Free();
+            throw new InvalidOperationException("Could not create Luau require context.");
+        }
     }
 
     public bool Enabled { get; set; }
@@ -33,7 +39,6 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     {
         if (IsScriptModulePath(path))
         {
-            _pendingLoadError = null;
             return Enabled
                 ? RequireResolution.ScriptModule
                 : RequireResolution.LoadError("script module require is not enabled");
@@ -42,13 +47,6 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         return IsInvalidScriptModulePath(path)
             ? RequireResolution.LoadError("require path must start with a valid prefix: ./, ../, or @")
             : RequireResolution.NotFound;
-    }
-
-    internal string? TakePendingLoadError()
-    {
-        string? error = _pendingLoadError;
-        _pendingLoadError = null;
-        return error;
     }
 
     private static bool IsScriptModulePath(string path) =>
@@ -64,7 +62,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
 #if DEBUG
         using var guard = new StackGuard(state.L, expectedDelta: 0);
 #endif
-        _ = luarequire_pushproxyrequire(state.L, &InitRequireConfig, ToVoidPtr());
+        _ = darp_luau_pushproxyrequire(state.L, _requireContext);
         ulong reference = state.ReferenceTracker.TrackAndPopRef(state.L, -1);
         return new LuauFunction(state, reference);
     }
@@ -83,7 +81,7 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         config->get_cache_key = &GetCacheKey;
         config->get_config_status = &GetConfigStatus;
         config->get_config = &GetConfig;
-        config->load = &Load;
+        // load is set using darp_luau_newrequirecontext and uses a different API which allows us to return errors
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
@@ -210,23 +208,6 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         return Write(req._navigator.GetConfig(), buffer, bufferSize, sizeOut);
     }
 
-    /// <summary>
-    /// Report a load error to the native proxy.
-    /// This function stores the error message and returns to many values which the luau require library interprets as a failed load.
-    ///
-    /// This is a workaround because we cannot raise a lua_error in c# because we cannot longjmp across C# boundary.
-    /// Instead, we will check <seealso cref="TakePendingLoadError"/> in the native proxy and raise a lua_error if it is not null.
-    /// </summary>
-    private int ReportLoadError(lua_State* L, string message)
-    {
-        _pendingLoadError = message;
-
-        // Push two values so the native proxy reports this as a failed require, not a cached module value.
-        lua_pushnil(L);
-        lua_pushnil(L);
-        return 2;
-    }
-
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int Load(lua_State* L, void* ctx, byte* path, byte* chunkname, byte* loadname)
     {
@@ -235,92 +216,85 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
         string strLoadName = ReadUtf8Z(loadname);
 
         LuauScriptModuleRequirer req = FromVoidPtr(ctx);
-        req._pendingLoadError = null;
 
-        int nResults = 1; // default number of results pushed onto stack
+        int nResults = 0;
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: nResults);
 #endif
 
         string? strContent = req._virtualFileSystem.ReadFile(strLoadName);
         if (strContent is null)
+            return LuauStateMarshal.ReturnError(L, $"could not read file '{strChunkName}'");
+
+        // module needs to run in a new thread, isolated from the rest
+        // note: we create ML on main thread so that it doesn't inherit environment of L
+        lua_State* GL = lua_mainthread(L);
+        lua_State* ML = lua_newthread(GL);
+        lua_xmove(GL, L, 1);
+
+        // new thread needs to have the globals sandboxed
+        luaL_sandboxthread(ML);
+
+        string? errorMessage = null;
+        bool bOk = false;
+        ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes(strContent);
+        fixed (byte* pSource = spanSource)
         {
-            nResults = req.ReportLoadError(L, $"could not read file '{strChunkName}'");
+            nuint nSizeByteCode = 0;
+            byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nSizeByteCode);
+            try
+            {
+                int nStatus = luau_load(ML, chunkname, pByteCode, nSizeByteCode, 0);
+                bOk = nStatus == 0;
+                if (!bOk)
+                {
+                    errorMessage =
+                        lua_isstring(ML, -1) == 0
+                            ? $"unknown error while loading module '{strPath}'"
+                            : $"error while loading module '{strPath}': {ReadUtf8Z((byte*)lua_tostring(ML, -1))}";
+                }
+            }
+            finally
+            {
+                luau_free(pByteCode);
+            }
         }
-        else
+
+        if (bOk)
         {
-            // module needs to run in a new thread, isolated from the rest
-            // note: we create ML on main thread so that it doesn't inherit environment of L
-            lua_State* GL = lua_mainthread(L);
-            lua_State* ML = lua_newthread(GL);
-            lua_xmove(GL, L, 1);
-
-            // new thread needs to have the globals sandboxed
-            luaL_sandboxthread(ML);
-
-            bool bOk = false;
-            ReadOnlySpan<byte> spanSource = Encoding.UTF8.GetBytes(strContent);
-            fixed (byte* pSource = spanSource)
+            int nStatus = lua_resume(ML, L, 0);
+            if (nStatus == (int)lua_Status.LUA_OK)
             {
-                nuint nSizeByteCode = 0;
-                byte* pByteCode = luau_compile(pSource, (nuint)spanSource.Length, null, &nSizeByteCode);
-                try
-                {
-                    int nStatus = luau_load(ML, chunkname, pByteCode, nSizeByteCode, 0);
-                    bOk = nStatus == 0;
-                    if (!bOk)
-                    {
-                        if (lua_isstring(ML, -1) == 0)
-                        {
-                            nResults = req.ReportLoadError(ML, $"unknown error while loading module '{strPath}'");
-                        }
-                        else
-                        {
-                            string strMsg = ReadUtf8Z((byte*)lua_tostring(ML, -1));
-                            nResults = req.ReportLoadError(ML, $"error while loading module '{strPath}': {strMsg}");
-                        }
-                    }
-                }
-                finally
-                {
-                    luau_free(pByteCode);
-                }
+                nResults = lua_gettop(ML);
             }
-
-            if (bOk)
+            else if (nStatus == (int)lua_Status.LUA_YIELD)
             {
-                int nStatus = lua_resume(ML, L, 0);
-                if (nStatus == (int)lua_Status.LUA_OK)
-                {
-                    if (lua_gettop(ML) != 1)
-                    {
-                        // empty stack
-                        while (lua_gettop(ML) > 0)
-                            lua_pop(ML, 1);
-
-                        nResults = req.ReportLoadError(ML, $"module '{strPath}' must return a single value");
-                    }
-                }
-                else if (nStatus == (int)lua_Status.LUA_YIELD)
-                {
-                    nResults = req.ReportLoadError(ML, $"module '{strPath}' can not yield");
-                }
-                else if (lua_isstring(ML, -1) == 0)
-                {
-                    nResults = req.ReportLoadError(ML, $"unknown error while running module '{strPath}'");
-                }
-                else
-                {
-                    string strMsg = ReadUtf8Z((byte*)lua_tostring(ML, -1));
-                    nResults = req.ReportLoadError(ML, $"error while running module '{strPath}': {strMsg}");
-                }
+                errorMessage = $"module '{strPath}' can not yield";
             }
+            else if (lua_isstring(ML, -1) == 0)
+            {
+                errorMessage = $"unknown error while running module '{strPath}'";
+            }
+            else
+            {
+                string strMsg = ReadUtf8Z((byte*)lua_tostring(ML, -1));
+                errorMessage = $"error while running module '{strPath}': {strMsg}";
+            }
+        }
 
-            // add ML results (success or reported error) to L stack
+        if (errorMessage is null)
             lua_xmove(ML, L, nResults);
 
-            // remove ML thread from L stack
-            lua_remove(L, -(nResults + 1));
+        // remove ML thread from L stack
+        lua_remove(L, -(nResults + 1));
+
+        if (errorMessage is not null)
+        {
+            int errorReturn = LuauStateMarshal.ReturnError(L, errorMessage);
+#if DEBUG
+            guard.OverwriteExpectedDelta(1);
+#endif
+            return errorReturn;
         }
 
 #if DEBUG
@@ -370,6 +344,12 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
+        if (_requireContext is not null)
+        {
+            darp_luau_freerequirecontext(_requireContext);
+            _requireContext = null;
+        }
+
         if (_handle.IsAllocated)
             _handle.Free();
     }

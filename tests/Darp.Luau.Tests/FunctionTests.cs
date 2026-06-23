@@ -1402,7 +1402,7 @@ public sealed class FunctionTests : IDisposable
 
     public void Dispose()
     {
-        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe((ulong)2);
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(1UL);
         _state.Dispose();
     }
 }

@@ -1,4 +1,3 @@
-using Darp.Luau.Utils;
 using Shouldly;
 
 namespace Darp.Luau.Tests.Require;

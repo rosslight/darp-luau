@@ -252,17 +252,17 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
             fixed (byte* pIndexName = "__index\0"u8)
             {
-                _state.PushWrappedCallback(&IndexCallback, pIndexName);
+                _state.PushNativeCallback(&IndexCallback, null, pIndexName);
                 lua_setfield(L, -2, pIndexName);
             }
             fixed (byte* pNewIndexName = "__newindex\0"u8)
             {
-                _state.PushWrappedCallback(&NewIndexCallback, pNewIndexName);
+                _state.PushNativeCallback(&NewIndexCallback, null, pNewIndexName);
                 lua_setfield(L, -2, pNewIndexName);
             }
             fixed (byte* pNameCallName = "__namecall\0"u8)
             {
-                _state.PushWrappedCallback(&MethodCallback, pNameCallName);
+                _state.PushNativeCallback(&MethodCallback, null, pNameCallName);
                 lua_setfield(L, -2, pNameCallName);
             }
 
@@ -287,8 +287,9 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int IndexCallback(lua_State* L)
+    private static unsafe int IndexCallback(lua_State* L, void* ctx)
     {
+        _ = ctx;
         try
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
@@ -303,8 +304,9 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int NewIndexCallback(lua_State* L)
+    private static unsafe int NewIndexCallback(lua_State* L, void* ctx)
     {
+        _ = ctx;
         try
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
@@ -319,8 +321,9 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int MethodCallback(lua_State* L)
+    private static unsafe int MethodCallback(lua_State* L, void* ctx)
     {
+        _ = ctx;
         try
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))

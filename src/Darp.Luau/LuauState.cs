@@ -6,7 +6,6 @@ using Darp.Luau.Internal.Require;
 using Darp.Luau.Native;
 using Darp.Luau.Utils;
 using static Darp.Luau.Native.LuauNative;
-using static Darp.Luau.Utils.LuauNativeMethods;
 
 namespace Darp.Luau;
 
@@ -20,16 +19,13 @@ public sealed unsafe class LuauState : IDisposable
     internal readonly lua_State* L;
     private int _disposing; // 0 = false, 1 = true
     private readonly ulong _globalsHandle;
-    private readonly ulong _callbackWrapperReference;
     private readonly UserdataRegistrationCache _cache;
 
     private LuauModuleRequirer? _moduleRequirer;
 
     internal RegistryReferenceTracker ReferenceTracker { get; }
 
-    [Obsolete("Used for saving delegates used in unmanaged memory to prevent them going out of scope")]
-    // ReSharper disable once CollectionNeverQueried.Local
-    private readonly List<Delegate> _delegateSave = [];
+    private readonly List<GCHandle> _callbackHandles = [];
 
     /// <summary> The global table. Used as a entry point </summary>
     public LuauTable Globals => new(this, _globalsHandle);
@@ -45,9 +41,7 @@ public sealed unsafe class LuauState : IDisposable
     /// </summary>
     internal LuauMemoryStatistics MemoryStatistics =>
         ReferenceTracker.GetStatistics(
-#pragma warning disable CS0618 // This tracks callback roots held by this state.
-            activeManagedCallbacks: _delegateSave.Count
-#pragma warning restore CS0618
+            activeManagedCallbacks: _callbackHandles.Count(static handle => handle.IsAllocated)
         );
 
     /// <summary> Initializes a new LuauState, and opens all default libs. </summary>
@@ -56,13 +50,12 @@ public sealed unsafe class LuauState : IDisposable
         : this(LuauLibraries.All) { }
 
     /// <summary>Initializes a new LuauState with explicit standard library loading options.</summary>
-    /// <param name="builtinLibraries">Standard Luau libraries to load. Automatically adds <see cref="LuauLibraries.Minimal"/> libraries.</param>
+    /// <param name="builtinLibraries">Standard Luau libraries to load.</param>
     /// <param name="virtualFileSystem">A virtual filesystem for file operations</param>
     /// <exception cref="InvalidOperationException">Thrown if the Luau state could not be created.</exception>
     public LuauState(LuauLibraries builtinLibraries, ILuauFileSystem? virtualFileSystem = null)
     {
         _virtualFileSystem = virtualFileSystem ?? new FileSystem();
-        builtinLibraries |= LuauLibraries.Minimal;
 
         L = luaL_newstate();
         if (L is null)
@@ -79,8 +72,6 @@ public sealed unsafe class LuauState : IDisposable
         // Push table to stack, get the reference and pop
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         _globalsHandle = ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
-
-        _callbackWrapperReference = RegisterCallbackWrapper();
     }
 
     /// <summary>Loads the requested standard Luau libraries into this state.</summary>
@@ -88,7 +79,6 @@ public sealed unsafe class LuauState : IDisposable
     public void LoadStandardLibraries(LuauLibraries libraries)
     {
         this.ThrowIfDisposed();
-        libraries |= LuauLibraries.Minimal;
         LuauLibraries missingLibraries = libraries & ~EnabledLibraries;
         if (missingLibraries == 0)
             return;
@@ -203,57 +193,25 @@ public sealed unsafe class LuauState : IDisposable
         || name.Contains('/', StringComparison.Ordinal)
         || name.Contains('\\', StringComparison.Ordinal);
 
-    private ulong RegisterCallbackWrapper()
-    {
-#if DEBUG
-        using var guard = new StackGuard(L, expectedDelta: 0);
-#endif
-        var source =
-            """
-            local function wrap(f)
-              return function(...)
-                -- packet = isPCallOk, okFlag, errorMessage, ...
-                local packed = table.pack(pcall(f, ...))
-                if not packed[1] then
-                  -- This should not happen
-                  error("UNWRAPPED LUA ERROR: raw lua_error/longjmp crossed boundary", 2)
-                end
-
-                local okFlag = packed[2]
-                if not okFlag then
-                  error(packed[3], 2)
-                end
-                return table.unpack(packed, 3, packed.n)
-              end
-            end
-            return wrap
-            """u8;
-
-        var chunkName = "managed_callback_wrapper"u8;
-        CompileLoadAndCall(L, source, chunkName, nResults: 1);
-        if ((lua_Type)lua_type(L, -1) is not lua_Type.LUA_TFUNCTION)
-        {
-            lua_pop(L, 1);
-            throw new InvalidOperationException("Managed callback wrapper chunk must return a function.");
-        }
-        return ReferenceTracker.TrackAndPopRef(L, -1, pinned: true);
-    }
-
-    internal void PushWrappedCallback(delegate* unmanaged[Cdecl]<lua_State*, int> callback, byte* debugName = null)
+    internal void PushNativeCallback(
+        delegate* unmanaged[Cdecl]<lua_State*, void*, int> callback,
+        void* context,
+        byte* debugName = null
+    )
     {
         this.ThrowIfDisposed();
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 1);
 #endif
-        RegistryReferenceTracker.TrackedReference trackedReference = this.GetTrackedReferenceOrThrow(
-            _callbackWrapperReference
-        );
-#pragma warning disable CA2000 // lua_pcall consumes the callback wrapper argument from the stack, so disposing the pop token here would be incorrect.
-        _ = trackedReference.PushToTop();
-#pragma warning restore CA2000
-        lua_pushcfunction(L, callback, debugName);
-        int callStatus = lua_pcall(L, 1, 1, 0);
-        LuaException.ThrowIfNotOk(L, callStatus, "lua_pcall");
+        darp_luau_pushcallback(L, callback, context, debugName);
+    }
+
+    internal GCHandle TrackCallbackContext(object context)
+    {
+        this.ThrowIfDisposed();
+        var handle = GCHandle.Alloc(context);
+        _callbackHandles.Add(handle);
+        return handle;
     }
 
     /// <summary> Create a new table </summary>
@@ -325,35 +283,48 @@ public sealed unsafe class LuauState : IDisposable
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif
-        var f = F;
-#pragma warning disable CS0618 // This is the only place we want to save the delegates
-        _delegateSave.Add(f);
-        IntPtr intPtr = Marshal.GetFunctionPointerForDelegate(f);
-#pragma warning restore CS0618 // Type or member is obsolete
-
-        PushWrappedCallback((delegate* unmanaged[Cdecl]<lua_State*, int>)intPtr);
+        var context = new FunctionBuilderCallbackContext(this, onCalled);
+        GCHandle handle = TrackCallbackContext(context);
+        fixed (byte* pDebugName = "managed function\0"u8)
+        {
+            PushNativeCallback(&FunctionBuilderCallback, (void*)GCHandle.ToIntPtr(handle), pDebugName);
+        }
         ulong reference = ReferenceTracker.TrackAndPopRef(L, -1);
         return new LuauFunction(this, reference);
+    }
 
-        int F(lua_State* luaState)
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static int FunctionBuilderCallback(lua_State* luaState, void* ctx)
+    {
+        var handle = GCHandle.FromIntPtr((IntPtr)ctx);
+        if (handle.Target is not FunctionBuilderCallbackContext context)
+            return LuauStateMarshal.ReturnError(luaState, "managed function callback context is invalid");
+
+        return context.Invoke(luaState);
+    }
+
+    private sealed class FunctionBuilderCallbackContext(LuauState state, LuauFunctionBuilder onCalled)
+    {
+        public int Invoke(lua_State* luaState)
         {
-            ArgumentOutOfRangeException.ThrowIfNotEqual((nint)luaState, (nint)L);
+            ArgumentOutOfRangeException.ThrowIfNotEqual((nint)luaState, (nint)state.L);
             int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
-            using var nestedGuard = new StackGuard(L, expectedDelta: 0);
+            using var nestedGuard = new StackGuard(state.L, expectedDelta: 0);
 #endif
             int topBeforeInvoke = lua_gettop(luaState);
-            var args = new LuauArgs(this, numberOfParameters, firstParameterStackIndex: 1);
+            var args = new LuauArgs(state, numberOfParameters, firstParameterStackIndex: 1);
             try
             {
                 LuauReturn result = onCalled(args);
                 Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
 
-                if (!result.TryPushValues(this, out int outputCount, out string? error))
+                if (!result.TryPushValues(state, out int outputCount, out string? error))
                 {
+                    lua_settop(luaState, topBeforeInvoke);
                     int errorReturnCount = LuauStateMarshal.ReturnError(luaState, error);
 #if DEBUG
-                    nestedGuard.OverwriteExpectedDelta(errorReturnCount);
+                    nestedGuard.OverwriteExpectedDelta(1);
 #endif
                     return errorReturnCount;
                 }
@@ -369,7 +340,7 @@ public sealed unsafe class LuauState : IDisposable
                 lua_settop(luaState, topBeforeInvoke);
                 int returnCount = LuauStateMarshal.ReturnCallbackException(luaState, "managed function", exception);
 #if DEBUG
-                nestedGuard.OverwriteExpectedDelta(returnCount);
+                nestedGuard.OverwriteExpectedDelta(1);
 #endif
                 return returnCount;
             }
@@ -513,8 +484,11 @@ public sealed unsafe class LuauState : IDisposable
         _moduleRequirer = null;
         ReferenceTracker.ReleaseAll();
         lua_close(L);
-#pragma warning disable CS0618 // Type or member is obsolete -> This is the place we want to clear the delegates
-        _delegateSave.Clear();
-#pragma warning restore CS0618 // Type or member is obsolete
+        foreach (GCHandle callbackHandle in _callbackHandles)
+        {
+            if (callbackHandle.IsAllocated)
+                callbackHandle.Free();
+        }
+        _callbackHandles.Clear();
     }
 }

@@ -6,6 +6,9 @@ namespace Darp.Luau;
 [Flags]
 public enum LuauLibraries
 {
+    /// <summary> No standard Luau libraries. </summary>
+    None = 0,
+
     /// <summary> The core base library. </summary>
     Base = 1 << 0,
 

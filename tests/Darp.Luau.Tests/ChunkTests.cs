@@ -336,7 +336,7 @@ public sealed class ChunkTests : IDisposable
 
     public void Dispose()
     {
-        _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2U);
+        _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(1U);
         _lua.Dispose();
     }
 }
