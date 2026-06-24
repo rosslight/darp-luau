@@ -302,11 +302,21 @@ public sealed unsafe class LuauState : IDisposable
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int FunctionBuilderCallback(lua_State* luaState, void* ctx)
     {
-        var handle = GCHandle.FromIntPtr((IntPtr)ctx);
-        if (handle.Target is not FunctionBuilderCallbackContext context)
-            return LuauStateMarshal.ReturnError(luaState, "managed function callback context is invalid");
+        ArgumentNullException.ThrowIfNull(luaState);
+        int topBeforeCallback = lua_gettop(luaState);
+        try
+        {
+            var handle = GCHandle.FromIntPtr((IntPtr)ctx);
+            if (handle.Target is not FunctionBuilderCallbackContext context)
+                return LuauStateMarshal.ReturnError(luaState, "managed function callback context is invalid");
 
-        return context.Invoke(luaState);
+            return context.Invoke(luaState);
+        }
+        catch (Exception exception)
+        {
+            lua_settop(luaState, topBeforeCallback);
+            return LuauStateMarshal.ReturnCallbackException(luaState, "managed function", exception);
+        }
     }
 
     private sealed class FunctionBuilderCallbackContext(LuauState state, LuauFunctionBuilder onCalled)

@@ -211,6 +211,21 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int Load(lua_State* L, void* ctx, byte* path, byte* chunkname, byte* loadname)
     {
+        ArgumentNullException.ThrowIfNull(L);
+        int topBeforeCallback = lua_gettop(L);
+        try
+        {
+            return LoadCore(L, ctx, path, chunkname, loadname);
+        }
+        catch (Exception exception)
+        {
+            lua_settop(L, topBeforeCallback);
+            return LuauStateMarshal.ReturnCallbackException(L, "script module loader", exception);
+        }
+    }
+
+    private static int LoadCore(lua_State* L, void* ctx, byte* path, byte* chunkname, byte* loadname)
+    {
         string strPath = ReadUtf8Z(path);
         string strChunkName = ReadUtf8Z(chunkname);
         string strLoadName = ReadUtf8Z(loadname);

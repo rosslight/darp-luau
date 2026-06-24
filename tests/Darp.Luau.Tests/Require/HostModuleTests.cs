@@ -105,6 +105,34 @@ public sealed class HostModuleTests
     }
 
     [Fact]
+    public void HostModule_CachedValueDisposed_ShouldUseRequireCallbackExceptionBoundary()
+    {
+        using var state = new LuauState();
+        LuauTable cachedModule = default;
+        state.RegisterModule(
+            "fragile",
+            (_, in module) =>
+            {
+                cachedModule = module;
+                module.Set("answer", 42);
+            }
+        );
+
+        state.Load("""return require("fragile").answer""").Execute<int>().ShouldBe(42);
+
+        cachedModule.Dispose();
+
+        LuaException exception = Should.Throw<LuaException>(() =>
+            state.Load("""return require("fragile").answer""").Execute<int>()
+        );
+        exception.Message.ShouldContain("require callback failed");
+        exception.Message.ShouldContain("ObjectDisposedException");
+
+        state.RegisterModule("healthy", static (_, in module) => module.Set("answer", 42));
+        state.Load("""return require("healthy").answer""").Execute<int>().ShouldBe(42);
+    }
+
+    [Fact]
     public void HostModule_RecursiveRequire_ShouldSurfaceAlreadyLoadingError()
     {
         using var state = new LuauState();

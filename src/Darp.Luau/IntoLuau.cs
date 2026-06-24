@@ -176,8 +176,8 @@ public readonly ref struct IntoLuau
 #pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
                 _ = _stackReference.PushToTop();
 #pragma warning restore CA2000
-                if ((nint)_stackReference.L != (nint)L)
-                    lua_xmove(_stackReference.L, L, 1);
+                if ((nint)state.L != (nint)L)
+                    lua_xmove(state.L, L, 1);
                 break;
             case Kind.TrackedReference:
                 if (!ReferenceEquals(state, _trackedReference!.ValidateInternal()))
@@ -221,8 +221,8 @@ public readonly ref struct IntoLuau
             case Kind.StackReference:
             {
                 LuauState state = _stackReference.ValidateInternal();
-                using PopDisposable pop = _stackReference.PushToTop();
-                return IntoLuauCopied.FromValue(LuauValue.ToValue(state));
+                using PopDisposable pop = _stackReference.PushToStack(out int stackIndex);
+                return IntoLuauCopied.FromValue(LuauValue.ToValue(state, stackIndex));
             }
             case Kind.TrackedReference:
             {

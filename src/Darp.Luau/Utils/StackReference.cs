@@ -30,15 +30,10 @@ internal readonly unsafe ref struct StackReference : IReferenceSource
 
     public PopDisposable PushToStack(out int stackIndex)
     {
-        if ((nint)_L == (nint)_state.L)
-        {
-            stackIndex = _stackIndex;
-            return default;
-        }
-
         _state.ThrowIfDisposed();
         lua_pushvalue(_L, _stackIndex);
-        lua_xmove(_L, _state.L, 1);
+        if ((nint)_L != (nint)_state.L)
+            lua_xmove(_L, _state.L, 1);
         stackIndex = lua_gettop(_state.L);
         return new PopDisposable(_state.L, true);
     }
@@ -47,8 +42,14 @@ internal readonly unsafe ref struct StackReference : IReferenceSource
     {
         _state.ThrowIfDisposed();
         lua_pushvalue(_L, _stackIndex);
-        return new PopDisposable(_L, true);
+        if ((nint)_L != (nint)_state.L)
+            lua_xmove(_L, _state.L, 1);
+        return new PopDisposable(_state.L, true);
     }
 
-    public override string ToString() => Helpers.StackString(_state, _stackIndex);
+    public override string ToString()
+    {
+        using PopDisposable _ = PushToStack(out int stackIndex);
+        return Helpers.StackString(_state, stackIndex);
+    }
 }

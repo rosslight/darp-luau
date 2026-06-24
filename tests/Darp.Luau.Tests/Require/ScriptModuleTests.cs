@@ -843,6 +843,26 @@ public sealed class ScriptModuleTests
     }
 
     [Fact]
+    public void ScriptModule_ReadFileThrows_ShouldUseLoaderExceptionBoundaryAndNotCacheFailure()
+    {
+        var fs = new ReadFailureFileSystem { ThrowDependencyRead = true };
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+
+        LuaException exception = Should.Throw<LuaException>(() => state.LoadFile("./main.luau").Execute<LuauTable>());
+        exception.Message.ShouldContain("script module loader callback failed");
+        exception.Message.ShouldContain("boom from ReadFile");
+
+        fs.ThrowDependencyRead = false;
+        fs.FailDependencyRead = false;
+
+        using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
+        result.TryGet(1, out int value).ShouldBeTrue();
+        value.ShouldBe(17);
+    }
+
+    [Fact]
     public void EnableScriptModules_ShouldInstallRequire()
     {
         var fs = new FakeFileSystem([]);
@@ -1018,13 +1038,23 @@ public sealed class ScriptModuleTests
 
         public bool FailDependencyRead { get; set; } = true;
 
+        public bool ThrowDependencyRead { get; set; }
+
         public string GetCurrentDirectory() => _inner.GetCurrentDirectory();
 
         public bool FileExists([NotNullWhen(true)] string? path) => _inner.FileExists(path);
 
         public bool DirectoryExists([NotNullWhen(true)] string? path) => _inner.DirectoryExists(path);
 
-        public string? ReadFile(string path) =>
-            FailDependencyRead && path.EndsWith("dependency.luau", StringComparison.Ordinal) ? null : _inner.ReadFile(path);
+        public string? ReadFile(string path)
+        {
+            if (!path.EndsWith("dependency.luau", StringComparison.Ordinal))
+                return _inner.ReadFile(path);
+
+            if (ThrowDependencyRead)
+                throw new InvalidOperationException("boom from ReadFile");
+
+            return FailDependencyRead ? null : _inner.ReadFile(path);
+        }
     }
 }

@@ -67,6 +67,21 @@ internal sealed unsafe class LuauModuleRequirer : IDisposable
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int RequireCallback(lua_State* L, void* ctx)
     {
+        ArgumentNullException.ThrowIfNull(L);
+        int topBeforeCallback = lua_gettop(L);
+        try
+        {
+            return RequireCallbackCore(L, ctx);
+        }
+        catch (Exception exception)
+        {
+            lua_settop(L, topBeforeCallback);
+            return LuauStateMarshal.ReturnCallbackException(L, "require", exception);
+        }
+    }
+
+    private static int RequireCallbackCore(lua_State* L, void* ctx)
+    {
         LuauModuleRequirer requirer = FromVoidPtr(ctx);
         if (!LuauStateMarshal.TryGetString(L, 1, out ReadOnlySpan<byte> utf8ModuleName))
             return LuauStateMarshal.ReturnError(L, "bad argument #1 to 'require' (string expected)");

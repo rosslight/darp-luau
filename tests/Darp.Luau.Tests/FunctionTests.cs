@@ -1170,6 +1170,45 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void LuauFunctionView_Invoke_FromCoroutine_ShouldWorkInsideManagedCallback()
+    {
+        _state
+            .Load(
+                """
+                function make_value()
+                  return 42
+                end
+                """
+            )
+            .Execute();
+
+        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
+                return LuauReturn.Error(error);
+
+            return LuauReturn.Ok(function.Invoke<int>());
+        });
+
+        _state.Globals.Set("call_and_read", callAndRead);
+
+        int result = _state
+            .Load(
+                """
+                local co = coroutine.create(function()
+                  return call_and_read(make_value)
+                end)
+                local ok, value = coroutine.resume(co)
+                if not ok then error(value) end
+                return value
+                """
+            )
+            .Execute<int>();
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
     public void LuauFunctionView_Invoke_TupleReturn_ShouldWorkInsideManagedCallback()
     {
         _state
@@ -1406,6 +1445,38 @@ public sealed class FunctionTests : IDisposable
         _state.Load("result = make_table().value").Execute();
 
         _state.Globals.GetNumber("result").ShouldBe(99);
+    }
+
+    [Fact]
+    public void ReturningBorrowedTable_FromCoroutine_ShouldReturnArgument()
+    {
+        using LuauFunction echoTable = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadLuauTable(1, out LuauTableView table, out string? error))
+                return LuauReturn.Error(error);
+
+            return LuauReturn.Ok(table);
+        });
+
+        _state.Globals.Set("echo_table", echoTable);
+
+        (int value, bool sameTable) = _state
+            .Load(
+                """
+                local co = coroutine.create(function()
+                  local input = { value = 42 }
+                  local output = echo_table(input)
+                  return output.value, output == input
+                end)
+                local ok, value, sameTable = coroutine.resume(co)
+                if not ok then error(value) end
+                return value, sameTable
+                """
+            )
+            .Execute<int, bool>();
+
+        value.ShouldBe(42);
+        sameTable.ShouldBeTrue();
     }
 
     [Fact]
