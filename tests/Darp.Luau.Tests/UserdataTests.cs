@@ -44,6 +44,71 @@ public sealed class UserdataTests
     }
 
     [Fact]
+    public void Userdata_CallbacksFromCoroutine_ShouldWork()
+    {
+        using var state = new LuauState();
+        CounterUserdata.LastMethodName = null;
+        CounterUserdata.LastParameterCount = -1;
+        state.Globals.Set("counter", new CounterUserdata());
+
+        (int before, int after, int methodResult) = state
+            .Load(
+                """
+                local co = coroutine.create(function()
+                  local before = counter.value
+                  counter.value = 41
+                  local after = counter.value
+                  return before, after, counter:add(1)
+                end)
+                local ok, before, after, methodResult = coroutine.resume(co)
+                if not ok then error(before) end
+                return before, after, methodResult
+                """
+            )
+            .Execute<int, int, int>();
+
+        before.ShouldBe(0);
+        after.ShouldBe(41);
+        methodResult.ShouldBe(42);
+        CounterUserdata.LastMethodName.ShouldBe("add");
+        CounterUserdata.LastParameterCount.ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData("return failing.explode", "__index callback failed", "Boom from OnIndex")]
+    [InlineData("failing.explodeSet = 1", "__newindex callback failed", "Boom from OnSetIndex")]
+    [InlineData(
+        "return getmetatable(failing).__namecall(failing, \"explodeMethod\")",
+        "__namecall callback failed",
+        "Boom from OnMethodCall"
+    )]
+    public void Userdata_CallbackErrorsFromCoroutine_ShouldBeLuaErrors(
+        string callbackSource,
+        string expectedCallback,
+        string expectedMessage
+    )
+    {
+        using var state = new LuauState();
+        state.Globals.Set("failing", new FailingUserdata());
+
+        (bool ok, string error) = state
+            .Load(
+                $$"""
+                local co = coroutine.create(function()
+                  {{callbackSource}}
+                end)
+                local ok, value = coroutine.resume(co)
+                return ok, tostring(value)
+                """
+            )
+            .Execute<bool, string>();
+
+        ok.ShouldBeFalse();
+        error.ShouldContain(expectedCallback);
+        error.ShouldContain(expectedMessage);
+    }
+
+    [Fact]
     public void Userdata_IndexSetterAndMethodCall_ShouldWork()
     {
         using var state = new LuauState();

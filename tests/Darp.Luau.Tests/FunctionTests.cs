@@ -143,6 +143,56 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void CSharpFunction_ResultObject_FromCoroutine_ShouldReturnValue()
+    {
+        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadNumber(1, out int a, out string? error) || !args.TryReadNumber(2, out int b, out error))
+                return LuauReturn.Error(error);
+
+            return LuauReturn.Ok(a + b);
+        });
+        _state.Globals.Set("add", func);
+
+        int result = _state
+            .Load(
+                """
+                local co = coroutine.create(function()
+                  return add(40, 2)
+                end)
+                local ok, value = coroutine.resume(co)
+                if not ok then error(value) end
+                return value
+                """
+            )
+            .Execute<int>();
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
+    public void CSharpFunction_ResultObject_ErrorFromCoroutine_ShouldBeLuaError()
+    {
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Error("boom from coroutine"));
+        _state.Globals.Set("fail", func);
+
+        (bool ok, string error) = _state
+            .Load(
+                """
+                local co = coroutine.create(function()
+                  return fail()
+                end)
+                local ok, value = coroutine.resume(co)
+                return ok, tostring(value)
+                """
+            )
+            .Execute<bool, string>();
+
+        ok.ShouldBeFalse();
+        error.ShouldContain("boom from coroutine");
+    }
+
+    [Fact]
     public void CSharpFunction_ResultObject_ShouldReturnStringValueViaOk()
     {
         using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok("hello from csharp"));

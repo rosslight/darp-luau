@@ -94,6 +94,42 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
     }
 
     [Fact]
+    public void ScriptModule_ShouldCallHostModuleFunctionUnderNone()
+    {
+        var fs = new FakeFileSystem([
+            (
+                "./main.luau",
+                """
+                local game = require("game")
+                return game.add(40, 2)
+                """
+            ),
+        ]);
+
+        LuauState state = CreateState(LuauLibraries.None, fs);
+        state.RegisterModule(
+            "game",
+            static (lua, in module) =>
+            {
+                using LuauFunction add = lua.CreateFunctionBuilder(static args =>
+                {
+                    if (!args.TryReadNumber(1, out int a, out string? error))
+                        return LuauReturn.Error(error);
+                    if (!args.TryReadNumber(2, out int b, out error))
+                        return LuauReturn.Error(error);
+                    return LuauReturn.Ok(a + b);
+                });
+                module.Set("add", add);
+            }
+        );
+        state.EnableScriptModules();
+
+        int result = state.LoadFile("./main.luau").Execute<int>();
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
     public void CustomModule_ShouldBeAvailableThroughRequire()
     {
         LuauState state = CreateState();

@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using Darp.Luau.Internal.Require;
 using Shouldly;
 
 namespace Darp.Luau.Tests.Require;
@@ -758,6 +760,89 @@ public sealed class ScriptModuleTests
     }
 
     [Fact]
+    public void ScriptModule_SyntaxError_ShouldSurfaceLoadError()
+    {
+        var fs = new FakeFileSystem([
+            ("./main.luau", """return require("./dependency")"""),
+            ("./dependency.luau", "return function("),
+        ]);
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+
+        LuaException exception = Should.Throw<LuaException>(() => state.LoadFile("./main.luau").Execute<LuauTable>());
+        exception.Message.ShouldContain("error while loading module './dependency'");
+
+        fs.SetFile("./dependency.luau", "return { 17 }");
+
+        using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
+        result.TryGet(1, out int value).ShouldBeTrue();
+        value.ShouldBe(17);
+    }
+
+    [Fact]
+    public void ScriptModule_RuntimeError_ShouldSurfaceRunError()
+    {
+        var fs = new FakeFileSystem([
+            ("./main.luau", """return require("./dependency")"""),
+            ("./dependency.luau", """error("boom from dependency")"""),
+        ]);
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+
+        LuaException exception = Should.Throw<LuaException>(() => state.LoadFile("./main.luau").Execute<LuauTable>());
+        exception.Message.ShouldContain("error while running module './dependency'");
+        exception.Message.ShouldContain("boom from dependency");
+
+        fs.SetFile("./dependency.luau", "return { 17 }");
+
+        using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
+        result.TryGet(1, out int value).ShouldBeTrue();
+        value.ShouldBe(17);
+    }
+
+    [Fact]
+    public void ScriptModule_Yield_ShouldThrowCannotYield()
+    {
+        var fs = new FakeFileSystem([
+            ("./main.luau", """return require("./dependency")"""),
+            ("./dependency.luau", "coroutine.yield()"),
+        ]);
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+
+        LuaException exception = Should.Throw<LuaException>(() => state.LoadFile("./main.luau").Execute<LuauTable>());
+        exception.Message.ShouldContain("module './dependency' can not yield");
+
+        fs.SetFile("./dependency.luau", "return { 17 }");
+
+        using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
+        result.TryGet(1, out int value).ShouldBeTrue();
+        value.ShouldBe(17);
+    }
+
+    [Fact]
+    public void ScriptModule_ReadFileReturnsNull_ShouldSurfaceReadErrorAndNotCacheFailure()
+    {
+        var fs = new ReadFailureFileSystem();
+
+        using var state = new LuauState(LuauLibraries.All, fs);
+        state.EnableScriptModules();
+
+        LuaException exception = Should.Throw<LuaException>(() => state.LoadFile("./main.luau").Execute<LuauTable>());
+        exception.Message.ShouldContain("could not read file");
+        exception.Message.ShouldContain("dependency");
+
+        fs.FailDependencyRead = false;
+
+        using LuauTable result = state.LoadFile("./main.luau").Execute<LuauTable>();
+        result.TryGet(1, out int value).ShouldBeTrue();
+        value.ShouldBe(17);
+    }
+
+    [Fact]
     public void EnableScriptModules_ShouldInstallRequire()
     {
         var fs = new FakeFileSystem([]);
@@ -923,4 +1008,23 @@ public sealed class ScriptModuleTests
             ),
             ("./config/chained_aliases/subdirectory/requirer.luau", source),
         ];
+
+    private sealed class ReadFailureFileSystem : ILuauFileSystem
+    {
+        private readonly FakeFileSystem _inner = new([
+            ("./main.luau", """return require("./dependency")"""),
+            ("./dependency.luau", "return { 17 }"),
+        ]);
+
+        public bool FailDependencyRead { get; set; } = true;
+
+        public string GetCurrentDirectory() => _inner.GetCurrentDirectory();
+
+        public bool FileExists([NotNullWhen(true)] string? path) => _inner.FileExists(path);
+
+        public bool DirectoryExists([NotNullWhen(true)] string? path) => _inner.DirectoryExists(path);
+
+        public string? ReadFile(string path) =>
+            FailDependencyRead && path.EndsWith("dependency.luau", StringComparison.Ordinal) ? null : _inner.ReadFile(path);
+    }
 }
