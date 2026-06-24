@@ -1,4 +1,5 @@
 using Darp.Luau.Internal;
+using Darp.Luau.Native;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
@@ -15,7 +16,8 @@ public readonly ref struct LuauFunctionView : ILuauView<LuauFunction>
 {
     private readonly StackReference _reference;
 
-    internal LuauFunctionView(LuauState state, int stackIndex) => _reference = new StackReference(state, stackIndex);
+    internal unsafe LuauFunctionView(LuauState state, lua_State* luaState, int stackIndex) =>
+        _reference = new StackReference(state, luaState, stackIndex);
 
     /// <summary> Invokes the borrowed function with arguments and ignores any return values. </summary>
     /// <exception cref="ObjectDisposedException">Thrown when the callback frame has ended or the state is disposed.</exception>

@@ -192,7 +192,7 @@ public sealed class StateTests : IDisposable
 
     public void Dispose()
     {
-        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2U);
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(1U);
         _state.Dispose();
     }
 }

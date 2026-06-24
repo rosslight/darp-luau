@@ -34,6 +34,12 @@ public readonly struct LuauFunction : ILuauReference
         _handle = handle;
     }
 
+    internal ulong GetHandleOrThrow()
+    {
+        _ = _state.GetTrackedReferenceOrThrow(_handle);
+        return _handle;
+    }
+
     /// <summary> Invokes the referenced function and ignores any return values. </summary>
     /// <param name="args">The arguments passed to the Luau function.</param>
     /// <exception cref="ObjectDisposedException">Thrown when this reference is no longer tracked or the state is disposed.</exception>

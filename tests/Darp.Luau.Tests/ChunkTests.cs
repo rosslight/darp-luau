@@ -226,6 +226,20 @@ public sealed class ChunkTests : IDisposable
     }
 
     [Fact]
+    public void WithEnvironment_LoadError_ShouldThrowLuaExceptionAndKeepStackUsable()
+    {
+        using LuauTable environment = _lua.CreateEnvironment();
+
+        LuaException exception = Should.Throw<LuaException>(() =>
+            _lua.Load("return function(").WithEnvironment(environment).Execute()
+        );
+        exception.Message.ShouldContain("luau_load");
+
+        int result = _lua.Load("return 42").WithEnvironment(environment).Execute<int>();
+        result.ShouldBe(42);
+    }
+
+    [Fact]
     public void CreateEnvironment_Sets_G_ToEnvironment()
     {
         using LuauTable environment = _lua.CreateEnvironment();
@@ -336,7 +350,7 @@ public sealed class ChunkTests : IDisposable
 
     public void Dispose()
     {
-        _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2U);
+        _lua.MemoryStatistics.ActiveRegistryReferences.ShouldBe(1U);
         _lua.Dispose();
     }
 }

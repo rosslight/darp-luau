@@ -31,7 +31,7 @@ internal sealed class RegistryReferenceTracker(LuauState state)
     public unsafe ulong TrackRef(lua_State* L, int stackIndex, bool pinned = false)
     {
         ArgumentNullException.ThrowIfNull(L);
-        if ((nint)L != (nint)_state.L)
+        if (!_state.OwnsThread(L))
             throw new InvalidOperationException("Cross-state reference tracking is not allowed.");
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);

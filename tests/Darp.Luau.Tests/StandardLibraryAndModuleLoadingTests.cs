@@ -1,4 +1,6 @@
 using Shouldly;
+using Darp.Luau.Internal.Require;
+using Darp.Luau.Tests.Require;
 
 namespace Darp.Luau.Tests;
 
@@ -7,14 +9,16 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
     private readonly List<LuauState> _states = [];
 
     [Fact]
-    public void BuiltinLibraries_None_ShouldKeepBaseAndTable()
+    public void BuiltinLibraries_None_ShouldLoadNoStandardGlobals()
     {
-        LuauState state = CreateState(0);
+        LuauState state = CreateState(LuauLibraries.None);
 
-        state.EnabledLibraries.ShouldBe(LuauLibraries.Base | LuauLibraries.Table);
-        state.Globals.ContainsKey("pcall").ShouldBeTrue();
-        state.Globals.ContainsKey("table").ShouldBeTrue();
-        state.Globals.ContainsKey("error").ShouldBeTrue();
+        state.EnabledLibraries.ShouldBe(LuauLibraries.None);
+        state.Globals.ContainsKey("pcall").ShouldBeFalse();
+        state.Globals.ContainsKey("table").ShouldBeFalse();
+        state.Globals.ContainsKey("error").ShouldBeFalse();
+        state.Globals.ContainsKey("type").ShouldBeFalse();
+        state.Globals.ContainsKey("_G").ShouldBeFalse();
         state.Globals.ContainsKey("math").ShouldBeFalse();
     }
 
@@ -23,12 +27,106 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
     {
         LuauState state = CreateState(LuauLibraries.Math | LuauLibraries.Vector);
 
-        state.EnabledLibraries.ShouldBe(
-            LuauLibraries.Base | LuauLibraries.Table | LuauLibraries.Math | LuauLibraries.Vector
-        );
+        state.EnabledLibraries.ShouldBe(LuauLibraries.Math | LuauLibraries.Vector);
         state.Globals.ContainsKey("math").ShouldBeTrue();
         state.Globals.ContainsKey("vector").ShouldBeTrue();
+        state.Globals.ContainsKey("table").ShouldBeFalse();
+        state.Globals.ContainsKey("pcall").ShouldBeFalse();
         state.Globals.ContainsKey("utf8").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void CreateFunctionBuilder_ShouldWorkUnderNone()
+    {
+        LuauState state = CreateState(LuauLibraries.None);
+        using LuauFunction add = state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadNumber(1, out int a, out string? error))
+                return LuauReturn.Error(error);
+            if (!args.TryReadNumber(2, out int b, out error))
+                return LuauReturn.Error(error);
+            return LuauReturn.Ok(a + b);
+        });
+        state.Globals.Set("add", add);
+
+        int result = state.Load("return add(4, 7)").Execute<int>();
+
+        result.ShouldBe(11);
+    }
+
+    [Fact]
+    public void CreateFunctionBuilder_Error_ShouldThrowUnderNone()
+    {
+        LuauState state = CreateState(LuauLibraries.None);
+        using LuauFunction fail = state.CreateFunctionBuilder(static _ => LuauReturn.Error("boom from callback"));
+        state.Globals.Set("fail", fail);
+
+        LuaException exception = Should.Throw<LuaException>(() => state.Load("return fail()").Execute());
+
+        exception.Message.ShouldContain("boom from callback");
+    }
+
+    [Fact]
+    public void HostModuleRequire_ShouldWorkUnderNone()
+    {
+        LuauState state = CreateState(LuauLibraries.None);
+        state.RegisterModule("game", static (_, in module) => module.Set("answer", 42));
+
+        int result = state.Load("""return require("game").answer""").Execute<int>();
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
+    public void ScriptModuleRequire_ShouldWorkUnderNone()
+    {
+        var fs = new FakeFileSystem([
+            ("./main.luau", """return require("./dependency").answer"""),
+            ("./dependency.luau", "return { answer = 42 }"),
+        ]);
+
+        LuauState state = CreateState(LuauLibraries.None, fs);
+        state.EnableScriptModules();
+
+        int result = state.LoadFile("./main.luau").Execute<int>();
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
+    public void ScriptModule_ShouldCallHostModuleFunctionUnderNone()
+    {
+        var fs = new FakeFileSystem([
+            (
+                "./main.luau",
+                """
+                local game = require("game")
+                return game.add(40, 2)
+                """
+            ),
+        ]);
+
+        LuauState state = CreateState(LuauLibraries.None, fs);
+        state.RegisterModule(
+            "game",
+            static (lua, in module) =>
+            {
+                using LuauFunction add = lua.CreateFunctionBuilder(static args =>
+                {
+                    if (!args.TryReadNumber(1, out int a, out string? error))
+                        return LuauReturn.Error(error);
+                    if (!args.TryReadNumber(2, out int b, out error))
+                        return LuauReturn.Error(error);
+                    return LuauReturn.Ok(a + b);
+                });
+                module.Set("add", add);
+            }
+        );
+        state.EnableScriptModules();
+
+        int result = state.LoadFile("./main.luau").Execute<int>();
+
+        result.ShouldBe(42);
     }
 
     [Fact]
@@ -160,9 +258,9 @@ public sealed class StandardLibraryAndModuleLoadingTests : IDisposable
         }
     }
 
-    private LuauState CreateState(LuauLibraries libraries = LuauLibraries.All)
+    private LuauState CreateState(LuauLibraries libraries = LuauLibraries.All, ILuauFileSystem? fileSystem = null)
     {
-        LuauState state = new(libraries);
+        LuauState state = new(libraries, fileSystem);
         _states.Add(state);
         return state;
     }

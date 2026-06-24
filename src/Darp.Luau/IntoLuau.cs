@@ -100,7 +100,14 @@ public readonly ref struct IntoLuau
 
     internal unsafe void Push(LuauState state)
     {
-        lua_State* L = state.L;
+        Push(state, state.L);
+    }
+
+    internal unsafe void Push(LuauState state, lua_State* L)
+    {
+        if (!state.OwnsThread(L))
+            throw new InvalidOperationException("Cross-state value push is not allowed.");
+
         switch (Type)
         {
             case Kind.Chars:
@@ -156,7 +163,7 @@ public readonly ref struct IntoLuau
                 try
                 {
                     IntoLuau l = userdata;
-                    l.Push(state);
+                    l.Push(state, L);
                 }
                 finally
                 {
@@ -169,6 +176,8 @@ public readonly ref struct IntoLuau
 #pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
                 _ = _stackReference.PushToTop();
 #pragma warning restore CA2000
+                if ((nint)state.L != (nint)L)
+                    lua_xmove(state.L, L, 1);
                 break;
             case Kind.TrackedReference:
                 if (!ReferenceEquals(state, _trackedReference!.ValidateInternal()))
@@ -176,6 +185,8 @@ public readonly ref struct IntoLuau
 #pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
                 _ = _trackedReference!.PushToTop();
 #pragma warning restore CA2000
+                if ((nint)state.L != (nint)L)
+                    lua_xmove(state.L, L, 1);
                 break;
             case Kind.Nil:
             default:
@@ -210,8 +221,8 @@ public readonly ref struct IntoLuau
             case Kind.StackReference:
             {
                 LuauState state = _stackReference.ValidateInternal();
-                using PopDisposable pop = _stackReference.PushToTop();
-                return IntoLuauCopied.FromValue(LuauValue.ToValue(state));
+                using PopDisposable pop = _stackReference.PushToStack(out int stackIndex);
+                return IntoLuauCopied.FromValue(LuauValue.ToValue(state, stackIndex));
             }
             case Kind.TrackedReference:
             {

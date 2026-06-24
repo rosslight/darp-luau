@@ -45,9 +45,8 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         _registrations.Add(typeof(T), handle);
         return handle;
 
-        static LuaResult<int, string> IndexCallbackManaged(LuauState state, object? userdata)
+        static LuaResult<int, string> IndexCallbackManaged(LuauState state, lua_State* L, object? userdata)
         {
-            lua_State* L = state.L;
             if (userdata is not T target)
                 return $"Expected userdata of type '{typeof(T).FullName}'.";
 
@@ -60,16 +59,15 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
             LuauReturnSingle result = T.OnIndex(target, state, resolvedMemberName);
 
-            if (result.TryPushValue(state, out string? error))
+            if (result.TryPushValue(state, L, out string? error))
                 return 1;
             if (error == LuauReturn.NotHandled)
                 return 0;
             return error;
         }
 
-        static LuaResult<int, string> NewIndexCallbackManaged(LuauState lua, object? userdata)
+        static LuaResult<int, string> NewIndexCallbackManaged(LuauState lua, lua_State* L, object? userdata)
         {
-            lua_State* L = lua.L;
             if (userdata is not T target)
                 return $"Expected userdata of type '{typeof(T).FullName}'.";
 
@@ -80,7 +78,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             int memberNameLength = Encoding.UTF8.GetChars(utf8MemberName, memberName);
             ReadOnlySpan<char> resolvedMemberName = memberName[..memberNameLength];
 
-            var args = new LuauArgs(lua, argumentCount: 1, firstParameterStackIndex: 3);
+            var args = new LuauArgs(lua, L, argumentCount: 1, firstParameterStackIndex: 3);
             Debug.Assert(args.ArgumentCount == 1);
             var argsSingle = new LuauArgsSingle(args);
             LuauOutcome result = T.OnSetIndex(target, argsSingle, resolvedMemberName);
@@ -94,9 +92,8 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             return error;
         }
 
-        static LuaResult<int, string> MethodCallbackManaged(LuauState lua, object? userdata)
+        static LuaResult<int, string> MethodCallbackManaged(LuauState lua, lua_State* L, object? userdata)
         {
-            lua_State* L = lua.L;
             if (userdata is not T target)
                 return $"Expected userdata of type '{typeof(T).FullName}'.";
 
@@ -118,7 +115,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             }
 
             int topBeforeInvoke = lua_gettop(L);
-            var functionArgs = new LuauArgs(lua, numberOfParameters, firstParameterStackIndex);
+            var functionArgs = new LuauArgs(lua, L, numberOfParameters, firstParameterStackIndex);
             Span<char> methodName = stackalloc char[Encoding.UTF8.GetCharCount(utf8MethodName)];
             int memberNameLength = Encoding.UTF8.GetChars(utf8MethodName, methodName);
             ReadOnlySpan<char> resolvedMethodName = methodName[..memberNameLength];
@@ -127,7 +124,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
                 LuauReturn result = T.OnMethodCall(target, functionArgs, resolvedMethodName);
                 lua_settop(L, topBeforeInvoke);
 
-                if (result.TryPushValues(lua, out int outputCount, out string? error))
+                if (result.TryPushValues(lua, L, out int outputCount, out string? error))
                     return outputCount;
                 if (error == LuauReturn.NotHandled)
                     return (string)$"attempt to call unknown userdata method '{resolvedMethodName}'";
@@ -252,17 +249,17 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
 
             fixed (byte* pIndexName = "__index\0"u8)
             {
-                _state.PushWrappedCallback(&IndexCallback, pIndexName);
+                _state.PushNativeCallback(&IndexCallback, null, pIndexName);
                 lua_setfield(L, -2, pIndexName);
             }
             fixed (byte* pNewIndexName = "__newindex\0"u8)
             {
-                _state.PushWrappedCallback(&NewIndexCallback, pNewIndexName);
+                _state.PushNativeCallback(&NewIndexCallback, null, pNewIndexName);
                 lua_setfield(L, -2, pNewIndexName);
             }
             fixed (byte* pNameCallName = "__namecall\0"u8)
             {
-                _state.PushWrappedCallback(&MethodCallback, pNameCallName);
+                _state.PushNativeCallback(&MethodCallback, null, pNameCallName);
                 lua_setfield(L, -2, pNameCallName);
             }
 
@@ -287,13 +284,14 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int IndexCallback(lua_State* L)
+    private static unsafe int IndexCallback(lua_State* L, void* ctx)
     {
+        _ = ctx;
         try
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
                 return LuauStateMarshal.ReturnError(L, errorMessage);
-            LuaResult<int, string> result = registration.OnIndexCallback(registration.State, userdata);
+            LuaResult<int, string> result = registration.OnIndexCallback(registration.State, L, userdata);
             return LuauStateMarshal.ReturnResult(L, result);
         }
         catch (Exception exception)
@@ -303,13 +301,14 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int NewIndexCallback(lua_State* L)
+    private static unsafe int NewIndexCallback(lua_State* L, void* ctx)
     {
+        _ = ctx;
         try
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
                 return LuauStateMarshal.ReturnError(L, errorMessage);
-            LuaResult<int, string> result = registration.OnNewIndexCallback(registration.State, userdata);
+            LuaResult<int, string> result = registration.OnNewIndexCallback(registration.State, L, userdata);
             return LuauStateMarshal.ReturnResult(L, result);
         }
         catch (Exception exception)
@@ -319,13 +318,14 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static unsafe int MethodCallback(lua_State* L)
+    private static unsafe int MethodCallback(lua_State* L, void* ctx)
     {
+        _ = ctx;
         try
         {
             if (!TryGetCallbackRegistration(L, out var registration, out object? userdata, out var errorMessage))
                 return LuauStateMarshal.ReturnError(L, errorMessage);
-            LuaResult<int, string> result = registration.OnMethodCallback(registration.State, userdata);
+            LuaResult<int, string> result = registration.OnMethodCallback(registration.State, L, userdata);
             return LuauStateMarshal.ReturnResult(L, result);
         }
         catch (Exception exception)
@@ -361,7 +361,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
             errorMessage = "userdata callback registration is invalid"u8;
             return false;
         }
-        if (resolvedRegistration.State.L != L)
+        if (!resolvedRegistration.State.OwnsThread(L))
         {
             errorMessage = "userdata callback registration belongs to a different state"u8;
             return false;
@@ -384,7 +384,7 @@ internal sealed class UserdataRegistrationCache(LuauState state) : IDisposable
         UserdataCallbackRegistration.OnLuaCallback OnMethodCallback
     )
     {
-        public delegate LuaResult<int, string> OnLuaCallback(LuauState lua, object? userdata);
+        public unsafe delegate LuaResult<int, string> OnLuaCallback(LuauState lua, lua_State* L, object? userdata);
     }
 }
 

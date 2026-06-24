@@ -74,7 +74,7 @@ public sealed class BufferTests : IDisposable
 
     public void Dispose()
     {
-        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2UL);
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(1UL);
         _state.Dispose();
     }
 }

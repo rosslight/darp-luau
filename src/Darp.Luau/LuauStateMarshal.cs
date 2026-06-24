@@ -22,18 +22,16 @@ internal static class LuauStateMarshal
     {
         if (message.IsEmpty)
             message = "something went wrong"u8;
-        lua_pushboolean(state, 0);
         PushString(state, message);
-        return 2;
+        return -1;
     }
 
     public static unsafe int ReturnError(lua_State* state, ReadOnlySpan<char> message)
     {
         if (message.IsEmpty)
             message = "something went wrong";
-        lua_pushboolean(state, 0);
         PushString(state, message);
-        return 2;
+        return -1;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -43,48 +41,16 @@ internal static class LuauStateMarshal
         return ReturnError(state, callbackError);
     }
 
-    /// <summary>
-    /// Prefixes an existing list of output values on the stack with the success flag.
-    /// </summary>
-    /// <remarks>
-    /// Expects the top <paramref name="outputCount"/> values to be output values.
-    /// </remarks>
     public static unsafe int ReturnSuccess(lua_State* state, int outputCount)
     {
-        if (outputCount <= 0)
-        {
-            lua_pushboolean(state, 1);
-            return 1;
-        }
-
-        int top = lua_gettop(state);
-        if (outputCount > top)
+        if (outputCount < 0)
             throw new ArgumentOutOfRangeException(
                 nameof(outputCount),
                 outputCount,
-                "Output count exceeds current stack."
+                "Output count cannot be negative."
             );
-
-        int firstOutputIndex = top - outputCount + 1;
-        Span<int> outputReferences = outputCount <= 16 ? stackalloc int[outputCount] : new int[outputCount];
-        for (int i = 0; i < outputCount; i++)
-        {
-            lua_pushvalue(state, firstOutputIndex + i);
-            int reference = lua_ref(state, -1);
-            lua_pop(state, 1);
-            outputReferences[i] = reference;
-        }
-
-        lua_settop(state, top - outputCount);
-        lua_pushboolean(state, 1);
-        for (int i = 0; i < outputCount; i++)
-        {
-            int reference = outputReferences[i];
-            lua_getref(state, reference);
-            lua_unref(state, reference);
-        }
-
-        return 1 + outputCount;
+        _ = state;
+        return outputCount;
     }
 
     public static unsafe bool TryGetString(lua_State* L, int stackIndex, out ReadOnlySpan<byte> value)

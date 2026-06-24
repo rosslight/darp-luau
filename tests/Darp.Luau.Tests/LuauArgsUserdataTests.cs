@@ -115,7 +115,7 @@ public sealed class LuauArgsUserdataTests : IDisposable
 
     public void Dispose()
     {
-        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(2UL);
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(1UL);
         _state.Dispose();
     }
 }

@@ -27,6 +27,18 @@ public sealed class GeneratedModuleLoadingTests
     }
 
     [Fact]
+    public void GeneratedStaticModule_ShouldWorkUnderNone()
+    {
+        using var state = new LuauState(LuauLibraries.None);
+
+        state.RegisterModule(ArcadeModule.ModuleName, ArcadeModule.OnLoad);
+
+        int result = state.Load("""return require("arcade").add_score(40, 2)""").Execute<int>();
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
     public void GeneratedModule_ShouldCreateNestedTables()
     {
         using var state = new LuauState();

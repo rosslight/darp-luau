@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
+using Darp.Luau.Native;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
@@ -16,7 +17,8 @@ public readonly ref struct LuauUserdataView : ILuauView<LuauUserdata>
 {
     private readonly StackReference _reference;
 
-    internal LuauUserdataView(LuauState state, int stackIndex) => _reference = new StackReference(state, stackIndex);
+    internal unsafe LuauUserdataView(LuauState state, lua_State* luaState, int stackIndex) =>
+        _reference = new StackReference(state, luaState, stackIndex);
 
     /// <summary>
     /// Attempts to resolve this borrowed userdata as managed userdata of type <typeparamref name="T"/>.

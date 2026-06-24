@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
+using Darp.Luau.Native;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
@@ -16,7 +17,8 @@ public readonly ref struct LuauStringView : ILuauView<LuauString>
 {
     private readonly StackReference _reference;
 
-    internal LuauStringView(LuauState state, int stackIndex) => _reference = new StackReference(state, stackIndex);
+    internal unsafe LuauStringView(LuauState state, lua_State* luaState, int stackIndex) =>
+        _reference = new StackReference(state, luaState, stackIndex);
 
     /// <summary>
     /// Attempts to get the underlying string bytes as a UTF-8 span.

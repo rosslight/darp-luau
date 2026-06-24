@@ -143,6 +143,56 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void CSharpFunction_ResultObject_FromCoroutine_ShouldReturnValue()
+    {
+        using LuauFunction func = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadNumber(1, out int a, out string? error) || !args.TryReadNumber(2, out int b, out error))
+                return LuauReturn.Error(error);
+
+            return LuauReturn.Ok(a + b);
+        });
+        _state.Globals.Set("add", func);
+
+        int result = _state
+            .Load(
+                """
+                local co = coroutine.create(function()
+                  return add(40, 2)
+                end)
+                local ok, value = coroutine.resume(co)
+                if not ok then error(value) end
+                return value
+                """
+            )
+            .Execute<int>();
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
+    public void CSharpFunction_ResultObject_ErrorFromCoroutine_ShouldBeLuaError()
+    {
+        using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Error("boom from coroutine"));
+        _state.Globals.Set("fail", func);
+
+        (bool ok, string error) = _state
+            .Load(
+                """
+                local co = coroutine.create(function()
+                  return fail()
+                end)
+                local ok, value = coroutine.resume(co)
+                return ok, tostring(value)
+                """
+            )
+            .Execute<bool, string>();
+
+        ok.ShouldBeFalse();
+        error.ShouldContain("boom from coroutine");
+    }
+
+    [Fact]
     public void CSharpFunction_ResultObject_ShouldReturnStringValueViaOk()
     {
         using LuauFunction func = _state.CreateFunctionBuilder(static _ => LuauReturn.Ok("hello from csharp"));
@@ -1120,6 +1170,45 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void LuauFunctionView_Invoke_FromCoroutine_ShouldWorkInsideManagedCallback()
+    {
+        _state
+            .Load(
+                """
+                function make_value()
+                  return 42
+                end
+                """
+            )
+            .Execute();
+
+        using LuauFunction callAndRead = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadLuauFunction(1, out LuauFunctionView function, out string? error))
+                return LuauReturn.Error(error);
+
+            return LuauReturn.Ok(function.Invoke<int>());
+        });
+
+        _state.Globals.Set("call_and_read", callAndRead);
+
+        int result = _state
+            .Load(
+                """
+                local co = coroutine.create(function()
+                  return call_and_read(make_value)
+                end)
+                local ok, value = coroutine.resume(co)
+                if not ok then error(value) end
+                return value
+                """
+            )
+            .Execute<int>();
+
+        result.ShouldBe(42);
+    }
+
+    [Fact]
     public void LuauFunctionView_Invoke_TupleReturn_ShouldWorkInsideManagedCallback()
     {
         _state
@@ -1359,6 +1448,38 @@ public sealed class FunctionTests : IDisposable
     }
 
     [Fact]
+    public void ReturningBorrowedTable_FromCoroutine_ShouldReturnArgument()
+    {
+        using LuauFunction echoTable = _state.CreateFunctionBuilder(static args =>
+        {
+            if (!args.TryReadLuauTable(1, out LuauTableView table, out string? error))
+                return LuauReturn.Error(error);
+
+            return LuauReturn.Ok(table);
+        });
+
+        _state.Globals.Set("echo_table", echoTable);
+
+        (int value, bool sameTable) = _state
+            .Load(
+                """
+                local co = coroutine.create(function()
+                  local input = { value = 42 }
+                  local output = echo_table(input)
+                  return output.value, output == input
+                end)
+                local ok, value, sameTable = coroutine.resume(co)
+                if not ok then error(value) end
+                return value, sameTable
+                """
+            )
+            .Execute<int, bool>();
+
+        value.ShouldBe(42);
+        sameTable.ShouldBeTrue();
+    }
+
+    [Fact]
     public void ReturningTable_ShouldWorkInsideManagedCallback2()
     {
         using LuauTable x = _state.CreateTable();
@@ -1402,7 +1523,7 @@ public sealed class FunctionTests : IDisposable
 
     public void Dispose()
     {
-        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe((ulong)2);
+        _state.MemoryStatistics.ActiveRegistryReferences.ShouldBe(1UL);
         _state.Dispose();
     }
 }
