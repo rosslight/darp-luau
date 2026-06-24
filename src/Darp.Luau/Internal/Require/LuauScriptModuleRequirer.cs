@@ -224,7 +224,13 @@ internal sealed unsafe class LuauScriptModuleRequirer : IDisposable
 
         string? strContent = req._virtualFileSystem.ReadFile(strLoadName);
         if (strContent is null)
-            return LuauStateMarshal.ReturnError(L, $"could not read file '{strChunkName}'");
+        {
+            int errorReturn = LuauStateMarshal.ReturnError(L, $"could not read file '{strChunkName}'");
+#if DEBUG
+            guard.OverwriteExpectedDelta(1);
+#endif
+            return errorReturn;
+        }
 
         // module needs to run in a new thread, isolated from the rest
         // note: we create ML on main thread so that it doesn't inherit environment of L
