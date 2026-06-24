@@ -1,4 +1,5 @@
 using Darp.Luau.Internal;
+using Darp.Luau.Native;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
@@ -13,7 +14,8 @@ public readonly ref struct LuauTableView : ILuauView<LuauTable>
 {
     private readonly StackReference _reference;
 
-    internal LuauTableView(LuauState state, int stackIndex) => _reference = new StackReference(state, stackIndex);
+    internal unsafe LuauTableView(LuauState state, lua_State* luaState, int stackIndex) =>
+        _reference = new StackReference(state, luaState, stackIndex);
 
     /// <summary>Gets the count of the table if viewed as a list.</summary>
     /// <remarks>If a lua table has holes, this property is unreliable.</remarks>

@@ -460,7 +460,7 @@ public readonly struct LuauValue : IDisposable
         if (_state is not null)
         {
             _state.ThrowIfDisposed();
-            if ((nint)_state.L != (nint)L)
+            if (!_state.OwnsThread(L))
                 throw new InvalidOperationException("Cross-state reference usage is not allowed.");
         }
 
@@ -486,6 +486,8 @@ public readonly struct LuauValue : IDisposable
 #pragma warning disable CA2000 // The pushed value is intentionally transferred to the caller's stack protocol and must remain on the stack.
                 trackedReference.PushToTop();
 #pragma warning restore CA2000
+                if ((nint)_state.L != (nint)L)
+                    lua_xmove(_state.L, L, 1);
                 break;
             default:
                 throw new InvalidOperationException($"Unsupported Luau value type: {Type}.");
@@ -494,7 +496,13 @@ public readonly struct LuauValue : IDisposable
 
     internal static unsafe LuauValue ToValue(LuauState state, int index = -1)
     {
-        lua_State* L = state.L;
+        return ToValue(state, state.L, index);
+    }
+
+    internal static unsafe LuauValue ToValue(LuauState state, lua_State* L, int index = -1)
+    {
+        if (!state.OwnsThread(L))
+            throw new InvalidOperationException("Cross-state value access is not allowed.");
 #if DEBUG
         using var guard = new StackGuard(L, expectedDelta: 0);
 #endif

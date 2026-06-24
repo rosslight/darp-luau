@@ -11,6 +11,7 @@ namespace Darp.Luau;
 public readonly unsafe ref partial struct LuauArgs
 {
     private readonly LuauState? _state;
+    private readonly lua_State* _luaState;
     private readonly int _firstParameterStackIndex;
 
     /// <summary> Gets the number of arguments supplied by the Lua caller. </summary>
@@ -23,8 +24,16 @@ public readonly unsafe ref partial struct LuauArgs
     /// <param name="argumentCount">Number of arguments available in this call frame.</param>
     /// <param name="firstParameterStackIndex">Absolute Lua stack index of parameter <c>1</c>.</param>
     internal LuauArgs(LuauState state, int argumentCount, int firstParameterStackIndex)
+        : this(state, state.L, argumentCount, firstParameterStackIndex) { }
+
+    internal LuauArgs(LuauState state, lua_State* luaState, int argumentCount, int firstParameterStackIndex)
     {
+        ArgumentNullException.ThrowIfNull(luaState);
+        if (!state.OwnsThread(luaState))
+            throw new InvalidOperationException("Cross-state callback argument usage is not allowed.");
+
         _state = state;
+        _luaState = luaState;
         ArgumentCount = argumentCount;
         _firstParameterStackIndex = firstParameterStackIndex;
     }
@@ -309,10 +318,10 @@ public readonly unsafe ref partial struct LuauArgs
     {
         value = default;
         _state.ThrowIfDisposed();
-        if (!TryGetParameterContext(parameterIndex, out _, out int stackIndex, out _, out error))
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out _, out error))
             return false;
 
-        value = LuauValue.ToValue(_state, stackIndex);
+        value = LuauValue.ToValue(_state, L, stackIndex);
         return true;
     }
 
@@ -334,7 +343,7 @@ public readonly unsafe ref partial struct LuauArgs
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TTABLE, out error))
             return false;
 
-        value = new LuauTableView(_state, stackIndex);
+        value = new LuauTableView(_state, L, stackIndex);
         return true;
     }
 
@@ -355,12 +364,12 @@ public readonly unsafe ref partial struct LuauArgs
     {
         value = default;
         _state.ThrowIfDisposed();
-        if (!TryGetParameterContext(parameterIndex, out _, out int stackIndex, out lua_Type type, out error))
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TFUNCTION, out error))
             return false;
 
-        value = new LuauFunctionView(_state, stackIndex);
+        value = new LuauFunctionView(_state, L, stackIndex);
         return true;
     }
 
@@ -377,12 +386,12 @@ public readonly unsafe ref partial struct LuauArgs
     {
         value = default;
         _state.ThrowIfDisposed();
-        if (!TryGetParameterContext(parameterIndex, out _, out int stackIndex, out lua_Type type, out error))
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TSTRING, out error))
             return false;
 
-        value = new LuauStringView(_state, stackIndex);
+        value = new LuauStringView(_state, L, stackIndex);
         return true;
     }
 
@@ -399,12 +408,12 @@ public readonly unsafe ref partial struct LuauArgs
     {
         value = default;
         _state.ThrowIfDisposed();
-        if (!TryGetParameterContext(parameterIndex, out _, out int stackIndex, out lua_Type type, out error))
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TBUFFER, out error))
             return false;
 
-        value = new LuauBufferView(_state, stackIndex);
+        value = new LuauBufferView(_state, L, stackIndex);
         return true;
     }
 
@@ -425,12 +434,12 @@ public readonly unsafe ref partial struct LuauArgs
     {
         value = default;
         _state.ThrowIfDisposed();
-        if (!TryGetParameterContext(parameterIndex, out _, out int stackIndex, out lua_Type type, out error))
+        if (!TryGetParameterContext(parameterIndex, out lua_State* L, out int stackIndex, out lua_Type type, out error))
             return false;
         if (!TryRequireType(parameterIndex, type, lua_Type.LUA_TUSERDATA, out error))
             return false;
 
-        value = new LuauUserdataView(_state, stackIndex);
+        value = new LuauUserdataView(_state, L, stackIndex);
         return true;
     }
 
@@ -532,7 +541,7 @@ public readonly unsafe ref partial struct LuauArgs
         }
 
         stackIndex = _firstParameterStackIndex + parameterIndex - 1;
-        L = _state.L;
+        L = _luaState;
         actualType = (lua_Type)lua_type(L, stackIndex);
         return true;
     }

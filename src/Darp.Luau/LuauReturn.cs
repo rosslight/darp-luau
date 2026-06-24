@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
+using Darp.Luau.Native;
 
 namespace Darp.Luau;
 
@@ -92,6 +93,19 @@ public readonly ref struct LuauReturn
     /// <returns><c>true</c> when values are available; otherwise <c>false</c>.</returns>
     internal bool TryPushValues(LuauState state, out int outputCount, [NotNullWhen(false)] out string? error)
     {
+        unsafe
+        {
+            return TryPushValues(state, state.L, out outputCount, out error);
+        }
+    }
+
+    internal unsafe bool TryPushValues(
+        LuauState state,
+        lua_State* luaState,
+        out int outputCount,
+        [NotNullWhen(false)] out string? error
+    )
+    {
         if (!IsOk)
         {
             outputCount = 0;
@@ -108,22 +122,22 @@ public readonly ref struct LuauReturn
                 case 0:
                     return true;
                 case 1:
-                    _buffer.Element0.Push(state);
+                    _buffer.Element0.Push(state, luaState);
                     return true;
                 case 2:
-                    _buffer.Element0.Push(state);
-                    _buffer.Element1.Push(state);
+                    _buffer.Element0.Push(state, luaState);
+                    _buffer.Element1.Push(state, luaState);
                     return true;
                 case 3:
-                    _buffer.Element0.Push(state);
-                    _buffer.Element1.Push(state);
-                    _buffer.Element2.Push(state);
+                    _buffer.Element0.Push(state, luaState);
+                    _buffer.Element1.Push(state, luaState);
+                    _buffer.Element2.Push(state, luaState);
                     return true;
                 case 4:
-                    _buffer.Element0.Push(state);
-                    _buffer.Element1.Push(state);
-                    _buffer.Element2.Push(state);
-                    _buffer.Element3.Push(state);
+                    _buffer.Element0.Push(state, luaState);
+                    _buffer.Element1.Push(state, luaState);
+                    _buffer.Element2.Push(state, luaState);
+                    _buffer.Element3.Push(state, luaState);
                     return true;
                 default:
                     throw new InvalidOperationException("Invalid number of return values.");

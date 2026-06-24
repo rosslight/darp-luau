@@ -77,9 +77,11 @@ internal readonly ref struct IntoLuauCopied
 
     internal static IntoLuauCopied FromUserdataFactory(Func<LuauState, LuauUserdata> factory) => new(factory);
 
-    internal unsafe void Push(LuauState state)
+    internal unsafe void Push(LuauState state, lua_State* L)
     {
-        lua_State* L = state.L;
+        if (!state.OwnsThread(L))
+            throw new InvalidOperationException("Cross-state value push is not allowed.");
+
         switch (_type)
         {
             case Kind.String:
@@ -137,7 +139,7 @@ internal readonly ref struct IntoLuauCopied
                 try
                 {
                     IntoLuau value = userdata;
-                    value.Push(state);
+                    value.Push(state, L);
                 }
                 finally
                 {

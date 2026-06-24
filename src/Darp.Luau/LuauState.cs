@@ -185,6 +185,12 @@ public sealed unsafe class LuauState : IDisposable
         return _moduleRequirer;
     }
 
+    internal bool OwnsThread(lua_State* luaState)
+    {
+        ArgumentNullException.ThrowIfNull(luaState);
+        return (nint)lua_mainthread(luaState) == (nint)L;
+    }
+
     private static bool IsReservedModuleName(string name) =>
         name.StartsWith('.')
         || name.StartsWith('/')
@@ -307,19 +313,21 @@ public sealed unsafe class LuauState : IDisposable
     {
         public int Invoke(lua_State* luaState)
         {
-            ArgumentOutOfRangeException.ThrowIfNotEqual((nint)luaState, (nint)state.L);
+            if (!state.OwnsThread(luaState))
+                return LuauStateMarshal.ReturnError(luaState, "managed function callback belongs to a different state");
+
             int numberOfParameters = lua_gettop(luaState);
 #if DEBUG
-            using var nestedGuard = new StackGuard(state.L, expectedDelta: 0);
+            using var nestedGuard = new StackGuard(luaState, expectedDelta: 0);
 #endif
             int topBeforeInvoke = lua_gettop(luaState);
-            var args = new LuauArgs(state, numberOfParameters, firstParameterStackIndex: 1);
+            var args = new LuauArgs(state, luaState, numberOfParameters, firstParameterStackIndex: 1);
             try
             {
                 LuauReturn result = onCalled(args);
                 Debug.Assert(lua_gettop(luaState) == topBeforeInvoke);
 
-                if (!result.TryPushValues(state, out int outputCount, out string? error))
+                if (!result.TryPushValues(state, luaState, out int outputCount, out string? error))
                 {
                     lua_settop(luaState, topBeforeInvoke);
                     int errorReturnCount = LuauStateMarshal.ReturnError(luaState, error);

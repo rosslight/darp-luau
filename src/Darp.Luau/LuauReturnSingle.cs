@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Darp.Luau.Internal;
+using Darp.Luau.Native;
 
 namespace Darp.Luau;
 
@@ -45,6 +46,14 @@ public readonly ref struct LuauReturnSingle
     /// <returns><c>true</c> when values are available; otherwise <c>false</c>.</returns>
     internal bool TryPushValue(LuauState state, [NotNullWhen(false)] out string? error)
     {
+        unsafe
+        {
+            return TryPushValue(state, state.L, out error);
+        }
+    }
+
+    internal unsafe bool TryPushValue(LuauState state, lua_State* luaState, [NotNullWhen(false)] out string? error)
+    {
         if (!IsOk)
         {
             error = _error ?? "Unknown error";
@@ -53,7 +62,7 @@ public readonly ref struct LuauReturnSingle
         error = null;
         try
         {
-            _value.Push(state);
+            _value.Push(state, luaState);
             return true;
         }
         finally

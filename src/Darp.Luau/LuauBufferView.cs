@@ -1,4 +1,5 @@
 using Darp.Luau.Internal;
+using Darp.Luau.Native;
 using Darp.Luau.Utils;
 
 namespace Darp.Luau;
@@ -15,7 +16,8 @@ public readonly ref struct LuauBufferView : ILuauView<LuauBuffer>
 {
     private readonly StackReference _reference;
 
-    internal LuauBufferView(LuauState state, int stackIndex) => _reference = new StackReference(state, stackIndex);
+    internal unsafe LuauBufferView(LuauState state, lua_State* luaState, int stackIndex) =>
+        _reference = new StackReference(state, luaState, stackIndex);
 
     /// <summary>
     /// Attempts to get a read-only span over the underlying Luau buffer bytes.
