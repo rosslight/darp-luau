@@ -37,7 +37,6 @@ public sealed class LuaException : Exception
         byte* err = lua_tolstring(L, -1, &outLength);
         string error = err is null ? "<unknown lua error>" : Encoding.UTF8.GetString(err, (int)outLength);
         lua_pop(L, 1);
-        lua_resetthread(L);
         string message = $"Lua invocation {description} failed with status {status}: {error}";
         throw new LuaException(message);
     }
